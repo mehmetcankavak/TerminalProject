@@ -1,0 +1,292 @@
+[
+  {
+    "asset_id": "COIN",
+    "display_name": "Coinbase",
+    "asset_type": "equity",
+    "aliases": ["coinbase"],
+    "brands": ["coinbase"],
+    "tradable_symbols": ["COINUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["crypto_exchange", "cefi", "regulation"]
+  },
+  {
+    "asset_id": "MSTR",
+    "display_name": "Strategy (MicroStrategy)",
+    "asset_type": "equity",
+    "aliases": ["microstrategy", "strategy", "mstr"],
+    "brands": ["microstrategy", "strategy"],
+    "tradable_symbols": ["MSTRUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["btc_proxy", "corporate_treasury"]
+  },
+  {
+    "asset_id": "HOOD",
+    "display_name": "Robinhood",
+    "asset_type": "equity",
+    "aliases": ["robinhood", "hood"],
+    "brands": ["robinhood"],
+    "tradable_symbols": ["HOODUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["retail_brokerage", "fintech"]
+  },
+  {
+    "asset_id": "INTC",
+    "display_name": "Intel",
+    "asset_type": "equity",
+    "aliases": ["intel", "intc"],
+    "brands": ["intel"],
+    "tradable_symbols": ["INTCUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["semiconductor", "ai", "chips"]
+  },
+  {
+    "asset_id": "NVDA",
+    "display_name": "NVIDIA",
+    "asset_type": "equity",
+    "aliases": ["nvidia", "nvda"],
+    "brands": ["nvidia"],
+    "tradable_symbols": ["NVDAUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["ai", "gpu", "semiconductor"]
+  },
+  {
+    "asset_id": "MSFT",
+    "display_name": "Microsoft",
+    "asset_type": "equity",
+    "aliases": ["microsoft", "msft"],
+    "brands": ["microsoft"],
+    "tradable_symbols": ["MSFTUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["tech", "ai", "cloud"]
+  },
+  {
+    "asset_id": "AAPL",
+    "display_name": "Apple",
+    "asset_type": "equity",
+    "aliases": ["apple", "aapl"],
+    "brands": ["apple"],
+    "tradable_symbols": ["AAPLUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["tech", "consumer"]
+  },
+  {
+    "asset_id": "AMZN",
+    "display_name": "Amazon",
+    "asset_type": "equity",
+    "aliases": ["amazon", "amzn"],
+    "brands": ["amazon"],
+    "tradable_symbols": ["AMZNUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["ecommerce", "cloud", "consumer"]
+  },
+  {
+    "asset_id": "CRCL",
+    "display_name": "Circle",
+    "asset_type": "equity",
+    "aliases": ["circle", "crcl"],
+    "brands": ["circle"],
+    "tradable_symbols": ["CRCLUSDT"],
+    "exchange": "NYSE",
+    "themes": ["stablecoin", "payments", "crypto"]
+  },
+  {
+    "asset_id": "PLTR",
+    "display_name": "Palantir",
+    "asset_type": "equity",
+    "aliases": ["palantir", "pltr"],
+    "brands": ["palantir"],
+    "tradable_symbols": ["PLTRUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["ai", "data", "defense"]
+  },
+  {
+    "asset_id": "TSLA",
+    "display_name": "Tesla",
+    "asset_type": "equity",
+    "aliases": ["tesla", "tsla"],
+    "brands": ["tesla"],
+    "tradable_symbols": ["TSLAUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["ev", "tech", "elon_musk"]
+  },
+  {
+    "asset_id": "RIOT",
+    "display_name": "Riot Platforms",
+    "asset_type": "equity",
+    "aliases": ["riot platforms", "riot"],
+    "brands": ["riot"],
+    "tradable_symbols": ["RIOTUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["crypto_mining", "bitcoin_mining", "btc_proxy"]
+  },
+  {
+    "asset_id": "MARA",
+    "display_name": "Marathon Digital",
+    "asset_type": "equity",
+    "aliases": ["marathon digital", "marathon", "mara"],
+    "brands": ["marathon digital"],
+    "tradable_symbols": ["MARAUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["crypto_mining", "bitcoin_mining", "btc_proxy"]
+  },
+  {
+    "asset_id": "META",
+    "display_name": "Meta Platforms",
+    "asset_type": "equity",
+    "aliases": ["meta", "facebook", "meta platforms"],
+    "brands": ["meta", "facebook"],
+    "tradable_symbols": ["METAUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["ai", "social", "tech"]
+  },
+  {
+    "asset_id": "GOOGL",
+    "display_name": "Alphabet",
+    "asset_type": "equity",
+    "aliases": ["alphabet", "google", "googl"],
+    "brands": ["alphabet", "google"],
+    "tradable_symbols": ["GOOGLUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["ai", "search", "cloud"]
+  },
+  {
+    "asset_id": "TSM",
+    "display_name": "Taiwan Semiconductor",
+    "asset_type": "equity",
+    "aliases": ["taiwan semiconductor", "tsmc", "tsm"],
+    "brands": ["tsmc"],
+    "tradable_symbols": ["TSMUSDT"],
+    "exchange": "NYSE",
+    "themes": ["semiconductor", "chips", "ai"]
+  },
+  {
+    "asset_id": "MU",
+    "display_name": "Micron",
+    "asset_type": "equity",
+    "aliases": ["micron", "mu"],
+    "brands": ["micron"],
+    "tradable_symbols": ["MUUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["memory", "semiconductor", "ai"]
+  },
+  {
+    "asset_id": "SNDK",
+    "display_name": "SanDisk",
+    "asset_type": "equity",
+    "aliases": ["sandisk", "sndk"],
+    "brands": ["sandisk"],
+    "tradable_symbols": ["SNDKUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["storage", "semiconductor", "consumer"]
+  },
+  {
+    "asset_id": "SQ",
+    "display_name": "Block (Square)",
+    "asset_type": "equity",
+    "aliases": ["block inc", "square", "cash app"],
+    "brands": ["block", "square", "cash app"],
+    "tradable_symbols": ["SQUSDT"],
+    "exchange": "NYSE",
+    "themes": ["fintech", "payments", "crypto"]
+  },
+  {
+    "asset_id": "PYPL",
+    "display_name": "PayPal",
+    "asset_type": "equity",
+    "aliases": ["paypal", "pypl", "payp"],
+    "brands": ["paypal"],
+    "tradable_symbols": ["PAYPUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["fintech", "payments"]
+  },
+  {
+    "asset_id": "EWY",
+    "display_name": "iShares MSCI South Korea ETF",
+    "asset_type": "etf",
+    "aliases": ["ewy", "korea etf", "south korea etf"],
+    "brands": ["ishares"],
+    "tradable_symbols": ["EWYUSDT"],
+    "exchange": "NYSE",
+    "themes": ["etf", "asia", "equities"]
+  },
+  {
+    "asset_id": "EWJ",
+    "display_name": "iShares MSCI Japan ETF",
+    "asset_type": "etf",
+    "aliases": ["ewj", "japan etf"],
+    "brands": ["ishares"],
+    "tradable_symbols": ["EWJUSDT"],
+    "exchange": "NYSE",
+    "themes": ["etf", "asia", "equities"]
+  },
+  {
+    "asset_id": "QQQ",
+    "display_name": "Invesco QQQ Trust",
+    "asset_type": "etf",
+    "aliases": ["qqq", "invesco qqq", "nasdaq etf"],
+    "brands": ["invesco"],
+    "tradable_symbols": ["QQQUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["etf", "tech", "equities"]
+  },
+  {
+    "asset_id": "SPY",
+    "display_name": "SPDR S&P 500 ETF",
+    "asset_type": "etf",
+    "aliases": ["spy", "spdr s&p 500", "sp500 etf"],
+    "brands": ["spdr"],
+    "tradable_symbols": ["SPYUSDT"],
+    "exchange": "NYSE",
+    "themes": ["etf", "equities", "macro"]
+  },
+  {
+    "asset_id": "BITO",
+    "display_name": "ProShares Bitcoin ETF",
+    "asset_type": "etf",
+    "aliases": ["bito", "proshares bitcoin"],
+    "brands": ["proshares"],
+    "tradable_symbols": [],
+    "exchange": "NYSE",
+    "themes": ["etf", "btc_proxy"]
+  },
+  {
+    "asset_id": "IBIT",
+    "display_name": "iShares Bitcoin Trust ETF",
+    "asset_type": "etf",
+    "aliases": ["ibit", "ishares bitcoin", "blackrock bitcoin etf"],
+    "brands": ["blackrock", "ishares"],
+    "tradable_symbols": [],
+    "exchange": "NASDAQ",
+    "themes": ["etf", "btc_proxy"]
+  },
+  {
+    "asset_id": "FBTC",
+    "display_name": "Fidelity Wise Origin Bitcoin Fund",
+    "asset_type": "etf",
+    "aliases": ["fbtc", "fidelity bitcoin"],
+    "brands": ["fidelity"],
+    "tradable_symbols": [],
+    "exchange": "NYSE",
+    "themes": ["etf", "btc_proxy"]
+  },
+  {
+    "asset_id": "GBTC",
+    "display_name": "Grayscale Bitcoin Trust",
+    "asset_type": "etf",
+    "aliases": ["gbtc", "grayscale bitcoin trust", "grayscale"],
+    "brands": ["grayscale"],
+    "tradable_symbols": [],
+    "exchange": "NYSE",
+    "themes": ["etf", "btc_proxy"]
+  },
+  {
+    "asset_id": "CME",
+    "display_name": "CME Group",
+    "asset_type": "equity",
+    "aliases": ["cme group", "cme"],
+    "brands": ["cme"],
+    "tradable_symbols": ["CMEUSDT"],
+    "exchange": "NASDAQ",
+    "themes": ["derivatives", "futures", "commodities"]
+  }
+]

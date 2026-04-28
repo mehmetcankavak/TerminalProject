@@ -1,0 +1,42 @@
+--- /Users/mehmetcan/Desktop/terminal/web/src/components/PortfolioPage.jsx
++++ /Users/mehmetcan/Desktop/terminal/web/src/components/PortfolioPage.jsx
+@@ -162,6 +162,39 @@
+     const isLiveConnected = liveSource && liveSource !== 'paper' && liveBalances
+     const canUseHlTransfers = isLiveConnected && liveSource === 'hyperliquid'
+ 
++    // Chart Points Calculation
++    const rangeHistory = pnlWindows?.[chartRange] || []
++    const useOfficialHyperliquidChart = isHyperliquidPortfolio && rangeHistory.length > 0
++    let currentCum = 0
++    const chartPoints = useOfficialHyperliquidChart
++        ? rangeHistory.map((p) => ({
++            cum: p.pnl,
++            pnl: null,
++            isDynamic: false,
++            date: p.timestamp ? new Date(p.timestamp).toISOString() : null,
++            symbol: 'HL',
++        }))
++        : trades.reduce((acc, t, i) => {
++            currentCum += (t.total_pnl ?? t.realized_pnl ?? 0)
++            acc.push({ cum: currentCum, pnl: (t.total_pnl ?? t.realized_pnl ?? 0), isDynamic: false, date: t.closed_at, symbol: t.symbol, side: t.side, idx: i + 1 })
++            return acc
++        }, [])
++
++    if (!useOfficialHyperliquidChart && positions.length > 0) {
++        chartPoints.push({ cum: currentCum + (unrealizedPnl || 0), pnl: unrealizedPnl || 0, isDynamic: true, idx: trades.length + 1 })
++    }
++    
++    if (chartPoints.length === 1) chartPoints.unshift({ cum: 0, pnl: 0, isDynamic: false })
++
++    // Hover state formatting
++    const hoveredPoint = hoverPt?.idx != null ? chartPoints[hoverPt.idx] : null;
++    const lastCum = chartPoints[chartPoints.length - 1]?.cum || 0;
++    const initialBalance = balance - lastCum;
++    
++    const currentDisplayBalance = hoveredPoint ? initialBalance + hoveredPoint.cum : balance;
++    const currentDisplayPnl = hoveredPoint ? hoveredPoint.cum : realizedPnl;
++    const displayDate = hoveredPoint?.date ? new Date(hoveredPoint.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }).replace('/', '/') : null;
++
+     return (
+         <>
+         <div className="hl-pf-page">

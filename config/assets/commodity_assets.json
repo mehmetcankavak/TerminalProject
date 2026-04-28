@@ -1,0 +1,110 @@
+[
+  {
+    "asset_id": "BRENT",
+    "display_name": "Brent Oil",
+    "asset_type": "commodity",
+    "aliases": ["brent", "brent oil", "brent crude"],
+    "brands": [],
+    "tradable_symbols": ["BZUSDT"],
+    "themes": ["energy", "oil", "macro", "geopolitics"]
+  },
+  {
+    "asset_id": "WTI",
+    "display_name": "WTI Crude Oil",
+    "asset_type": "commodity",
+    "aliases": ["wti", "crude oil", "crude", "oil", "west texas"],
+    "brands": [],
+    "tradable_symbols": ["CLUSDT"],
+    "themes": ["energy", "oil", "macro", "geopolitics"]
+  },
+  {
+    "asset_id": "GOLD",
+    "display_name": "Gold",
+    "asset_type": "commodity",
+    "aliases": ["gold", "xau", "xauusd", "bullion"],
+    "brands": [],
+    "tradable_symbols": ["XAUUSDT"],
+    "themes": ["store_of_value", "macro", "safe_haven", "inflation_hedge"]
+  },
+  {
+    "asset_id": "SILVER",
+    "display_name": "Silver",
+    "asset_type": "commodity",
+    "aliases": ["silver", "xag", "xagusd"],
+    "brands": [],
+    "tradable_symbols": ["XAGUSDT"],
+    "themes": ["store_of_value", "industrial", "macro"]
+  },
+  {
+    "asset_id": "NATGAS",
+    "display_name": "Natural Gas",
+    "asset_type": "commodity",
+    "aliases": ["natural gas", "natgas", "lng", "natural gas prices"],
+    "brands": [],
+    "tradable_symbols": ["NATGASUSDT"],
+    "themes": ["energy", "macro", "geopolitics"]
+  },
+  {
+    "asset_id": "WHEAT",
+    "display_name": "Wheat",
+    "asset_type": "commodity",
+    "aliases": ["wheat", "grain", "wheat prices"],
+    "brands": [],
+    "tradable_symbols": [],
+    "themes": ["agriculture", "food", "geopolitics"]
+  },
+  {
+    "asset_id": "COPPER",
+    "display_name": "Copper",
+    "asset_type": "commodity",
+    "aliases": ["copper"],
+    "brands": [],
+    "tradable_symbols": ["COPPERUSDT"],
+    "themes": ["industrial", "macro", "china"]
+  },
+  {
+    "asset_id": "PLATINUM",
+    "display_name": "Platinum",
+    "asset_type": "commodity",
+    "aliases": ["platinum", "xpt", "xptusd"],
+    "brands": [],
+    "tradable_symbols": ["XPTUSDT"],
+    "themes": ["industrial", "macro", "metals"]
+  },
+  {
+    "asset_id": "PALLADIUM",
+    "display_name": "Palladium",
+    "asset_type": "commodity",
+    "aliases": ["palladium", "xpd", "xpdusd"],
+    "brands": [],
+    "tradable_symbols": ["XPDUSDT"],
+    "themes": ["industrial", "macro", "metals"]
+  },
+  {
+    "asset_id": "DXY",
+    "display_name": "US Dollar Index",
+    "asset_type": "index",
+    "aliases": ["dxy", "dollar index", "us dollar index"],
+    "brands": [],
+    "tradable_symbols": [],
+    "themes": ["macro", "forex", "fed"]
+  },
+  {
+    "asset_id": "SPX",
+    "display_name": "S&P 500",
+    "asset_type": "index",
+    "aliases": ["s&p 500", "s&p500", "spx", "s&p", "sp500"],
+    "brands": [],
+    "tradable_symbols": ["SPYUSDT"],
+    "themes": ["macro", "equities", "risk_sentiment"]
+  },
+  {
+    "asset_id": "NDX",
+    "display_name": "NASDAQ 100",
+    "asset_type": "index",
+    "aliases": ["nasdaq", "nasdaq 100", "ndx", "qqq"],
+    "brands": [],
+    "tradable_symbols": ["QQQUSDT"],
+    "themes": ["macro", "tech", "equities"]
+  }
+]

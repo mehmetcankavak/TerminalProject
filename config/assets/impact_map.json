@@ -1,0 +1,72 @@
+{
+  "geopolitics": {
+    "primary_assets": ["BRENT", "WTI", "GOLD"],
+    "secondary_assets": ["BTC", "ETH"],
+    "notes": "Energy shocks and risk-off sentiment affect crypto and commodities"
+  },
+  "energy": {
+    "primary_assets": ["BRENT", "WTI", "NATGAS"],
+    "secondary_assets": ["BTC"],
+    "notes": "Oil/gas moves affect risk sentiment; BTC mining costs tied to energy"
+  },
+  "etf": {
+    "primary_assets": ["BTC", "ETH"],
+    "secondary_assets": [],
+    "notes": "ETF approvals or rejections most directly affect BTC and ETH"
+  },
+  "macro": {
+    "primary_assets": ["GOLD", "DXY", "SPX"],
+    "secondary_assets": ["BTC", "ETH"],
+    "notes": "Macro events affect DXY, bonds, equities, and by extension crypto"
+  },
+  "inflation": {
+    "primary_assets": ["GOLD", "BTC"],
+    "secondary_assets": ["DXY"],
+    "notes": "High inflation is bullish for hard assets like gold and BTC"
+  },
+  "regulation": {
+    "primary_assets": ["BTC", "ETH"],
+    "secondary_assets": ["COIN", "MSTR"],
+    "notes": "Regulatory news broadly affects crypto; equities for listed companies"
+  },
+  "hack": {
+    "primary_assets": [],
+    "secondary_assets": ["BTC", "ETH"],
+    "notes": "Major hacks create selling pressure; affected protocol tokens drop most"
+  },
+  "institutional": {
+    "primary_assets": ["BTC", "ETH"],
+    "secondary_assets": ["COIN", "MSTR"],
+    "notes": "Institutional adoption most directly benefits BTC/ETH"
+  },
+  "mining": {
+    "primary_assets": ["BTC"],
+    "secondary_assets": ["RIOT", "MARA"],
+    "notes": "Mining news directly affects BTC and mining equities"
+  },
+  "stablecoin": {
+    "primary_assets": ["USDT", "USDC"],
+    "secondary_assets": ["BTC", "ETH"],
+    "notes": "Stablecoin depegs trigger broad crypto selling"
+  },
+  "defi": {
+    "primary_assets": ["ETH"],
+    "secondary_assets": ["AAVE", "UNI", "CRV", "LDO"],
+    "notes": "DeFi ecosystem news primarily impacts ETH and DeFi tokens"
+  },
+  "nft": {
+    "primary_assets": ["ETH", "SOL"],
+    "secondary_assets": ["PENGU", "BLUR"],
+    "notes": "NFT activity is mostly on Ethereum and Solana"
+  },
+  "ai": {
+    "primary_assets": ["RNDR", "FET"],
+    "secondary_assets": ["BTC", "ETH"],
+    "notes": "AI narrative drives AI-themed tokens and broadly benefits crypto"
+  },
+  "exchange": {
+    "primary_assets": ["BNB"],
+    "secondary_assets": ["BTC", "ETH"],
+    "notes": "Exchange-related news most directly affects exchange tokens like BNB"
+  }
+}

@@ -1,0 +1,506 @@
+[
+  {
+    "asset_id": "BTC",
+    "display_name": "Bitcoin",
+    "asset_type": "crypto",
+    "aliases": ["bitcoin", "btc", "xbt"],
+    "brands": [],
+    "tradable_symbols": ["BTCUSDT"],
+    "themes": ["store_of_value", "pow", "digital_gold"]
+  },
+  {
+    "asset_id": "ETH",
+    "display_name": "Ethereum",
+    "asset_type": "crypto",
+    "aliases": ["ethereum", "eth", "ether"],
+    "brands": [],
+    "tradable_symbols": ["ETHUSDT"],
+    "themes": ["smart_contract", "defi", "pos"]
+  },
+  {
+    "asset_id": "BNB",
+    "display_name": "BNB",
+    "asset_type": "crypto",
+    "aliases": ["bnb", "binance coin", "binance token"],
+    "brands": ["binance"],
+    "tradable_symbols": ["BNBUSDT"],
+    "themes": ["exchange_token", "cefi"]
+  },
+  {
+    "asset_id": "SOL",
+    "display_name": "Solana",
+    "asset_type": "crypto",
+    "aliases": ["solana", "sol"],
+    "brands": [],
+    "tradable_symbols": ["SOLUSDT"],
+    "themes": ["smart_contract", "l1", "high_throughput"]
+  },
+  {
+    "asset_id": "XRP",
+    "display_name": "XRP",
+    "asset_type": "crypto",
+    "aliases": ["xrp", "ripple"],
+    "brands": ["ripple"],
+    "tradable_symbols": ["XRPUSDT"],
+    "themes": ["payments", "remittance", "regulation"]
+  },
+  {
+    "asset_id": "ADA",
+    "display_name": "Cardano",
+    "asset_type": "crypto",
+    "aliases": ["cardano", "ada"],
+    "brands": [],
+    "tradable_symbols": ["ADAUSDT"],
+    "themes": ["smart_contract", "l1", "pos"]
+  },
+  {
+    "asset_id": "DOGE",
+    "display_name": "Dogecoin",
+    "asset_type": "crypto",
+    "aliases": ["dogecoin", "doge"],
+    "brands": [],
+    "tradable_symbols": ["DOGEUSDT"],
+    "themes": ["memecoin", "community"]
+  },
+  {
+    "asset_id": "AVAX",
+    "display_name": "Avalanche",
+    "asset_type": "crypto",
+    "aliases": ["avalanche", "avax"],
+    "brands": [],
+    "tradable_symbols": ["AVAXUSDT"],
+    "themes": ["smart_contract", "l1", "subnets"]
+  },
+  {
+    "asset_id": "LINK",
+    "display_name": "Chainlink",
+    "asset_type": "crypto",
+    "aliases": ["chainlink", "link"],
+    "brands": [],
+    "tradable_symbols": ["LINKUSDT"],
+    "themes": ["oracle", "infrastructure"]
+  },
+  {
+    "asset_id": "DOT",
+    "display_name": "Polkadot",
+    "asset_type": "crypto",
+    "aliases": ["polkadot", "dot"],
+    "brands": [],
+    "tradable_symbols": ["DOTUSDT"],
+    "themes": ["interoperability", "parachain"]
+  },
+  {
+    "asset_id": "POL",
+    "display_name": "Polygon",
+    "asset_type": "crypto",
+    "aliases": ["polygon", "pol", "matic"],
+    "brands": [],
+    "tradable_symbols": ["POLUSDT"],
+    "themes": ["l2", "scaling", "evm"]
+  },
+  {
+    "asset_id": "LTC",
+    "display_name": "Litecoin",
+    "asset_type": "crypto",
+    "aliases": ["litecoin", "ltc"],
+    "brands": [],
+    "tradable_symbols": ["LTCUSDT"],
+    "themes": ["payments", "pow"]
+  },
+  {
+    "asset_id": "ATOM",
+    "display_name": "Cosmos",
+    "asset_type": "crypto",
+    "aliases": ["cosmos", "atom"],
+    "brands": [],
+    "tradable_symbols": ["ATOMUSDT"],
+    "themes": ["interoperability", "ibc"]
+  },
+  {
+    "asset_id": "UNI",
+    "display_name": "Uniswap",
+    "asset_type": "crypto",
+    "aliases": ["uniswap", "uni"],
+    "brands": [],
+    "tradable_symbols": ["UNIUSDT"],
+    "themes": ["defi", "dex", "amm"]
+  },
+  {
+    "asset_id": "PEPE",
+    "display_name": "Pepe",
+    "asset_type": "crypto",
+    "aliases": ["pepe", "pepe coin"],
+    "brands": [],
+    "tradable_symbols": ["PEPEUSDT"],
+    "themes": ["memecoin", "community"]
+  },
+  {
+    "asset_id": "SUI",
+    "display_name": "Sui",
+    "asset_type": "crypto",
+    "aliases": ["sui"],
+    "brands": [],
+    "tradable_symbols": ["SUIUSDT"],
+    "themes": ["l1", "smart_contract", "move"]
+  },
+  {
+    "asset_id": "ARB",
+    "display_name": "Arbitrum",
+    "asset_type": "crypto",
+    "aliases": ["arbitrum", "arb"],
+    "brands": [],
+    "tradable_symbols": ["ARBUSDT"],
+    "themes": ["l2", "scaling", "evm", "rollup"]
+  },
+  {
+    "asset_id": "OP",
+    "display_name": "Optimism",
+    "asset_type": "crypto",
+    "aliases": ["optimism"],
+    "brands": [],
+    "tradable_symbols": ["OPUSDT"],
+    "themes": ["l2", "scaling", "evm", "rollup"]
+  },
+  {
+    "asset_id": "TON",
+    "display_name": "Toncoin",
+    "asset_type": "crypto",
+    "aliases": ["toncoin", "ton", "the open network"],
+    "brands": ["telegram"],
+    "tradable_symbols": ["TONUSDT"],
+    "themes": ["l1", "messaging"]
+  },
+  {
+    "asset_id": "NEAR",
+    "display_name": "NEAR Protocol",
+    "asset_type": "crypto",
+    "aliases": ["near protocol", "near"],
+    "brands": [],
+    "tradable_symbols": ["NEARUSDT"],
+    "themes": ["l1", "sharding", "smart_contract"]
+  },
+  {
+    "asset_id": "FIL",
+    "display_name": "Filecoin",
+    "asset_type": "crypto",
+    "aliases": ["filecoin", "fil"],
+    "brands": [],
+    "tradable_symbols": ["FILUSDT"],
+    "themes": ["storage", "decentralized_storage"]
+  },
+  {
+    "asset_id": "INJ",
+    "display_name": "Injective",
+    "asset_type": "crypto",
+    "aliases": ["injective", "inj"],
+    "brands": [],
+    "tradable_symbols": ["INJUSDT"],
+    "themes": ["defi", "dex", "derivatives"]
+  },
+  {
+    "asset_id": "TRX",
+    "display_name": "TRON",
+    "asset_type": "crypto",
+    "aliases": ["tron", "trx"],
+    "brands": [],
+    "tradable_symbols": ["TRXUSDT"],
+    "themes": ["l1", "stablecoin"]
+  },
+  {
+    "asset_id": "PENGU",
+    "display_name": "Pudgy Penguins",
+    "asset_type": "crypto",
+    "aliases": ["pengu", "pudgy penguins", "penguins"],
+    "brands": ["pudgy penguins"],
+    "tradable_symbols": ["PENGUUSDT"],
+    "themes": ["memecoin", "nft", "community"]
+  },
+  {
+    "asset_id": "PUMP",
+    "display_name": "Pump.fun",
+    "asset_type": "crypto",
+    "aliases": ["pump.fun", "pump fun"],
+    "brands": ["pump.fun"],
+    "tradable_symbols": [],
+    "themes": ["memecoin", "launchpad", "solana"]
+  },
+  {
+    "asset_id": "WIF",
+    "display_name": "dogwifhat",
+    "asset_type": "crypto",
+    "aliases": ["dogwifhat", "wif", "dog wif hat"],
+    "brands": [],
+    "tradable_symbols": ["WIFUSDT"],
+    "themes": ["memecoin", "solana"]
+  },
+  {
+    "asset_id": "BONK",
+    "display_name": "Bonk",
+    "asset_type": "crypto",
+    "aliases": ["bonk"],
+    "brands": [],
+    "tradable_symbols": ["BONKUSDT"],
+    "themes": ["memecoin", "solana"]
+  },
+  {
+    "asset_id": "FLOKI",
+    "display_name": "Floki",
+    "asset_type": "crypto",
+    "aliases": ["floki", "floki inu"],
+    "brands": [],
+    "tradable_symbols": ["FLOKIUSDT"],
+    "themes": ["memecoin", "community"]
+  },
+  {
+    "asset_id": "SHIB",
+    "display_name": "Shiba Inu",
+    "asset_type": "crypto",
+    "aliases": ["shiba inu", "shib", "shiba"],
+    "brands": [],
+    "tradable_symbols": ["SHIBUSDT"],
+    "themes": ["memecoin", "community"]
+  },
+  {
+    "asset_id": "APT",
+    "display_name": "Aptos",
+    "asset_type": "crypto",
+    "aliases": ["aptos", "apt"],
+    "brands": [],
+    "tradable_symbols": ["APTUSDT"],
+    "themes": ["l1", "move", "smart_contract"]
+  },
+  {
+    "asset_id": "SEI",
+    "display_name": "Sei",
+    "asset_type": "crypto",
+    "aliases": ["sei"],
+    "brands": [],
+    "tradable_symbols": ["SEIUSDT"],
+    "themes": ["l1", "trading"]
+  },
+  {
+    "asset_id": "JUP",
+    "display_name": "Jupiter",
+    "asset_type": "crypto",
+    "aliases": ["jupiter", "jup"],
+    "brands": [],
+    "tradable_symbols": ["JUPUSDT"],
+    "themes": ["defi", "dex", "solana", "aggregator"]
+  },
+  {
+    "asset_id": "AAVE",
+    "display_name": "Aave",
+    "asset_type": "crypto",
+    "aliases": ["aave"],
+    "brands": [],
+    "tradable_symbols": ["AAVEUSDT"],
+    "themes": ["defi", "lending"]
+  },
+  {
+    "asset_id": "MKR",
+    "display_name": "Maker",
+    "asset_type": "crypto",
+    "aliases": ["maker", "mkr", "makerdao"],
+    "brands": ["makerdao"],
+    "tradable_symbols": ["MKRUSDT"],
+    "themes": ["defi", "stablecoin", "dao"]
+  },
+  {
+    "asset_id": "CRV",
+    "display_name": "Curve DAO",
+    "asset_type": "crypto",
+    "aliases": ["curve", "crv", "curve dao"],
+    "brands": ["curve"],
+    "tradable_symbols": ["CRVUSDT"],
+    "themes": ["defi", "dex", "stablecoin"]
+  },
+  {
+    "asset_id": "LDO",
+    "display_name": "Lido DAO",
+    "asset_type": "crypto",
+    "aliases": ["lido", "ldo"],
+    "brands": ["lido"],
+    "tradable_symbols": ["LDOUSDT"],
+    "themes": ["defi", "staking", "liquid_staking"]
+  },
+  {
+    "asset_id": "FTM",
+    "display_name": "Fantom",
+    "asset_type": "crypto",
+    "aliases": ["fantom", "ftm"],
+    "brands": [],
+    "tradable_symbols": ["FTMUSDT"],
+    "themes": ["l1", "smart_contract"]
+  },
+  {
+    "asset_id": "HBAR",
+    "display_name": "Hedera",
+    "asset_type": "crypto",
+    "aliases": ["hedera", "hbar"],
+    "brands": [],
+    "tradable_symbols": ["HBARUSDT"],
+    "themes": ["l1", "enterprise"]
+  },
+  {
+    "asset_id": "VET",
+    "display_name": "VeChain",
+    "asset_type": "crypto",
+    "aliases": ["vechain", "vet"],
+    "brands": [],
+    "tradable_symbols": ["VETUSDT"],
+    "themes": ["supply_chain", "enterprise"]
+  },
+  {
+    "asset_id": "ICP",
+    "display_name": "Internet Computer",
+    "asset_type": "crypto",
+    "aliases": ["internet computer", "icp"],
+    "brands": ["dfinity"],
+    "tradable_symbols": ["ICPUSDT"],
+    "themes": ["l1", "smart_contract", "web3"]
+  },
+  {
+    "asset_id": "RNDR",
+    "display_name": "Render",
+    "asset_type": "crypto",
+    "aliases": ["render", "rndr", "render network"],
+    "brands": [],
+    "tradable_symbols": ["RNDRUSDT"],
+    "themes": ["ai", "gpu", "depin"]
+  },
+  {
+    "asset_id": "FET",
+    "display_name": "Fetch.ai",
+    "asset_type": "crypto",
+    "aliases": ["fetch.ai", "fetch ai", "fet"],
+    "brands": [],
+    "tradable_symbols": ["FETUSDT"],
+    "themes": ["ai", "machine_learning"]
+  },
+  {
+    "asset_id": "GALA",
+    "display_name": "Gala",
+    "asset_type": "crypto",
+    "aliases": ["gala"],
+    "brands": [],
+    "tradable_symbols": ["GALAUSDT"],
+    "themes": ["gaming", "nft"]
+  },
+  {
+    "asset_id": "SAND",
+    "display_name": "The Sandbox",
+    "asset_type": "crypto",
+    "aliases": ["sandbox", "the sandbox", "sand"],
+    "brands": [],
+    "tradable_symbols": ["SANDUSDT"],
+    "themes": ["gaming", "metaverse", "nft"]
+  },
+  {
+    "asset_id": "MANA",
+    "display_name": "Decentraland",
+    "asset_type": "crypto",
+    "aliases": ["decentraland", "mana"],
+    "brands": [],
+    "tradable_symbols": ["MANAUSDT"],
+    "themes": ["gaming", "metaverse", "nft"]
+  },
+  {
+    "asset_id": "BLUR",
+    "display_name": "Blur",
+    "asset_type": "crypto",
+    "aliases": ["blur"],
+    "brands": [],
+    "tradable_symbols": ["BLURUSDT"],
+    "themes": ["nft", "marketplace"]
+  },
+  {
+    "asset_id": "GMX",
+    "display_name": "GMX",
+    "asset_type": "crypto",
+    "aliases": ["gmx"],
+    "brands": [],
+    "tradable_symbols": ["GMXUSDT"],
+    "themes": ["defi", "derivatives", "dex"]
+  },
+  {
+    "asset_id": "DYDX",
+    "display_name": "dYdX",
+    "asset_type": "crypto",
+    "aliases": ["dydx"],
+    "brands": [],
+    "tradable_symbols": ["DYDXUSDT"],
+    "themes": ["defi", "derivatives", "dex"]
+  },
+  {
+    "asset_id": "PYTH",
+    "display_name": "Pyth Network",
+    "asset_type": "crypto",
+    "aliases": ["pyth", "pyth network"],
+    "brands": [],
+    "tradable_symbols": ["PYTHUSDT"],
+    "themes": ["oracle", "solana"]
+  },
+  {
+    "asset_id": "W",
+    "display_name": "Wormhole",
+    "asset_type": "crypto",
+    "aliases": ["wormhole"],
+    "brands": [],
+    "tradable_symbols": ["WUSDT"],
+    "themes": ["bridge", "interoperability"]
+  },
+  {
+    "asset_id": "STRK",
+    "display_name": "Starknet",
+    "asset_type": "crypto",
+    "aliases": ["starknet", "strk"],
+    "brands": [],
+    "tradable_symbols": ["STRKUSDT"],
+    "themes": ["l2", "zk_rollup", "evm"]
+  },
+  {
+    "asset_id": "TIA",
+    "display_name": "Celestia",
+    "asset_type": "crypto",
+    "aliases": ["celestia", "tia"],
+    "brands": [],
+    "tradable_symbols": ["TIAUSDT"],
+    "themes": ["modular_blockchain", "data_availability"]
+  },
+  {
+    "asset_id": "EIGEN",
+    "display_name": "EigenLayer",
+    "asset_type": "crypto",
+    "aliases": ["eigenlayer", "eigen"],
+    "brands": [],
+    "tradable_symbols": ["EIGENUSDT"],
+    "themes": ["restaking", "ethereum"]
+  },
+  {
+    "asset_id": "ENA",
+    "display_name": "Ethena",
+    "asset_type": "crypto",
+    "aliases": ["ethena", "ena"],
+    "brands": [],
+    "tradable_symbols": ["ENAUSDT"],
+    "themes": ["defi", "stablecoin", "synthetic"]
+  },
+  {
+    "asset_id": "USDT",
+    "display_name": "Tether",
+    "asset_type": "stablecoin",
+    "aliases": ["tether", "usdt"],
+    "brands": ["tether"],
+    "tradable_symbols": [],
+    "themes": ["stablecoin"]
+  },
+  {
+    "asset_id": "USDC",
+    "display_name": "USD Coin",
+    "asset_type": "stablecoin",
+    "aliases": ["usd coin", "usdc"],
+    "brands": ["circle"],
+    "tradable_symbols": [],
+    "themes": ["stablecoin"]
+  }
+]

@@ -1,0 +1,125 @@
+{
+  "geopolitics": [
+    "iran", "israel", "ukraine", "russia", "china", "taiwan", "north korea",
+    "saudi arabia", "saudi", "uae", "united arab emirates",
+    "hormuz", "strait of hormuz", "strait", "tanker", "missile", "airstrike",
+    "attack", "attacks", "strike", "strikes", "target", "targets",
+    "saldiri", "saldir", "saldırı", "hedef", "hedefler", "savas", "savaş",
+    "gerilim", "misilleme", "tehdit", "tehditler", "vurdu", "vuracak", "vurabilir",
+    "ateskes", "ateşkes", "ceasefire", "truce", "baris gorusmeleri", "barış görüşmeleri",
+    "sanctions", "war", "conflict", "military", "troops", "invasion",
+    "army", "ordusu", "ordu", "energy plant", "power plant", "power plants",
+    "enerji santrali", "enerji santralleri", "askeri", "ordunun aciklamasina dayanarak",
+    "opec", "opec+", "oil production", "embargo", "tariff", "trade war",
+    "abluka", "bogaz", "boğaz", "deniz yolu", "sevkiyat riski"
+  ],
+  "etf": [
+    "etf", "spot etf", "etf approval", "etf approved", "etf rejected",
+    "etf filing", "etf application", "etf flows", "etf inflows", "etf outflows",
+    "exchange traded fund", "blackrock etf", "fidelity etf", "vanguard etf",
+    "ishares", "grayscale", "bitcoin trust", "sec filing",
+    "etf onayi", "etf onayı", "etf basvurusu", "etf başvurusu",
+    "spot borsa yatirim fonu", "spot borsa yatırım fonu"
+  ],
+  "listing": [
+    "listing", "lists", "listed", "will list", "to list",
+    "delisting", "delist", "delisted",
+    "launchpool", "launchpad", "binance listing", "coinbase listing",
+    "exchange listing", "new listing", "launchpad project",
+    "perpetual", "futures listing",
+    "listeleme", "listelenecek", "listelendi", "delist", "delist edildi",
+    "vadeli listeleme"
+  ],
+  "regulation": [
+    "sec", "cftc", "regulator", "regulation", "regulatory",
+    "lawsuit", "legal action", "charges", "enforcement",
+    "ban", "banned", "prohibition", "prohibited",
+    "compliance", "kyc", "aml", "fatf",
+    "congress", "senate", "legislation", "bill", "law",
+    "court", "judge", "ruling", "verdict",
+    "duzenleme", "düzenleme", "duzenleyici", "düzenleyici",
+    "dava", "hukuki islem", "hukuki işlem", "suclama", "suçlama",
+    "yasak", "yasaklandi", "yasaklandı", "uyum", "kanun", "mahkeme", "hakim", "hakim karari", "hakim kararı"
+  ],
+  "macro": [
+    "cpi", "inflation", "deflation", "pce",
+    "fed", "federal reserve", "fomc", "jerome powell", "powell",
+    "rate cut", "rate hike", "interest rate", "rate decision",
+    "gdp", "recession", "growth", "unemployment", "jobs report", "nonfarm",
+    "treasury", "bond yield", "yield curve", "inversion",
+    "ecb", "boe", "boj", "central bank",
+    "quantitative easing", "tapering", "balance sheet",
+    "enflasyon", "deflasyon", "faiz indirimi", "faiz artisi", "faiz artırımı",
+    "faiz karari", "faiz kararı", "resesyon", "buyume", "büyüme",
+    "issizlik", "işsizlik", "merkez bankasi", "merkez bankası", "tahvil getirisi"
+  ],
+  "inflation": [
+    "cpi", "inflation", "pce", "core inflation", "hot inflation",
+    "sticky inflation", "inflation data", "price pressures",
+    "consumer prices", "producer prices", "ppi",
+    "enflasyon", "cekirdek enflasyon", "çekirdek enflasyon",
+    "enflasyon verisi", "tuketici fiyatlari", "tüketici fiyatları",
+    "uretici fiyatlari", "üretici fiyatları"
+  ],
+  "hack": [
+    "hack", "hacked", "exploit", "exploited", "breach", "breached",
+    "stolen", "attack", "vulnerability", "bug", "security incident",
+    "drained", "flash loan attack", "rug pull", "rug", "exit scam",
+    "phishing", "private key", "compromised",
+    "hacklendi", "istismar", "guvenlik ihlali", "güvenlik ihlali",
+    "calindi", "çalındı", "acik", "açık", "guvenlik olayi", "güvenlik olayı",
+    "bosaltildi", "boşaltıldı", "oltalama", "ozel anahtar", "özel anahtar", "ele gecirildi", "ele geçirildi"
+  ],
+  "defi": [
+    "defi", "decentralized finance", "protocol", "liquidity",
+    "yield farming", "amm", "dex", "swap", "pool",
+    "tvl", "total value locked", "staking", "liquid staking",
+    "airdrop", "governance", "dao", "vote", "proposal"
+  ],
+  "nft": [
+    "nft", "non-fungible token", "nfts", "collectible", "digital art",
+    "opensea", "blur", "floor price", "royalties", "mint", "minting"
+  ],
+  "exchange": [
+    "binance", "coinbase", "kraken", "okx", "bybit", "kucoin",
+    "huobi", "bitfinex", "gemini", "ftx",
+    "borsa", "kripto borsasi", "kripto borsası"
+  ],
+  "institutional": [
+    "institutional", "institution", "hedge fund", "asset manager",
+    "blackrock", "fidelity", "vanguard", "grayscale", "ark invest",
+    "microstrategy", "corporate treasury", "balance sheet",
+    "billion", "million usd", "fund"
+  ],
+  "whale": [
+    "whale", "large holder", "large transfer", "moved", "wallet",
+    "address", "on-chain", "blockchain analytics",
+    "balina", "buyuk transfer", "büyük transfer", "cuzdan", "cüzdan", "adres", "zincir ustu", "zincir üstü"
+  ],
+  "stablecoin": [
+    "stablecoin", "usdt", "usdc", "tether", "depeg", "peg",
+    "dai", "frax", "algorithmic stablecoin",
+    "stabil coin", "sabit coin", "pegini kaybetti", "sabiti bozuldu", "algoritmik stabil coin"
+  ],
+  "ai": [
+    "artificial intelligence", "ai", "machine learning", "llm",
+    "chatgpt", "openai", "ai agent", "ai tokens", "deai",
+    "yapay zeka", "makine ogrenmesi", "makine öğrenmesi", "yapay zeka ajanı", "ai ajanı"
+  ],
+  "energy": [
+    "oil", "crude", "brent", "wti", "energy", "natural gas",
+    "petrol", "ham petrol", "enerji", "boru hattı", "boru hatti",
+    "opec", "oil prices", "energy crisis", "refinery", "aramco",
+    "yanbu", "fujairah", "terminal", "export terminal",
+    "hormuz", "strait of hormuz", "tanker", "pipeline",
+    "petrol boru hattı", "petrol boru hatti", "petrol tesisi", "energy infrastructure",
+    "enerji altyapisi", "enerji altyapısı", "rafineri", "petrol sevkiyati", "petrol sevkiyatı",
+    "petrol ihracati", "petrol ihracatı", "ham petrol sevkiyati", "ham petrol sevkiyatı",
+    "arz riski", "arz soku", "arz şoku", "sevkiyat", "ihracat terminali"
+  ],
+  "mining": [
+    "mining", "miner", "hashrate", "hash rate", "difficulty",
+    "bitcoin mining", "proof of work", "pow", "asic", "gpu mining",
+    "madencilik", "madenci", "hash orani", "hash oranı", "zorluk", "bitcoin madenciligi", "bitcoin madenciliği"
+  ]
+}

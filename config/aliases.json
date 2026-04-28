@@ -1,0 +1,14 @@
+{
+  "aliases": {
+    "b1": "buy BTCUSDT 100 market",
+    "e1": "buy ETHUSDT 100 market",
+    "n": "news 20",
+    "r": "risk",
+    "p": "positions",
+    "h": "history 20"
+  },
+  "bindings": {
+    "f5": "panic",
+    "f12": "news 10"
+  }
+}
