@@ -71,7 +71,7 @@ export default function SystemAlerts() {
     return (
         <div className="alerts-page">
             <div style={{ marginBottom: 20 }}>
-                <h1 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Ninja Tools (Beta)</h1>
+                <h1 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Trading Terminal (Beta)</h1>
                 <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Beta Version — Tercihler tarayıcıda saklanır</p>
             </div>
 

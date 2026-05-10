@@ -38,11 +38,14 @@ class RSSAdapter(NewsAdapter):
                     if since and published_at <= since:
                         continue
 
-                    news_id = f"rss_{hash(entry.get('link', '') + entry.get('title', ''))}"
+                    raw_title = entry.get("title", "")
+                    import html as _html
+                    raw_title = _html.unescape(raw_title)
+                    news_id = f"rss_{hash(entry.get('link', '') + raw_title)}"
                     items.append(
                         RawNewsItem(
                             id=news_id,
-                            headline=entry.get("title", ""),
+                            headline=raw_title,
                             published_at=published_at,
                             url=entry.get("link"),
                             source=feed.feed.get("title", "rss"),

@@ -328,7 +328,11 @@ class NewsService:
             await self._process(item, adapter.source_priority())
 
     async def _process(self, item: RawNewsItem, source_priority: int) -> None:
+        import html as _html
         received_at = datetime.now(timezone.utc)
+
+        # RSS/CryptoPanic gibi kaynaklar HTML entity gönderebilir (&#036; &quot; &#39; vb.)
+        item.headline = _html.unescape(item.headline)
 
         cluster = self._dedup.register(item.id, item.headline, item.source)
         if cluster.get("is_duplicate"):

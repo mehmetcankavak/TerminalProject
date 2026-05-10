@@ -127,7 +127,7 @@ export default function LandingPage() {
         <div className="landing-nav-inner">
           <Link to="/" className="landing-logo">
             <span className="logo-bracket">[</span>TT<span className="logo-bracket">]</span>
-            <span className="logo-label">TRADING TOOLS</span>
+            <span className="logo-label">TRADING TERMINAL</span>
           </Link>
           <div className="landing-nav-links">
             <a href="#tools"   className="nav-link">{t('nav_tools')}</a>

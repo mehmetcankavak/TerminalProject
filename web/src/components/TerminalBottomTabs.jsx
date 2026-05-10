@@ -379,28 +379,27 @@ export default function TerminalBottomTabs({
                                 <tr><td colSpan="11" style={{ textAlign: 'center', color: '#8b9eb7', padding: '32px 16px' }}>No open positions</td></tr>
                             ) : posEntries.map(([sym, pos]) => {
                                 const longSide = isLongSide(pos.side);
-                                const lp = tickers[sym]?.last_price ?? pos.current_price;
+                                // mark_price: HL'nin oracle tabanlı fiyatı — borsayla birebir aynı
+                                const markPrice = pos.mark_price ?? tickers[sym]?.last_price ?? pos.current_price;
+                                const lp = markPrice;
                                 const ep = pos.entry_price;
                                 const leverage = pos.leverage || 1;
-                                const pnl = longSide ? (lp - ep) * pos.quantity : (ep - lp) * pos.quantity;
-                                const pnlPct = ep ? ((pnl / (ep * pos.quantity)) * leverage * 100) : 0;
-                                const margin = ep * pos.quantity;
-                                // Likidasyon fiyatı: borsa gönderdiyse onu kullan, yoksa tahmini hesapla.
-                                const liqFromExchange = pos.liquidation_price ?? pos.liq_price_est;
-                                const liqPrice = liqFromExchange ?? (longSide
-                                    ? ep * (1 - 1 / leverage + 0.005)
-                                    : ep * (1 + 1 / leverage - 0.005));
-                                const liqIsEstimate = pos.liquidation_price == null;
-                                // Likidasyon mesafesi — %5 altında kırmızı uyarı rozeti
+                                // HL API'sinden gelen mark-price tabanlı PnL (funding dahil)
+                                const pnl = pos.unrealized_pnl ?? (longSide ? (lp - ep) * pos.quantity : (ep - lp) * pos.quantity);
+                                // ROE%: HL'nin döndürdüğü değeri kullan, yoksa margin'den hesapla
+                                const marginUsed = pos.margin_used ?? (ep * pos.quantity / leverage);
+                                const pnlPct = pos.return_on_equity ?? (marginUsed ? (pnl / marginUsed) * 100 : 0);
+                                const margin = pos.margin_used ?? (ep * pos.quantity / leverage);
+                                // Likidasyon: cross margin'de HL null döner → N/A göster, tahmini hesaplama yapma
+                                const liqPrice = pos.liquidation_price ?? pos.liq_price_est ?? null;
+                                const liqIsEstimate = false;
                                 const liqDistPct = lp && liqPrice ? Math.abs((lp - liqPrice) / lp) * 100 : null;
                                 const liqDanger = liqDistPct != null && liqDistPct < 5;
                                 const liqWarn = liqDistPct != null && liqDistPct < 15 && !liqDanger;
                                 const marginMode = pos.margin_mode
                                     ? pos.margin_mode.charAt(0).toUpperCase() + pos.margin_mode.slice(1)
                                     : 'Cross';
-                                const marginDisplay = pos.margin_used != null
-                                    ? pos.margin_used
-                                    : margin / leverage;
+                                const marginDisplay = margin; // pos.margin_used veya hesaplanmış — zaten doğru
                                 
                                 const slVal = focusedSL === sym ? (slInputs[sym] !== undefined ? slInputs[sym] : '') : (pos.stop_loss || '');
                                 const tpVal = focusedTP === sym ? (tpInputs[sym] !== undefined ? tpInputs[sym] : '') : (pos.take_profit || '');
@@ -409,7 +408,7 @@ export default function TerminalBottomTabs({
                                     const t = parseFloat(targetPrice);
                                     if (!t || !ep || !pos.quantity) return null;
                                     const raw = longSide ? (t - ep) * pos.quantity : (ep - t) * pos.quantity;
-                                    return { usd: raw, pct: ep ? (raw / (ep * pos.quantity)) * leverage * 100 : 0 };
+                                    return { usd: raw, pct: marginUsed ? (raw / marginUsed) * 100 : 0 };
                                 };
                                 const slPnl = slVal ? calcPnl(slVal) : null;
                                 const tpPnl = tpVal ? calcPnl(tpVal) : null;
@@ -423,7 +422,7 @@ export default function TerminalBottomTabs({
                                             </div>
                                         </td>
                                         <td><span className={longSide ? 'hl-side-long' : 'hl-side-short'}>{pos.quantity?.toFixed(4)} {sym.replace('USDT','')}</span></td>
-                                        <td>{margin.toFixed(2)} USDC</td>
+                                        <td>{((lp || ep) * pos.quantity).toFixed(2)} USDC</td>
                                         <td>{ep?.toFixed(3)}</td>
                                         <td>{lp?.toFixed(3)}</td>
                                         <td>
@@ -435,29 +434,28 @@ export default function TerminalBottomTabs({
                                             )}
                                         </td>
                                         <td>
-                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                                <span style={{ color: liqDanger ? '#ff3b5c' : liqWarn ? '#f5a623' : '#ff3b5c', fontWeight: liqDanger ? 700 : 400 }}>
-                                                    {fmt(liqPrice)}
-                                                </span>
-                                                {liqDistPct != null && (
-                                                    <span
-                                                        title={`Likidasyona ${liqDistPct.toFixed(1)}% mesafe`}
-                                                        style={{
-                                                            fontSize: 9, padding: '1px 4px', borderRadius: 2,
-                                                            background: liqDanger ? 'rgba(255,59,92,0.15)' : liqWarn ? 'rgba(245,166,35,0.15)' : 'rgba(139,158,183,0.1)',
-                                                            color: liqDanger ? '#ff3b5c' : liqWarn ? '#f5a623' : 'var(--text-3)',
-                                                            fontWeight: 700,
-                                                        }}
-                                                    >
-                                                        {liqDistPct.toFixed(1)}%
+                                            {liqPrice == null ? (
+                                                <span style={{ color: 'var(--text-3)', fontSize: 12 }}>N/A</span>
+                                            ) : (
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                                    <span style={{ color: liqDanger ? '#ff3b5c' : liqWarn ? '#f5a623' : '#ff3b5c', fontWeight: liqDanger ? 700 : 400 }}>
+                                                        {fmt(liqPrice)}
                                                     </span>
-                                                )}
-                                                {liqIsEstimate && (
-                                                    <span title="Borsa likidasyon fiyatı alınamadı — bakım marjını olmadan tahmini hesaplandı" style={{ fontSize: 9, color: 'var(--text-3)', fontStyle: 'italic' }}>
-                                                        ~est
-                                                    </span>
-                                                )}
-                                            </div>
+                                                    {liqDistPct != null && (
+                                                        <span
+                                                            title={`Likidasyona ${liqDistPct.toFixed(1)}% mesafe`}
+                                                            style={{
+                                                                fontSize: 9, padding: '1px 4px', borderRadius: 2,
+                                                                background: liqDanger ? 'rgba(255,59,92,0.15)' : liqWarn ? 'rgba(245,166,35,0.15)' : 'rgba(139,158,183,0.1)',
+                                                                color: liqDanger ? '#ff3b5c' : liqWarn ? '#f5a623' : 'var(--text-3)',
+                                                                fontWeight: 700,
+                                                            }}
+                                                        >
+                                                            {liqDistPct.toFixed(1)}%
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                         <td>
                                             ${marginDisplay.toFixed(2)}{' '}

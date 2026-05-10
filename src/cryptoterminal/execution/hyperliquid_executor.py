@@ -804,11 +804,20 @@ class HyperliquidExecutor:
                 coin = pos.get("coin", "")
                 lev_obj = pos.get("leverage", {}) or {}
                 liq_raw = pos.get("liquidationPx")
+                qty = abs(szi)
+                # positionValue = markPx * qty — HL'nin kendi mark fiyatı
+                pos_val_raw = pos.get("positionValue")
+                mark_price = (float(pos_val_raw) / qty) if pos_val_raw and qty else None
+                # returnOnEquity = HL'nin hesapladığı ROE% (mark price tabanlı)
+                roe_raw = pos.get("returnOnEquity")
+                return_on_equity = float(roe_raw) * 100 if roe_raw is not None else None
                 positions.append({
                     "symbol": coin + "USDT",
                     "side": "long" if szi > 0 else "short",
-                    "quantity": abs(szi),
+                    "quantity": qty,
                     "entry_price": entry,
+                    "mark_price": mark_price,
+                    "return_on_equity": return_on_equity,
                     "unrealized_pnl": float(pos.get("unrealizedPnl", 0)),
                     "leverage": int(float(lev_obj.get("value", 1))),
                     "margin_mode": str(lev_obj.get("type") or "").lower() or None,  # "cross" | "isolated"

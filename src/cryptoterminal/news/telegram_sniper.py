@@ -187,7 +187,7 @@ def _extract_message_entries(html: str) -> list[tuple[int, str, str]]:
         if not body_match or not dt_match:
             continue
         text = _STRIP_TAGS_RE.sub("", body_match.group(1)).strip()
-        text = re.sub(r"\s+", " ", text)
+        text = html.unescape(re.sub(r"\s+", " ", text))
         if len(text) < 10:
             continue
         entries.append((msg_id, text, dt_match.group(1)))

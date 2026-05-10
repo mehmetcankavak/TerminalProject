@@ -159,7 +159,7 @@ export default function Sidebar({ activePage, onPageChange }) {
             <div className="sidebar-logo" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <LogoTT width={28} height={28} />
-                    <span>Trading Tools</span>
+                    <span>Trading Terminal</span>
                 </div>
                 <button 
                     onClick={() => setIsSidebarOpen(false)} 

@@ -41,7 +41,7 @@ export default function TopStatusBar({
 }) {
     return (
         <div className="nt-topbar">
-            <div className="nt-brand">NINJA TERMINAL <span className="nt-beta">BETA</span></div>
+            <div className="nt-brand">TRADING TERMINAL <span className="nt-beta">BETA</span></div>
             <div className="nt-topbar-info"></div>
             <div className="nt-topbar-right">
                 <span title="Total Equity — cüzdan toplamı (pozisyon + bakiye)" style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>

@@ -4,6 +4,8 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { useAuth } from './context/AuthContext'
 import { useLang } from './context/LangContext'
+import { isNative } from './capacitor'
+import MobileApp from './mobile/MobileApp'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -223,8 +225,8 @@ function TerminalApp() {
 
   const PAGE_TITLES = {
     'alert-monitoring':     { title: 'Alert Monitoring',      sub: 'Triggered Alerts History' },
-    'dashboard':            { title: 'Trading Tools (Beta)',  sub: 'Beta Version' },
-    'terminal':             { title: 'Terminal',              sub: 'News + Trade Execution' },
+    'dashboard':            { title: 'Trading Terminal (Beta)', sub: 'Beta Version' },
+    'terminal':             { title: 'Trading Terminal',      sub: 'News + Trade Execution' },
     'system-alerts':        { title: 'System Alerts',         sub: 'Manage Notifications' },
     'spot-markets':         { title: 'Markets',               sub: 'Hyperliquid Perps' },
     'etf':                  { title: 'ETF Data',              sub: 'Inflows & Volumes' },
@@ -293,7 +295,18 @@ function TerminalApp() {
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
+function AppRouter() {
+  const [isMobile] = useState(() => isNative || window.innerWidth <= 768)
+  if (isMobile) return <MobileApp />
+  return <TerminalApp />
+}
+
 export default function App() {
+  // Native Capacitor app: bypass all web routing, go straight to MobileApp
+  if (isNative) {
+    return <MobileApp />
+  }
+
   const inner = (
     <Routes>
       <Route path="/" element={<LandingPage />} />
@@ -308,7 +321,7 @@ export default function App() {
         element={
           <ProtectedRoute>
             <ErrorBoundary>
-              <TerminalApp />
+              <AppRouter />
             </ErrorBoundary>
           </ProtectedRoute>
         }

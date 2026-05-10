@@ -8,7 +8,7 @@ export default function NotFoundPage() {
       <nav className="landing-nav">
         <Link to="/" className="landing-logo">
           <span className="logo-bracket">[</span>TT<span className="logo-bracket">]</span>
-          <span className="logo-label">TRADING TOOLS</span>
+          <span className="logo-label">TRADING TERMINAL</span>
         </Link>
       </nav>
 

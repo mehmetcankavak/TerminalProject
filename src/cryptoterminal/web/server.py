@@ -41,6 +41,7 @@ _user_binance_adapters: dict[int, object] = {}
 # Lazy-create — kullanıcı ilk emir / status çağrısında üretilir, RAM'de tutulur.
 # Shared: bus, settings, market_service (ortak market data)
 _user_engines: dict[int, object] = {}
+_shared_engine = None  # create_app tarafından set edilir; modül-level fonksiyonlar buradan okur
 
 
 def get_or_create_user_engine(user_id: int):
@@ -52,29 +53,63 @@ def get_or_create_user_engine(user_id: int):
     from ..risk.engine import RiskEngine
     if user_id in _user_engines:
         return _user_engines[user_id]
-    if execution_engine is None:
+    if _shared_engine is None:
         return None  # Shared engine henüz init edilmemişse kullanılamaz
     # Shared dep'leri global engine'den al
-    pm = PortfolioManager(execution_engine.bus, execution_engine.settings)
-    re = RiskEngine(execution_engine.bus, execution_engine.settings, execution_engine.market)
+    pm = PortfolioManager(_shared_engine.bus, _shared_engine.settings)
+    re = RiskEngine(_shared_engine.bus, _shared_engine.settings, _shared_engine.market)
     # Per-user risk state — file path: risk_state.{user_id}.json
-    # __init__ içindeki load global'ı yükledi (_user_id yok henüz);
-    # uid set edip user'a özel dosyayı reload et.
     re._user_id = user_id  # type: ignore[attr-defined]
     try:
         re._load_state_from_disk()
     except Exception:
         pass
     eng = ExecutionEngine(
-        bus=execution_engine.bus,
-        settings=execution_engine.settings,
+        bus=_shared_engine.bus,
+        settings=_shared_engine.settings,
         risk_engine=re,
         portfolio=pm,
-        market_service=execution_engine.market,
+        market_service=_shared_engine.market,
     )
+    eng.user_id = user_id
     _user_engines[user_id] = eng
     logger.info("user_engine_created", user_id=user_id)
     return eng
+
+
+def _extract_balance_total(balance: Any) -> float | None:
+    """Dict veya Balance modelinden total equity değerini çıkar."""
+    try:
+        if isinstance(balance, dict):
+            value = balance.get("total")
+            if value is None:
+                value = balance.get("total_usdt")
+            if value is None:
+                value = balance.get("available")
+            return float(value) if value is not None else None
+        value = getattr(balance, "total_usdt", None)
+        if value is None:
+            value = getattr(balance, "total", None)
+        if value is None:
+            value = getattr(balance, "available_usdt", None)
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _sync_user_risk_balance(user_id: int | None, balance: Any) -> None:
+    if user_id is None:
+        return
+    total = _extract_balance_total(balance)
+    if total is None or total <= 0:
+        return
+    ueng = get_or_create_user_engine(user_id)
+    if ueng is None:
+        return
+    try:
+        ueng.risk.sync_account_balance(total)
+    except Exception as e:
+        logger.debug("risk_balance_sync_failed", user_id=user_id, error=str(e))
 
 
 async def _get_user_id(request: Request) -> int | None:
@@ -83,6 +118,17 @@ async def _get_user_id(request: Request) -> int | None:
     if not auth.startswith("Bearer "):
         return None
     token = auth[7:]
+    try:
+        from ..auth.service import verify_token
+        return await verify_token(token)
+    except Exception:
+        return None
+
+
+async def _verify_ws_token(token: str | None) -> int | None:
+    """WebSocket token'ını doğrula; public bağlantılarda None dön."""
+    if not token:
+        return None
     try:
         from ..auth.service import verify_token
         return await verify_token(token)
@@ -526,59 +572,69 @@ class WebSocketManager:
         self._clients: list[WebSocket] = []
         # Her client'ın abone olduğu semboller (boş = hepsini al)
         self._subscriptions: dict[int, set[str]] = {}  # id(ws) → set of symbols
+        self._user_ids: dict[int, int | None] = {}
 
-    async def connect(self, ws: WebSocket) -> None:
+    async def connect(self, ws: WebSocket, user_id: int | None = None) -> None:
         await ws.accept()
         self._clients.append(ws)
         self._subscriptions[id(ws)] = set()
-        logger.info("ws_client_connected", total=len(self._clients))
+        self._user_ids[id(ws)] = user_id
+        logger.info("ws_client_connected", total=len(self._clients), authenticated=bool(user_id))
 
     def disconnect(self, ws: WebSocket) -> None:
         self._subscriptions.pop(id(ws), None)
+        self._user_ids.pop(id(ws), None)
         if ws in self._clients:
             self._clients.remove(ws)
         logger.info("ws_client_disconnected", total=len(self._clients))
+
+    def authenticate(self, ws: WebSocket, user_id: int | None) -> None:
+        self._user_ids[id(ws)] = user_id
 
     def subscribe(self, ws: WebSocket, symbols: list[str]) -> None:
         """Client'ın izlemek istediği sembolleri günceller."""
         self._subscriptions[id(ws)] = {s.upper() for s in symbols}
 
-    async def broadcast(self, message: dict[str, Any]) -> None:
-        """Tüm clientlere gönder (haber, order, risk olayları için)."""
-        if not self._clients:
+    async def _send_to(self, targets: list[WebSocket], message: dict[str, Any]) -> None:
+        if not targets:
             return
         data = json.dumps(message, default=str)
         results = await asyncio.gather(
-            *[client.send_text(data) for client in list(self._clients)],
+            *[client.send_text(data) for client in targets],
             return_exceptions=True,
         )
         dead = [
             client
-            for client, result in zip(list(self._clients), results)
+            for client, result in zip(targets, results)
             if isinstance(result, Exception)
         ]
         for d in dead:
             self.disconnect(d)
 
+    async def broadcast(self, message: dict[str, Any]) -> None:
+        """Public eventleri tüm clientlere gönder."""
+        await self._send_to(list(self._clients), message)
+
+    async def broadcast_user(self, user_id: int | None, message: dict[str, Any]) -> None:
+        """Private eventi sadece ilgili kullanıcıya ait WS bağlantılarına gönder."""
+        if user_id is None:
+            return
+        targets = [
+            ws for ws in list(self._clients)
+            if self._user_ids.get(id(ws)) == user_id
+        ]
+        await self._send_to(targets, message)
+
     async def broadcast_ticker(self, symbol: str, message: dict[str, Any]) -> None:
         """Sadece ilgili sembole abone clientlere gönder."""
         if not self._clients:
             return
-        data = json.dumps(message, default=str)
         sym = symbol.upper()
         targets = [
             ws for ws in list(self._clients)
             if not self._subscriptions.get(id(ws)) or sym in self._subscriptions[id(ws)]
         ]
-        if not targets:
-            return
-        results = await asyncio.gather(
-            *[ws.send_text(data) for ws in targets],
-            return_exceptions=True,
-        )
-        dead = [ws for ws, r in zip(targets, results) if isinstance(r, Exception)]
-        for d in dead:
-            self.disconnect(d)
+        await self._send_to(targets, message)
 
 
 async def _delayed_alarm(news_msg: dict, delay: int = 3) -> None:
@@ -640,6 +696,10 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="CryptoTerminal API")
 
+    # Modül-level fonksiyonların (get_or_create_user_engine vb.) erişebileceği shared ref
+    global _shared_engine
+    _shared_engine = execution_engine
+
     # Rate limiting — JWT varsa user_id, yoksa IP ile key oluştur
     def _rate_key(request: Request) -> str:
         auth = request.headers.get("Authorization", "")
@@ -662,6 +722,10 @@ def create_app(
     if not _origins:
         logger.warning("cors_origins_not_set", fallback="localhost only — set CORS_ORIGINS in .env for production")
         _origins = ["http://localhost:3001", "http://localhost:5173", "http://localhost:3000"]
+    # iOS Capacitor WebView always uses capacitor://localhost as origin — must be allowed
+    for _cap in ("capacitor://localhost", "ionic://localhost"):
+        if _cap not in _origins:
+            _origins.append(_cap)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_origins,
@@ -747,6 +811,7 @@ def create_app(
         order = payload.get("order")
         fill = payload.get("fill")
         symbol = payload.get("symbol") or (order.symbol if order else None)
+        user_id = payload.get("user_id") or getattr(order, "user_id", None)
         msg: dict = {"type": "order_filled"}
         if order:
             msg.update({
@@ -769,19 +834,34 @@ def create_app(
                     msg["position"] = _serialize_position(symbol, pos)
                 else:
                     msg["position"] = None
-        await manager.broadcast(msg)
+        if user_id is not None:
+            await manager.broadcast_user(user_id, msg)
+        else:
+            await manager.broadcast(msg)
 
     async def _broadcast_order_rejected(payload: dict) -> None:
-        await manager.broadcast({
+        order = payload.get("order")
+        user_id = payload.get("user_id") or getattr(order, "user_id", None)
+        msg = {
             "type": "order_rejected",
             "reason": payload.get("reason", "unknown"),
-        })
+        }
+        if user_id is not None:
+            await manager.broadcast_user(user_id, msg)
+        else:
+            await manager.broadcast(msg)
 
     async def _broadcast_risk_blocked(payload: dict) -> None:
-        await manager.broadcast({
+        order = payload.get("order")
+        user_id = payload.get("user_id") or getattr(order, "user_id", None)
+        msg = {
             "type": "risk_blocked",
             "reason": payload.get("reason", "risk check failed"),
-        })
+        }
+        if user_id is not None:
+            await manager.broadcast_user(user_id, msg)
+        else:
+            await manager.broadcast(msg)
 
     async def _broadcast_volume_spike(payload: dict) -> None:
         await manager.broadcast({
@@ -853,8 +933,8 @@ def create_app(
                                                   notional=notional, leverage=leverage, liq_price=liq_price))
 
     async def _broadcast_position_closed(payload: dict) -> None:
-        """Pozisyon kapatılınca WebSocket üzerinden tüm clientlara bildir."""
-        await manager.broadcast({
+        """Pozisyon kapatılınca ilgili kullanıcıya WebSocket bildirimi gönder."""
+        msg = {
             "type":         "position_closed",
             "symbol":       payload.get("symbol", ""),
             "side":         payload.get("side", ""),
@@ -863,7 +943,12 @@ def create_app(
             "realized_pnl": payload.get("realized_pnl", 0),
             "notional":     payload.get("notional", 0),
             "leverage":     payload.get("leverage", 1),
-        })
+        }
+        user_id = payload.get("user_id")
+        if user_id is not None:
+            await manager.broadcast_user(user_id, msg)
+        else:
+            await manager.broadcast(msg)
 
     async def _on_position_closed(payload: dict) -> None:
         """Pozisyon kapatılınca kullanıcıya Email + Telegram bildirim gönder."""
@@ -922,14 +1007,7 @@ def create_app(
                                  for item in r.json() if item["symbol"] in symbols}
 
                     for sym, rate in rates.items():
-                        fee = pm.apply_funding_fee(sym, rate)
-                        if fee != 0.0:
-                            await manager.broadcast({
-                                "type": "funding_fee",
-                                "symbol": sym,
-                                "rate": rate,
-                                "fee": round(fee, 4),
-                            })
+                        pm.apply_funding_fee(sym, rate)
             except Exception as e:
                 logger.warning("funding_fee_loop_error", error=str(e))
 
@@ -995,7 +1073,7 @@ def create_app(
             elif action == "close":
                 await ueng.close_position(symbol)
                 logger.info("alert_action_close", alert_id=alert_id, symbol=symbol)
-            await manager.broadcast({
+            await manager.broadcast_user(user_id, {
                 "type":    "alert_action_fired",
                 "alert_id": alert_id, "symbol": symbol,
                 "action":  action, "amount_usd": amount_usd, "leverage": leverage,
@@ -1097,7 +1175,7 @@ def create_app(
                     bot = _get_tg_bot_safe()
                     for n in notifications:
                         # WebSocket bildirimi — ilgili user'a
-                        await manager.broadcast({
+                        await manager.broadcast_user(n["user_id"], {
                             "type":      "alert_triggered",
                             "alert_id":  n["alert_id"],
                             "coin":      n["coin"],
@@ -1265,7 +1343,7 @@ def create_app(
     # ── REST endpoints ──────────────────────────────────────────
 
     # ── Custom Price Alerts ─────────────────────────────────────
-    from ..auth.router import get_current_user_id as _get_uid
+    from ..auth.router import get_current_user_id as _get_uid, require_pro as _require_pro
 
     @app.get("/api/alerts")
     async def list_alerts(user_id: int = Depends(_get_uid)):
@@ -1320,8 +1398,12 @@ def create_app(
                     action_lev    = int(body.get("action_leverage", 0))
                 except (ValueError, TypeError):
                     raise HTTPException(400, "action_amount_usd ve action_leverage gerekli")
-                if action_amount <= 0 or action_lev < 1 or action_lev > 125:
-                    raise HTTPException(400, "action_amount_usd > 0 ve 1 ≤ action_leverage ≤ 125 olmalı")
+                max_action_lev = int(getattr(settings, "risk_max_leverage", 125) or 125)
+                if action_amount <= 0 or action_lev < 1 or action_lev > max_action_lev:
+                    raise HTTPException(
+                        400,
+                        f"action_amount_usd > 0 ve 1 ≤ action_leverage ≤ {max_action_lev} olmalı",
+                    )
                 # Coin bazında HL max leverage kontrolü — alarm tetiklendiğinde
                 # borsa reddetmesin; kullanıcı alarmı oluştururken uyarılsın.
                 try:
@@ -1363,7 +1445,7 @@ def create_app(
 
     # ── Big Transfers (per-user 24h persistence) ───────────────
     @app.get("/api/big-transfers")
-    async def get_big_transfers(user_id: int = Depends(_get_uid)):
+    async def get_big_transfers(user_id: int = Depends(_require_pro)):
         from ..persistence.database import get_pool
         pool = await get_pool()
         cutoff_sec = int(time.time()) - 24 * 3600
@@ -1407,7 +1489,7 @@ def create_app(
 
     @app.post("/api/big-transfers/sync")
     @_limiter.limit("30/minute")
-    async def sync_big_transfers(request: Request, body: dict, user_id: int = Depends(_get_uid)):
+    async def sync_big_transfers(request: Request, body: dict, user_id: int = Depends(_require_pro)):
         from ..persistence.database import get_pool
         cex_rows = body.get("cex", []) if isinstance(body, dict) else []
         chain_rows = body.get("chain", []) if isinstance(body, dict) else []
@@ -1976,10 +2058,9 @@ def create_app(
 
     @app.get("/api/portfolio")
     @_limiter.limit("10/minute")
-    async def get_portfolio(request: Request):
+    async def get_portfolio(request: Request, user_id: int = Depends(_require_pro)):
         if not portfolio:
             return {"balance": 0, "realized_pnl": 0, "unrealized_pnl": 0, "trades": []}
-        user_id = await _get_user_id(request)
         user_executor = _user_executors.get(user_id) if user_id else None
         user_binance_adapter = _user_binance_adapters.get(user_id) if user_id else None
 
@@ -1992,6 +2073,7 @@ def create_app(
                     user_executor.get_trade_history(),  # tüm kapanış fill'leri
                     user_executor.get_funding_history(limit=50),
                 )
+                _sync_user_risk_balance(user_id, detailed_bal or live_bal)
                 portfolio_metrics = await user_executor.get_portfolio_metrics()
                 positions = []
                 unrealized_now = float(detailed_bal.get("unrealized_pnl", 0.0) or 0.0)
@@ -2073,6 +2155,7 @@ def create_app(
         if user_binance_adapter is not None:
             try:
                 bnb_bal = await user_binance_adapter.get_balance()
+                _sync_user_risk_balance(user_id, bnb_bal)
                 bnb_pos = await user_binance_adapter.get_positions()
                 positions = []
                 unrealized_now = 0.0
@@ -2442,6 +2525,7 @@ def create_app(
             hl_spot = 0.0
             try:
                 hl_bal = await user_executor.get_balance()
+                _sync_user_risk_balance(user_id, hl_bal)
                 balance = hl_bal.get("total", 0)
                 exchange_balance = hl_bal.get("available", 0)
                 margin_used = float(hl_bal.get("margin_used") or 0.0)
@@ -2482,16 +2566,19 @@ def create_app(
                     p_tp = tp_sl_map.get(sym, {}).get("TP")
                     p_sl = tp_sl_map.get(sym, {}).get("SL")
                     
+                    mark_px = p.get("mark_price") or tickers.get(sym, {}).get("last_price") or p["entry_price"]
                     positions[sym] = {
                         "symbol": sym,
                         "side": p["side"].upper(),
                         "quantity": p["quantity"],
                         "entry_price": p["entry_price"],
-                        "current_price": tickers.get(sym, {}).get("last_price", p["entry_price"]),
+                        "mark_price": mark_px,
+                        "current_price": mark_px,
                         "leverage": p["leverage"],
                         "unrealized_pnl": p.get("unrealized_pnl", 0),
+                        "return_on_equity": p.get("return_on_equity"),
                         "unrealized_pnl_pct": 0,
-                        "notional_usd": p["entry_price"] * p["quantity"],
+                        "notional_usd": mark_px * p["quantity"],
                         "stop_loss": p_sl,
                         "take_profit": p_tp,
                         "liquidation_price": p.get("liquidation_price"),
@@ -2530,6 +2617,7 @@ def create_app(
             user_bnb_connected = True
             try:
                 bnb_bal = await user_binance_adapter.get_balance()
+                _sync_user_risk_balance(user_id, bnb_bal)
                 balance = bnb_bal.available_usdt
                 exchange_balance = bnb_bal.total_usdt
             except Exception:
@@ -2607,8 +2695,11 @@ def create_app(
             tg_channel_health = []
 
         risk_summary = {}
-        if risk_engine:
-            risk_summary = await risk_engine.get_risk_summary()
+        active_risk = risk_engine
+        if user_id is not None and user_id in _user_engines:
+            active_risk = _user_engines[user_id].risk
+        if active_risk:
+            risk_summary = await active_risk.get_risk_summary()
 
         # ── Equity breakdown: topbar'da trader'ın gerçek tabloyu görmesi için ayrık alanlar
         # Frontend'in tek "daily_pnl" rakamına güvenmemesi için hepsini ayrı döndürüyoruz.
@@ -3497,7 +3588,7 @@ def create_app(
 
     @app.post("/api/connect-binance")
     @_limiter.limit("5/minute")
-    async def connect_binance(body: dict, request: Request):
+    async def connect_binance(body: dict, request: Request, user_id: int = Depends(_require_pro)):
         api_key    = (body.get("api_key", "") or "").strip()
         api_secret = (body.get("api_secret", "") or "").strip()
         testnet    = bool(body.get("testnet", False))
@@ -3505,7 +3596,6 @@ def create_app(
         if not api_key or not api_secret:
             return {"ok": False, "error": "api_key and api_secret required"}
 
-        user_id = await _get_user_id(request)
         logger.info("binance_connect_attempt", user_id=user_id, testnet=testnet)
         try:
             from ..market.adapter import BinanceAdapter
@@ -3513,6 +3603,7 @@ def create_app(
             await adapter.connect()
             # Bağlantıyı test et — gerçek bakiyeyi çek
             bal = await adapter.get_balance()
+            _sync_user_risk_balance(user_id, bal)
             api_key = api_secret = None  # Referansları temizle
 
             if user_id is not None:
@@ -3534,10 +3625,9 @@ def create_app(
 
     @app.post("/api/disconnect-binance")
     @_limiter.limit("10/minute")
-    async def disconnect_binance(request: Request):
-        user_id = await _get_user_id(request)
+    async def disconnect_binance(request: Request, user_id: int = Depends(_get_uid)):
         try:
-            adapter = _user_binance_adapters.pop(user_id, None) if user_id else None
+            adapter = _user_binance_adapters.pop(user_id, None)
             if adapter:
                 try:
                     await adapter.disconnect()
@@ -3548,13 +3638,13 @@ def create_app(
             return {"ok": False, "error": str(e)}
 
     @app.get("/api/binance-status")
-    async def binance_status(request: Request):
-        user_id = await _get_user_id(request)
-        if user_id is None or user_id not in _user_binance_adapters:
+    async def binance_status(user_id: int = Depends(_get_uid)):
+        if user_id not in _user_binance_adapters:
             return {"connected": False, "mode": "PAPER", "balance": None}
         adapter = _user_binance_adapters[user_id]
         try:
             bal = await adapter.get_balance()
+            _sync_user_risk_balance(user_id, bal)
             return {
                 "connected": True,
                 "mode": "LIVE_BINANCE",
@@ -3565,7 +3655,7 @@ def create_app(
 
     @app.post("/api/hl-agent/generate")
     @_limiter.limit("10/minute")
-    async def hl_agent_generate(request: Request):
+    async def hl_agent_generate(request: Request, user_id: int = Depends(_require_pro)):
         """Fresh bir agent wallet keypair üretir.
         Main wallet PK ASLA sunucuya gelmez. Kullanıcı üretilen agent adresini
         Hyperliquid arayüzünde 'Approve New API Wallet' ile onaylar, ardından
@@ -3574,7 +3664,6 @@ def create_app(
         """
         from eth_account import Account  # type: ignore
         acct = Account.create()
-        user_id = await _get_user_id(request)
         logger.info(
             "hl_agent_generated",
             user_id=user_id,
@@ -3591,7 +3680,7 @@ def create_app(
 
     @app.post("/api/hl-agent/prepare-approval")
     @_limiter.limit("10/minute")
-    async def hl_agent_prepare_approval(body: dict, request: Request):
+    async def hl_agent_prepare_approval(body: dict, request: Request, user_id: int = Depends(_require_pro)):
         """Phase 2: OKX/MetaMask ile in-app approveAgent için prep.
         Fresh agent keypair + HL'nin beklediği EIP-712 typed_data döner.
         Frontend bunu wallet'la imzalatır, imzayı submit-approval'a yollar.
@@ -3655,7 +3744,6 @@ def create_app(
             },
         }
 
-        user_id = await _get_user_id(request)
         logger.info(
             "hl_agent_approval_prepared",
             user_id=user_id, agent_address=agent_address,
@@ -3674,7 +3762,7 @@ def create_app(
 
     @app.post("/api/hl-transfer/prepare")
     @_limiter.limit("10/minute")
-    async def hl_transfer_prepare(body: dict, request: Request):
+    async def hl_transfer_prepare(body: dict, request: Request, user_id: int = Depends(_get_uid)):
         """Spot ↔ Perp transfer için typed_data hazırla — main wallet imzası ister.
         Agent withdraw/transfer yapamaz; usdClassTransfer main signer gerektiriyor."""
         main_wallet = str(body.get("main_wallet_address", "")).strip()
@@ -3730,13 +3818,12 @@ def create_app(
                 "nonce": nonce,
             },
         }
-        user_id = await _get_user_id(request)
         logger.info("hl_transfer_prepared", user_id=user_id, amount=amount, to_perp=to_perp, testnet=testnet)
         return {"ok": True, "action": action, "nonce": nonce, "typed_data": typed_data}
 
     @app.post("/api/hl-transfer/submit")
     @_limiter.limit("10/minute")
-    async def hl_transfer_submit(body: dict, request: Request):
+    async def hl_transfer_submit(body: dict, request: Request, user_id: int = Depends(_get_uid)):
         """İmzalanmış usdClassTransfer action'ı HL'ye yolla."""
         import httpx
         main_wallet = str(body.get("main_wallet_address", "")).strip()
@@ -3768,7 +3855,6 @@ def create_app(
         if resp_json.get("status") != "ok":
             logger.warning("hl_transfer_rejected", hl_response=resp_json)
             return {"ok": False, "error": f"HL reddetti: {resp_json}"}
-        user_id = await _get_user_id(request)
         logger.info(
             "hl_transfer_done",
             user_id=user_id,
@@ -3780,7 +3866,7 @@ def create_app(
 
     @app.post("/api/hl-agent/submit-approval")
     @_limiter.limit("10/minute")
-    async def hl_agent_submit_approval(body: dict, request: Request):
+    async def hl_agent_submit_approval(body: dict, request: Request, user_id: int = Depends(_require_pro)):
         """Phase 2: Kullanıcının imzaladığı approveAgent action'ını HL'ye gönderir,
         başarılıysa agent executor'ı kur ve LIVE moda geç.
         """
@@ -3828,7 +3914,6 @@ def create_app(
             logger.warning("hl_agent_approve_rejected", hl_response=resp_json)
             return {"ok": False, "error": f"HL reddetti: {resp_json}"}
 
-        user_id = await _get_user_id(request)
         logger.info(
             "hl_agent_approved_inapp",
             user_id=user_id,
@@ -3843,6 +3928,7 @@ def create_app(
             executor = HyperliquidExecutor(agent_pk, main_wallet, testnet)
             agent_pk = None
             bal = await executor.get_balance()
+            _sync_user_risk_balance(user_id, bal)
             from ..core.enums import TradingMode
             if user_id is not None:
                 old = _user_executors.get(user_id)
@@ -3859,7 +3945,7 @@ def create_app(
                 if execution_engine is not None:
                     execution_engine._hl_executor = executor
                     execution_engine._mode = TradingMode.LIVE
-            _start_hl_stream_safe(executor)
+            _start_hl_stream_safe(executor, user_id=user_id)
             short_wallet = main_wallet[:6] + "..." + main_wallet[-4:]
             return {
                 "ok": True,
@@ -3874,7 +3960,7 @@ def create_app(
 
     @app.post("/api/connect-hl-agent")
     @_limiter.limit("5/minute")
-    async def connect_hl_agent(body: dict, request: Request):
+    async def connect_hl_agent(body: dict, request: Request, user_id: int = Depends(_require_pro)):
         """Agent wallet + main wallet address ile bağlan.
         Bu, /api/connect-hl'nin SEMANTİK AGENT versiyonu — main PK yerine sadece
         agent PK kabul eder. HL SDK agent'i signer olarak alıp trade'leri main
@@ -3893,7 +3979,7 @@ def create_app(
             from eth_account import Account  # type: ignore
             derived = Account.from_key(agent_pk).address.lower()
             if derived == main_wallet.lower():
-                logger.warning("hl_agent_equals_main", user_id=await _get_user_id(request))
+                logger.warning("hl_agent_equals_main", user_id=user_id)
                 return {
                     "ok": False,
                     "error": "Bu anahtar main wallet'ınızla aynı address'i veriyor — AGENT anahtarı bekliyoruz. /api/hl-agent/generate ile yeni bir agent üretin.",
@@ -3901,7 +3987,6 @@ def create_app(
         except Exception as e:
             return {"ok": False, "error": f"Agent PK geçersiz: {e}"}
 
-        user_id = await _get_user_id(request)
         logger.info(
             "hl_agent_connect_attempt",
             user_id=user_id, agent_address=derived,
@@ -3914,6 +3999,7 @@ def create_app(
             executor = HyperliquidExecutor(agent_pk, main_wallet, testnet)
             agent_pk = None  # yerel referansı temizle
             bal = await executor.get_balance()
+            _sync_user_risk_balance(user_id, bal)
             if user_id is not None:
                 # Eski executor varsa stream'i kapat (aynı user yeniden bağlanıyor)
                 old = _user_executors.get(user_id)
@@ -3930,7 +4016,7 @@ def create_app(
                 if execution_engine is not None:
                     execution_engine._hl_executor = executor
                     execution_engine._mode = TradingMode.LIVE
-            _start_hl_stream_safe(executor)
+            _start_hl_stream_safe(executor, user_id=user_id)
             short_wallet = main_wallet[:6] + "..." + main_wallet[-4:]
             return {
                 "ok": True,
@@ -3947,54 +4033,52 @@ def create_app(
     # Tüm HL bağlantıları /api/connect-hl-agent veya /api/hl-agent/submit-approval
     # üzerinden agent wallet ile yapılıyor — main PK asla sunucuya gelmez.
 
-    async def _hl_ws_event_broadcast(channel: str, data) -> None:
-        """HL WS event'i geldiğinde tüm client'lara hafif bir sinyal gönder.
+    async def _hl_ws_event_broadcast(user_id: int | None, channel: str, data) -> None:
+        """HL WS event'i geldiğinde ilgili kullanıcıya hafif bir sinyal gönder.
         Frontend bunu alınca pozisyon/bakiye state'ini hemen yeniler (5sn poll
         beklemez). Payload içeriği sade tutuluyor — detay fetchStatus'ten gelir.
         """
         try:
-            await manager.broadcast({
+            msg = {
                 "type":    "hl_user_event",
                 "channel": channel,  # "userEvents" | "userFills"
                 "ts":      int(time.time() * 1000),
-            })
+            }
+            if user_id is not None:
+                await manager.broadcast_user(user_id, msg)
+            else:
+                await manager.broadcast(msg)
         except Exception as e:
             logger.debug("hl_ws_broadcast_error", error=str(e))
 
-    def _start_hl_stream_safe(executor) -> None:
+    def _start_hl_stream_safe(executor, user_id: int | None = None) -> None:
         """Executor'a WS stream'i bağla. Başarısız olursa sessizce geç —
         polling fallback'i zaten 5sn'de bir çalışıyor."""
         try:
             loop = asyncio.get_running_loop()
-            executor.start_user_stream(loop, _hl_ws_event_broadcast)
+            async def _on_hl_event(channel: str, data) -> None:
+                await _hl_ws_event_broadcast(user_id, channel, data)
+
+            executor.start_user_stream(loop, _on_hl_event)
         except Exception as e:
             logger.warning("hl_stream_start_wrapper_failed", error=str(e))
 
     @app.post("/api/disconnect-hl")
     @_limiter.limit("10/minute")
-    async def disconnect_hl(request: Request):
-        user_id = await _get_user_id(request)
+    async def disconnect_hl(request: Request, user_id: int = Depends(_get_uid)):
         try:
             from ..core.enums import TradingMode
-            executor = _user_executors.pop(user_id, None) if user_id is not None else None
+            executor = _user_executors.pop(user_id, None)
             if executor is not None:
                 try: executor.stop_user_stream()
                 except Exception as e: logger.debug("hl_stream_stop_error", error=str(e))
             # Per-user engine'i de PAPER moda al
-            if user_id is not None and user_id in _user_engines:
+            if user_id in _user_engines:
                 ueng = _user_engines[user_id]
                 ueng._hl_executor = None
                 ueng._mode = TradingMode.PAPER
                 try: ueng.portfolio._positions.clear()
                 except Exception: pass
-            if user_id is None:
-                if execution_engine is not None:
-                    ex = execution_engine._hl_executor
-                    if ex is not None:
-                        try: ex.stop_user_stream()
-                        except Exception as e: logger.debug("hl_stream_stop_error_global", error=str(e))
-                    execution_engine._hl_executor = None
-                    execution_engine._mode = TradingMode.PAPER
             # Disconnect sonrası global portfolio'daki HL pozisyonları "hayalet"
             # gibi UI'da görünmesin diye temizle. PAPER fallback boş başlasın.
             if portfolio is not None:
@@ -4007,14 +4091,14 @@ def create_app(
             return {"ok": False, "error": str(e)}
 
     @app.get("/api/hl-status")
-    async def hl_status(request: Request):
+    async def hl_status(user_id: int = Depends(_get_uid)):
         """Kullanıcının HL bağlantı durumunu döner."""
-        user_id = await _get_user_id(request)
-        if user_id is None or user_id not in _user_executors:
+        if user_id not in _user_executors:
             return {"connected": False, "mode": "PAPER", "balance": None, "positions": []}
         executor = _user_executors[user_id]
         try:
             bal = await executor.get_balance()
+            _sync_user_risk_balance(user_id, bal)
             positions = await executor.get_open_positions()
             wallet = executor.wallet_address
             short_wallet = wallet[:6] + "..." + wallet[-4:] if len(wallet) > 10 else wallet
@@ -4062,7 +4146,7 @@ def create_app(
 
     @app.get("/api/smart-money/followed")
     @_limiter.limit("60/minute")
-    async def sm_followed_get(request: Request, user_id: int = Depends(_get_uid)):
+    async def sm_followed_get(request: Request, user_id: int = Depends(_require_pro)):
         from ..persistence.database import get_pool
         pool = await get_pool()
         async with pool.acquire() as conn:
@@ -4080,7 +4164,7 @@ def create_app(
 
     @app.post("/api/smart-money/followed")
     @_limiter.limit("60/minute")
-    async def sm_followed_save(body: dict, request: Request, user_id: int = Depends(_get_uid)):
+    async def sm_followed_save(body: dict, request: Request, user_id: int = Depends(_require_pro)):
         from ..persistence.database import get_pool
         followed = _sanitize_followed_settings(body.get("followed", {}))
         encoded = json.dumps(followed, separators=(",", ":"))
@@ -4099,7 +4183,7 @@ def create_app(
 
     @app.get("/api/smart-money/leaderboard")
     @_limiter.limit("20/minute")
-    async def sm_leaderboard(request: Request):
+    async def sm_leaderboard(request: Request, _user_id: int = Depends(_require_pro)):
         import httpx, time
         now = time.time()
         if _sm_leaderboard_cache["data"] and now - _sm_leaderboard_cache["ts"] < 300:
@@ -4165,7 +4249,7 @@ def create_app(
 
     @app.get("/api/smart-money/positions/{address}")
     @_limiter.limit("60/minute")
-    async def sm_positions(address: str, request: Request):
+    async def sm_positions(address: str, request: Request, _user_id: int = Depends(_require_pro)):
         import httpx, time
         now = time.time()
         cached = _sm_positions_cache.get(address)
@@ -4214,9 +4298,8 @@ def create_app(
 
     @app.get("/api/open-orders")
     @_limiter.limit("30/minute")
-    async def get_open_orders(request: Request):
-        user_id = await _get_user_id(request)
-        executor = _user_executors.get(user_id) if user_id else None
+    async def get_open_orders(request: Request, user_id: int = Depends(_get_uid)):
+        executor = _user_executors.get(user_id)
         if executor:
             orders = await executor.get_open_orders()
             return {"orders": orders, "source": "hyperliquid"}
@@ -4224,9 +4307,8 @@ def create_app(
 
     @app.get("/api/trade-history")
     @_limiter.limit("20/minute")
-    async def get_trade_history(request: Request):
-        user_id = await _get_user_id(request)
-        executor = _user_executors.get(user_id) if user_id else None
+    async def get_trade_history(request: Request, user_id: int = Depends(_get_uid)):
+        executor = _user_executors.get(user_id)
         if executor:
             trades = await executor.get_trade_history(limit=100)
             return {"trades": trades, "source": "hyperliquid"}
@@ -4238,9 +4320,8 @@ def create_app(
 
     @app.get("/api/funding-history")
     @_limiter.limit("20/minute")
-    async def get_funding_history(request: Request):
-        user_id = await _get_user_id(request)
-        executor = _user_executors.get(user_id) if user_id else None
+    async def get_funding_history(request: Request, user_id: int = Depends(_get_uid)):
+        executor = _user_executors.get(user_id)
         if executor:
             funding = await executor.get_funding_history(limit=100)
             return {"funding": funding, "source": "hyperliquid"}
@@ -4248,15 +4329,16 @@ def create_app(
 
     @app.get("/api/balances")
     @_limiter.limit("20/minute")
-    async def get_balances(request: Request):
-        user_id = await _get_user_id(request)
-        executor = _user_executors.get(user_id) if user_id else None
+    async def get_balances(request: Request, user_id: int = Depends(_get_uid)):
+        executor = _user_executors.get(user_id)
         if executor:
             bal = await executor.get_detailed_balance()
+            _sync_user_risk_balance(user_id, bal)
             return {"balances": bal, "source": "hyperliquid"}
-        binance_adapter = _user_binance_adapters.get(user_id) if user_id else None
+        binance_adapter = _user_binance_adapters.get(user_id)
         if binance_adapter:
             bal = await binance_adapter.get_balance()
+            _sync_user_risk_balance(user_id, bal)
             return {
                 "balances": {
                     "account_value": bal.total_usdt,
@@ -4287,9 +4369,8 @@ def create_app(
 
     @app.post("/api/hl/withdraw")
     @_limiter.limit("10/minute")
-    async def hl_withdraw(request: Request):
-        user_id = await _get_user_id(request)
-        executor = _user_executors.get(user_id) if user_id else None
+    async def hl_withdraw(request: Request, user_id: int = Depends(_get_uid)):
+        executor = _user_executors.get(user_id)
         if not executor:
             return {"ok": False, "error": "Hyperliquid bağlı değil"}
         body = await request.json()
@@ -4300,9 +4381,8 @@ def create_app(
 
     @app.post("/api/hl/send")
     @_limiter.limit("10/minute")
-    async def hl_send(request: Request):
-        user_id = await _get_user_id(request)
-        executor = _user_executors.get(user_id) if user_id else None
+    async def hl_send(request: Request, user_id: int = Depends(_get_uid)):
+        executor = _user_executors.get(user_id)
         if not executor:
             return {"ok": False, "error": "Hyperliquid bağlı değil"}
         body = await request.json()
@@ -4314,14 +4394,13 @@ def create_app(
 
     @app.post("/api/command")
     @_limiter.limit("30/minute")
-    async def run_command(body: dict, request: Request):
+    async def run_command(body: dict, request: Request, user_id: int = Depends(_get_uid)):
         cmd_text = body.get("command", "").strip()
         if not cmd_text:
             return {"ok": False, "error": "empty command"}
 
-        user_id = await _get_user_id(request)
-        user_executor        = _user_executors.get(user_id) if user_id else None
-        user_binance_adapter = _user_binance_adapters.get(user_id) if user_id else None
+        user_executor        = _user_executors.get(user_id)
+        user_binance_adapter = _user_binance_adapters.get(user_id)
 
         results: list[dict] = []
 
@@ -4438,7 +4517,7 @@ def create_app(
 
     @app.post("/api/ai/chat")
     @_limiter.limit("10/minute")
-    async def ai_chat(body: dict, request: Request):
+    async def ai_chat(body: dict, request: Request, user_id: int = Depends(_get_uid)):
         import os
         question = (body.get("message") or "").strip()
         if not question:
@@ -4530,13 +4609,16 @@ def create_app(
 
     @app.websocket("/ws")
     async def websocket_endpoint(ws: WebSocket):
-        await manager.connect(ws)
+        user_id = await _verify_ws_token(ws.query_params.get("token"))
+        await manager.connect(ws, user_id=user_id)
         try:
             while True:
                 raw = await ws.receive_text()
                 try:
                     msg = json.loads(raw)
                     if msg.get("type") == "subscribe" and isinstance(msg.get("symbols"), list):
+                        msg_user_id = await _verify_ws_token(msg.get("token"))
+                        manager.authenticate(ws, msg_user_id)
                         symbols = [str(s).upper() for s in msg["symbols"] if isinstance(s, str)]
                         manager.subscribe(ws, symbols)
                         if market_service is not None:
@@ -4565,9 +4647,14 @@ def create_app(
         # SPA catch-all: gerçek dosya varsa döndür, yoksa index.html
         @app.get("/{full_path:path}", include_in_schema=False)
         async def spa_fallback(full_path: str):
+            static_root = _os.path.realpath(static_dir)
             file_path = _os.path.join(static_dir, full_path)
-            if _os.path.isfile(file_path):
-                return _FR(file_path)
+            real_file = _os.path.realpath(file_path)
+            if (
+                real_file.startswith(static_root + _os.sep)
+                and _os.path.isfile(real_file)
+            ):
+                return _FR(real_file)
             index = _os.path.join(static_dir, "index.html")
             return _FR(index)
 
