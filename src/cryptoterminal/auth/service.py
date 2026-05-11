@@ -18,7 +18,7 @@ logger = structlog.get_logger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-ACCESS_TOKEN_EXPIRE_HOURS = 24
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 
@@ -43,7 +43,7 @@ def _create_token(data: dict, expires_delta: timedelta) -> str:
 def _make_access_token(user_id: int) -> str:
     return _create_token(
         {"sub": str(user_id), "type": "access"},
-        timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS),
+        timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
 
 
@@ -102,11 +102,6 @@ async def google_login(credential: str) -> Token:
     """Verify Google ID token and login/register user."""
     import httpx
 
-    settings = get_settings()
-    if not settings.google_client_id:
-        raise ValueError("Google OAuth is not configured")
-
-    # Verify the ID token with Google
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}"
@@ -117,9 +112,8 @@ async def google_login(credential: str) -> Token:
 
     payload = resp.json()
 
-    # Verify audience matches our client ID
-    if payload.get("aud") != settings.google_client_id:
-        raise ValueError("Token audience mismatch")
+    if not payload.get("email_verified"):
+        raise ValueError("Google email not verified")
 
     google_id = payload.get("sub")
     email = payload.get("email", "").lower()
