@@ -2301,11 +2301,11 @@ def create_app(
             recent_sec = int(time.time()) - 6 * 3600
             recent_rows = await conn.fetch(
                 """
-                SELECT COALESCE(flow_category, 'unknown') AS flow,
+                SELECT COALESCE(flow_category, 'unknown') AS flow, asset,
                        SUM(amount_usd) AS sum_usd
                 FROM big_transfers
                 WHERE ts_sec >= $1 AND flow_category IN ('cex_inflow', 'cex_outflow')
-                GROUP BY flow_category
+                GROUP BY flow_category, asset
                 """,
                 recent_sec,
             )
@@ -2472,16 +2472,19 @@ def create_app(
 
         insights: list[dict] = []
         net_exch = outflow - inflow
-        if (outflow + inflow) > 0 and abs(exch) >= 0.2:
-            if net_exch > 0:
-                insights.append({"tag": "EXCHANGE FLOW", "tone": "bull",
-                    "text": f"Borsalardan net {_usd(net_exch)} çıkış — coin'ler borsadan çekiliyor, biriktirme eğilimi"})
+        # Stablecoin exchange flow — correct (asset-aware) convention: stables
+        # ARRIVING at exchanges = dry powder ready to buy (bullish); LEAVING =
+        # buying power withdrawn (bearish). This replaces the old all-asset
+        # "exchange flow" line, which mixed coins and stables under one (coin)
+        # sign and could read backwards.
+        stable_net_in = stable_in - stable_out
+        if has_stable and abs(stable_sig) >= 0.15:
+            if stable_net_in > 0:
+                insights.append({"tag": "STABLECOIN FLOW", "tone": "bull",
+                    "text": f"Borsalara net {_usd(stable_net_in)} stablecoin girişi — alım gücü hazırlanıyor"})
             else:
-                insights.append({"tag": "EXCHANGE FLOW", "tone": "bear",
-                    "text": f"Borsalara net {_usd(net_exch)} giriş — satış için hazırlık, dağıtım baskısı olabilir"})
-        elif (outflow + inflow) > 0:
-            insights.append({"tag": "EXCHANGE FLOW", "tone": "neutral",
-                "text": f"Borsa giriş/çıkışı dengeli ({_usd(inflow)} giriş / {_usd(outflow)} çıkış) — net yön zayıf"})
+                insights.append({"tag": "STABLECOIN FLOW", "tone": "bear",
+                    "text": f"Borsalardan net {_usd(stable_net_in)} stablecoin çıkışı — alım gücü çekiliyor"})
 
         if has_liq:
             mint_net = mint - burn
@@ -2496,7 +2499,8 @@ def create_app(
         if top_assets and abs(top_assets[0]["net"]) > 0:
             t = top_assets[0]
             side = "çıkış" if t["net"] > 0 else "giriş"
-            tone = "bull" if t["net"] > 0 else "bear"
+            # Asset-aware tone: stablecoin inflow / coin outflow = bullish.
+            tone = "bull" if t.get("bullish") else "bear"
             insights.append({"tag": "CONCENTRATION", "tone": tone,
                 "text": f"Akışı {t['asset']} sürüklüyor — net {_usd(t['net'])} {side} ({t['count']} transfer)"})
 
@@ -2514,11 +2518,22 @@ def create_app(
             insights.append({"tag": "WHALE MOVE", "tone": "warn",
                 "text": f"Tek seferde {_usd(b['amount_usd'])} {b['asset']} hareketi — dikkat çekici büyüklük"})
 
-        # ── Momentum: recent 6h vs prior 18h net exchange flow rate ──
-        recent_flows = {r["flow"]: float(r["sum_usd"] or 0) for r in recent_rows}
-        recent_net = recent_flows.get("cex_outflow", 0.0) - recent_flows.get("cex_inflow", 0.0)
-        prior_net = net_exch - recent_net  # remaining 18h
-        recent_rate = recent_net / 6.0      # per hour
+        # ── Momentum on COIN netflow (recent 6h vs prior 18h) ──
+        # We track the coin signal only — stablecoin flow has the opposite
+        # meaning, so mixing them into one momentum number would read backwards.
+        # Coin convention: net outflow (>0) = accumulation (bullish).
+        recent_coin_in = recent_coin_out = 0.0
+        for r in recent_rows:
+            if (r["asset"] or "").upper() in _STABLES:
+                continue
+            v = float(r["sum_usd"] or 0)
+            if r["flow"] == "cex_outflow":
+                recent_coin_out += v
+            else:
+                recent_coin_in += v
+        recent_net = recent_coin_out - recent_coin_in   # coin netflow, last 6h
+        prior_net = coin_net - recent_net                # remaining 18h
+        recent_rate = recent_net / 6.0                   # per hour
         prior_rate = prior_net / 18.0
         momentum = {"recent_net": recent_net, "prior_net": prior_net,
                     "recent_rate": recent_rate, "prior_rate": prior_rate, "state": "steady"}
@@ -2526,19 +2541,19 @@ def create_app(
             if (recent_rate > 0) != (prior_rate > 0) and abs(recent_rate) > 1_000_000:
                 momentum["state"] = "flip"
                 tone = "bull" if recent_rate > 0 else "bear"
-                yön = "çıkışa (biriktirme)" if recent_rate > 0 else "girişe (dağıtım)"
+                yön = "çıkışa (biriktirme)" if recent_rate > 0 else "girişe (satış baskısı)"
                 insights.append({"tag": "MOMENTUM", "tone": tone,
-                    "text": f"Yön döndü — son 6 saatte akış {yön} geçti ({_usd(recent_net)}/6s)"})
+                    "text": f"Yön döndü — coin akışı son 6 saatte borsadan {yön} geçti ({_usd(recent_net)}/6s)"})
             elif abs(recent_rate) >= 1.5 * max(abs(prior_rate), 1.0):
                 momentum["state"] = "accelerating"
                 tone = "bull" if recent_rate > 0 else "bear"
-                yön = "çıkış" if recent_rate > 0 else "giriş"
+                yön = "çıkış (biriktirme)" if recent_rate > 0 else "giriş (satış baskısı)"
                 insights.append({"tag": "MOMENTUM", "tone": tone,
-                    "text": f"Hızlanıyor — borsa {yön} baskısı son 6 saatte arttı ({_usd(recent_net)}/6s vs {_usd(prior_net)}/18s)"})
+                    "text": f"Hızlanıyor — coin borsa {yön} son 6 saatte arttı ({_usd(recent_net)}/6s vs {_usd(prior_net)}/18s)"})
             elif abs(recent_rate) <= 0.4 * abs(prior_rate):
                 momentum["state"] = "fading"
                 insights.append({"tag": "MOMENTUM", "tone": "neutral",
-                    "text": f"Yavaşlıyor — akış hızı son 6 saatte düştü ({_usd(recent_net)}/6s)"})
+                    "text": f"Yavaşlıyor — coin akış hızı son 6 saatte düştü ({_usd(recent_net)}/6s)"})
 
         # ── Per-exchange net flow (outflow − inflow, by venue) ──
         import re
@@ -2578,8 +2593,10 @@ def create_app(
         if exchanges and abs(exchanges[0]["net"]) > 0:
             e = exchanges[0]
             side = "çıkış" if e["net"] > 0 else "giriş"
-            tone = "bull" if e["net"] > 0 else "bear"
-            insights.append({"tag": "EXCHANGE", "tone": tone,
+            # Neutral tone: a venue's net mixes coins and stablecoins, whose
+            # flow meaning is opposite, so we report the direction factually
+            # without claiming a bull/bear signal.
+            insights.append({"tag": "EXCHANGE", "tone": "neutral",
                 "text": f"En belirgin hareket {e['venue']}'de — net {_usd(e['net'])} {side}"})
 
         # ── Hourly net flow sparkline (oldest → newest) ──
