@@ -1413,6 +1413,16 @@ def create_app(
             pass
         return None
 
+    def _eth_price() -> float | None:
+        """Best-effort ETH USD price for converting native ETH transfer values."""
+        try:
+            t = market_service.get_ticker("ETHUSDT") if market_service else None
+            if t and getattr(t, "last_price", 0):
+                return float(t.last_price)
+        except Exception:
+            pass
+        return None
+
     async def _persist_big_transfer(row: dict) -> None:
         """One-shot insert into the shared big_transfers table.
 
@@ -1726,6 +1736,7 @@ def create_app(
             evm_transfer_tracker = EvmTransferTracker(
                 on_transfer=_persist_big_transfer,
                 min_usd=500_000.0,
+                eth_price_fn=_eth_price,
             )
             await btc_mempool_tracker.start()
             await evm_transfer_tracker.start()
