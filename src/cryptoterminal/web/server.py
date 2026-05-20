@@ -166,12 +166,32 @@ async def _flush_liq_batch() -> None:
     except Exception:
         pass  # DB yoksa deque'deki veri yeterli
 
+_LIQ_BROADCAST: list = []  # populated at startup with manager.broadcast
+
 def _push_liq(exchange: str, sym: str, side: str, ts_ms: int,
               price: float, base_qty: float, usd_value: float,
               store: deque) -> None:
-    """Hem in-memory store'a hem DB batch'ine ekle."""
+    """Hem in-memory store'a hem DB batch'ine ekle, ayrıca canlı stream'e yay."""
     store.append((ts_ms, side, usd_value, sym))
     _DB_BATCH.append((exchange, sym, side, ts_ms, price, base_qty, usd_value))
+    # Live feed broadcast — only for sizeable events to keep UI/network lean.
+    if usd_value >= 10_000 and _LIQ_BROADCAST:
+        payload = {
+            "type": "liquidation",
+            "exchange": exchange,
+            "symbol":   sym,
+            "side":     side,
+            "ts":       ts_ms,
+            "price":    price,
+            "qty":      base_qty,
+            "usd":      usd_value,
+        }
+        for cb in _LIQ_BROADCAST:
+            try:
+                import asyncio as _aio
+                _aio.create_task(cb(payload))
+            except Exception:
+                pass
 
 async def _db_batch_flusher() -> None:
     """Her 5 saniyede bir DB batch'ini boşalt + 25 saatten eski kayıtları sil."""
@@ -248,6 +268,49 @@ async def _refresh_bybit_symbols() -> None:
 
 # Tüm Hyperliquid coinleri (OI'ye göre sıralı — meme coinler HL'de en fazla likidasyon üretir)
 # Kaynak: POST /info {"type":"metaAndAssetCtxs"} — 2026-04-03 güncellemesi
+# OKX swap contract values — populated dynamically from
+# /api/v5/public/instruments?instType=SWAP at startup, refreshed hourly.
+# Until first refresh completes, an empty map means we'll skip OKX rows
+# (better than mispricing them with a default ctVal=1.0).
+_OKX_CT_VAL: dict[str, float] = {}
+
+
+async def _refresh_okx_ct_val() -> None:
+    """Fetch every USDT-margined SWAP instrument's contract value from OKX.
+
+    Runs once at startup then hourly. Each instId looks like BTC-USDT-SWAP
+    and we key by the bare coin ticker for fast O(1) lookups in the WS loop.
+    """
+    import httpx
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(
+                    "https://www.okx.com/api/v5/public/instruments?instType=SWAP"
+                )
+            if r.status_code == 200:
+                data = (r.json() or {}).get("data") or []
+                new_map: dict[str, float] = {}
+                for it in data:
+                    inst_id = it.get("instId", "")
+                    if not inst_id.endswith("-USDT-SWAP"):
+                        continue
+                    sym = inst_id[:-len("-USDT-SWAP")]
+                    try:
+                        ct_val = float(it.get("ctVal") or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    if ct_val > 0:
+                        new_map[sym] = ct_val
+                if new_map:
+                    _OKX_CT_VAL.clear()
+                    _OKX_CT_VAL.update(new_map)
+                    logger.info("okx_ct_val_refreshed", count=len(new_map))
+        except Exception as e:
+            logger.warning("okx_ct_val_refresh_failed", error=str(e))
+        await asyncio.sleep(3600)  # hourly
+
+
 _HYPE_COINS = [
     "PUMP","HMSTR","kPEPE","BLAST","MON","MEME","LINEA","kBONK","TURBO","PENGU",
     "NOT","GRIFFAIN","BOME","kSHIB","HEMI","DOGE","DOOD","FARTCOIN","XPL","WLFI",
@@ -325,7 +388,11 @@ async def _okx_ws_loop() -> None:
                             continue
                         for item in (msg.get("data") or []):
                             sym_raw = item.get("instId", "").replace("-USDT-SWAP", "").replace("-BUSD-SWAP", "")
-                            ct_val  = _OKX_CT_VAL.get(sym_raw, 1.0)
+                            ct_val  = _OKX_CT_VAL.get(sym_raw, 0.0)
+                            if ct_val <= 0:
+                                # Map not loaded yet or unknown sym — skip the
+                                # row rather than mis-price it with a guess.
+                                continue
                             for detail in (item.get("details") or []):
                                 ts       = int(detail.get("ts", 0) or time.time() * 1000)
                                 price    = float(detail.get("bkPx", 0) or 0)
@@ -980,6 +1047,97 @@ def create_app(
         except Exception:
             return []
 
+    # ── APNs push notifications ─────────────────────────────────────────────
+    # Credentials come from env vars — missing = silently skip, never crash.
+    # Required env vars (set in Railway / .env):
+    #   APNS_KEY_P8    — contents of the .p8 key file (with headers, newlines as \n)
+    #   APNS_KEY_ID    — 10-char Key ID from Apple Developer portal
+    #   APNS_TEAM_ID   — 10-char Team ID from Apple Developer portal
+    #   APNS_BUNDLE_ID — e.g. com.yourcompany.tradingTerminal
+    #   APNS_ENV       — "sandbox" (dev) or "production" (default: sandbox)
+
+    import os as _os
+
+    _apns_jwt_cache: dict = {"token": None, "issued_at": 0}
+
+    def _apns_jwt() -> str | None:
+        """APNs için imzalı JWT üret. Token 45 dk geçerli — cache'den döner."""
+        import time as _time
+        key_p8   = _os.environ.get("APNS_KEY_P8", "").strip()
+        key_id   = _os.environ.get("APNS_KEY_ID", "").strip()
+        team_id  = _os.environ.get("APNS_TEAM_ID", "").strip()
+        if not (key_p8 and key_id and team_id):
+            return None
+        now = int(_time.time())
+        cached = _apns_jwt_cache
+        if cached["token"] and now - cached["issued_at"] < 2700:  # 45 dk
+            return cached["token"]
+        try:
+            from jose import jwt as _jwt
+            token = _jwt.encode(
+                {"iss": team_id, "iat": now},
+                key_p8,
+                algorithm="ES256",
+                headers={"alg": "ES256", "kid": key_id},
+            )
+            cached["token"] = token
+            cached["issued_at"] = now
+            return token
+        except Exception as e:
+            logger.warning("apns_jwt_error", error=str(e))
+            return None
+
+    async def _send_apns_push(device_token: str, title: str, body: str, data: dict | None = None) -> bool:
+        """Tek bir cihaza APNs push gönderir. Başarılıysa True döner."""
+        jwt_token = _apns_jwt()
+        if not jwt_token:
+            return False
+        bundle_id = _os.environ.get("APNS_BUNDLE_ID", "").strip()
+        if not bundle_id:
+            return False
+        env = _os.environ.get("APNS_ENV", "sandbox")
+        host = "api.sandbox.push.apple.com" if env == "sandbox" else "api.push.apple.com"
+        url = f"https://{host}/3/device/{device_token}"
+        payload: dict = {
+            "aps": {
+                "alert": {"title": title, "body": body},
+                "sound": "default",
+                "badge": 1,
+            }
+        }
+        if data:
+            payload.update(data)
+        headers = {
+            "authorization": f"bearer {jwt_token}",
+            "apns-topic": bundle_id,
+            "apns-push-type": "alert",
+            "apns-priority": "10",
+        }
+        try:
+            async with httpx.AsyncClient(http2=True, timeout=10) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 200:
+                return True
+            logger.warning("apns_push_failed", status=resp.status_code, token=device_token[:10])
+            return False
+        except Exception as e:
+            logger.warning("apns_push_error", error=str(e))
+            return False
+
+    async def _send_push_to_user(user_id: int, title: str, body: str, data: dict | None = None) -> None:
+        """Kullanıcının kayıtlı tüm cihazlarına push gönderir."""
+        from ..persistence.database import get_pool
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT token FROM device_tokens WHERE user_id=$1", user_id
+                )
+            for row in rows:
+                await _send_apns_push(row["token"], title, body, data)
+        except Exception as e:
+            logger.warning("push_to_user_error", user_id=user_id, error=str(e))
+
     async def _funding_fee_loop(pm) -> None:
         """
         Her 8 saatte bir Binance'den funding rate çekip paper pozisyonlara uygular.
@@ -1217,6 +1375,14 @@ def create_app(
                                     n["coin"], n["direction"], n["target"], n["price"]
                                 )
                                 await bot.send_to_many(chat_ids, text)
+                        # APNs push bildirimi (uygulama kapalıyken de çalışır)
+                        direction_tr = "yükseldi" if n["direction"] == "above" else "düştü"
+                        push_title = f"🔔 {n['coin']} alarm tetiklendi"
+                        push_body  = f"{n['coin']} ${n['target']:,.2f} hedefine {direction_tr} · Şu an: ${n['price']:,.2f}"
+                        asyncio.create_task(_send_push_to_user(
+                            n["user_id"], push_title, push_body,
+                            {"alert_id": n["alert_id"], "coin": n["coin"]},
+                        ))
                         # Email bildirimi
                         email_users = await _get_email_users([n["user_id"]], "notify_alerts")
                         for _, email in email_users:
@@ -1230,6 +1396,211 @@ def create_app(
                 logger.warning("price_alert_checker_error", error=str(e))
 
             await asyncio.sleep(5)
+
+    # ── Big Transfers trackers (BTC + EVM) ──────────────────────────────
+    btc_mempool_tracker = None
+    evm_transfer_tracker = None
+    auto_label_tracker = None  # heuristic CEX deposit-address discovery
+    funding_tracker = None     # multi-exchange perp funding rate poller
+
+    def _btc_price() -> float | None:
+        """Best-effort BTC USD price for converting BTC native amounts."""
+        try:
+            t = market_service.get_ticker("BTCUSDT") if market_service else None
+            if t and getattr(t, "last_price", 0):
+                return float(t.last_price)
+        except Exception:
+            pass
+        return None
+
+    async def _persist_big_transfer(row: dict) -> None:
+        """One-shot insert into the shared big_transfers table.
+
+        Called from both BTC and EVM trackers via their on_transfer callback.
+        UNIQUE(chain, tx_hash, asset) drops dupes silently (same tx scanned
+        twice if mempool.space resends, or if EVM log replays).
+
+        Before persist we enrich with labels (lookup against known_addresses)
+        and derive flow_category — pure dict lookups, no extra requests.
+        The raw on-chain data (addresses, amounts) is never modified.
+        """
+        from ..persistence.database import get_pool
+        from ..big_transfers.known_addresses import lookup, classify_flow
+
+        from_addr_raw = row.get("from_addr")
+        to_addr_raw   = row.get("to_addr")
+        amount_usd    = float(row.get("amount_usd") or 0)
+
+        # 1) Static labels first (curated, highest trust)
+        from_label, from_cat, from_ent = lookup(from_addr_raw)
+        to_label,   to_cat,   to_ent   = lookup(to_addr_raw)
+
+        # 2) Auto-label fallback — promoted addresses recognised by usage pattern
+        if auto_label_tracker is not None:
+            if not from_label:
+                al, ac, ae = auto_label_tracker.lookup(from_addr_raw)
+                if al:
+                    from_label, from_cat, from_ent = al, ac, ae
+            if not to_label:
+                al, ac, ae = auto_label_tracker.lookup(to_addr_raw)
+                if al:
+                    to_label, to_cat, to_ent = al, ac, ae
+
+        # 3) Record hints for the *unlabeled* counterparty when the other side
+        #    is a known CEX. Most useful: unknown→Binance funnel detection.
+        if auto_label_tracker is not None:
+            if to_cat == "cex" and from_cat is None and from_addr_raw and to_ent:
+                auto_label_tracker.record(from_addr_raw, to_ent, amount_usd)
+            if from_cat == "cex" and to_cat is None and to_addr_raw and from_ent:
+                auto_label_tracker.record(to_addr_raw, from_ent, amount_usd)
+
+        flow_category = classify_flow(from_cat, to_cat)
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO big_transfers
+                        (chain, asset, tx_hash, amount_native, amount_usd,
+                         from_addr, to_addr, block_height, ts_sec, link,
+                         from_label, to_label, raw_json, flow_category)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                    ON CONFLICT (chain, tx_hash, asset) DO NOTHING
+                    """,
+                    row.get("chain"), row.get("asset"), row.get("tx_hash"),
+                    float(row.get("amount_native") or 0),
+                    float(row.get("amount_usd") or 0),
+                    row.get("from_addr"), row.get("to_addr"),
+                    int(row.get("block_height") or 0) or None,
+                    int(row.get("ts_sec") or time.time()),
+                    row.get("link"),
+                    from_label, to_label,
+                    row.get("raw_json"),
+                    flow_category,
+                )
+            # Live push to every connected WS client so the feed updates
+            # instantly without polling. We broadcast to everyone since this
+            # is a global feed (each user filters by their own threshold).
+            try:
+                await manager.broadcast({
+                    "type": "big_transfer",
+                    "chain": row.get("chain"),
+                    "asset": row.get("asset"),
+                    "tx_hash": row.get("tx_hash"),
+                    "amount": float(row.get("amount_native") or 0),
+                    "amount_usd": float(row.get("amount_usd") or 0),
+                    "from": row.get("from_addr"),
+                    "to": row.get("to_addr"),
+                    "from_label": from_label,
+                    "to_label": to_label,
+                    "flow_category": flow_category,
+                    "ts": int(row.get("ts_sec") or time.time()),
+                    "link": row.get("link"),
+                })
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning("big_transfer_persist_error", error=str(e))
+
+    # ── Smart Money Tracker singleton + callbacks ───────────────────────
+    smart_money_tracker = None  # populated in _startup, set to None on _shutdown
+    positioning_tracker = None  # whale positioning snapshots (REST poll)
+    symbol_resolver = None      # HL coin → human-readable label cache
+
+    async def _sm_broadcast(user_id: int, payload: dict) -> None:
+        try:
+            await manager.broadcast_user(user_id, payload)
+        except Exception as e:
+            logger.debug("sm_broadcast_fail", uid=user_id, error=str(e))
+
+    async def _sm_push(user_id: int, title: str, body: str, data: dict | None) -> None:
+        try:
+            await _send_push_to_user(user_id, title, body, data)
+        except Exception as e:
+            logger.debug("sm_push_fail", uid=user_id, error=str(e))
+
+    async def _sm_copy(user_id: int, cfg: dict, fill: dict) -> None:
+        """Copy a smart-money OPEN into the user's HL account at sized notional.
+
+        Sizing: copy_usd = min(whale_size_usd * ratio, budget). Budget is also
+        the signal threshold used in the tracker, so it acts as a per-trade cap.
+        Only fires on 'Open Long' / 'Open Short'. 'Close *' actions broadcast
+        but never auto-close (we won't unwind a user position without explicit
+        consent — TODO: optional autoClose using the user's own position size).
+        """
+        executor = _user_executors.get(user_id)
+        if executor is None:
+            return  # user not HL-connected — copy silently skipped
+        dir_ = str(fill.get("dir") or "")
+        if not dir_.lower().startswith("open"):
+            return
+        is_long = "long" in dir_.lower()
+        coin = str(fill.get("coin") or "").upper()
+        if not coin:
+            return
+        try:
+            ratio = float(cfg.get("ratio") or 1.0)
+            budget = float(cfg.get("budget") or 500.0)
+        except (TypeError, ValueError):
+            return
+        whale_usd = float(fill.get("size_usd") or 0)
+        copy_usd = min(whale_usd * ratio, budget)
+        if copy_usd < 10:  # HL minimum order notional
+            return
+
+        try:
+            from ..execution.hyperliquid_executor import (
+                resolve_hl_symbol, get_hl_price, normalize_hl_size,
+            )
+            from ..core.models import Order
+            from ..core.enums import OrderSide, OrderType, OrderStatus
+            import uuid as _uuid
+
+            sym = resolve_hl_symbol(coin)
+            price = await get_hl_price(sym)
+            if not price or price <= 0:
+                logger.warning("sm_copy_no_price", coin=coin)
+                return
+            raw_qty = copy_usd / price
+            qty = await normalize_hl_size(sym, raw_qty)
+            if qty <= 0:
+                return
+            order = Order(
+                internal_id=str(_uuid.uuid4()),
+                user_id=user_id,
+                symbol=sym,
+                side=OrderSide.BUY if is_long else OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=qty,
+                leverage=1,
+                notional_usd=copy_usd,
+            )
+            fill_result = await executor.execute(order, price)
+            if fill_result is None or order.status == OrderStatus.REJECTED:
+                logger.warning(
+                    "sm_copy_rejected", uid=user_id, coin=coin,
+                    reason=order.error,
+                )
+                # Tell the user the copy failed so they're not surprised
+                await _sm_push(
+                    user_id,
+                    "⚠️ Smart Money copy reddedildi",
+                    f"{coin}: {order.error or 'bilinmeyen hata'}",
+                    {"kind": "smart_money_copy_rejected", "coin": coin},
+                )
+                return
+            logger.info(
+                "sm_copy_filled", uid=user_id, coin=coin,
+                qty=fill_result.quantity, px=fill_result.price,
+            )
+            await _sm_push(
+                user_id,
+                "✅ Smart Money copy",
+                f"{('LONG' if is_long else 'SHORT')} {coin} ${copy_usd:,.0f} @ ${fill_result.price:,.4f}",
+                {"kind": "smart_money_copy_filled", "coin": coin},
+            )
+        except Exception as e:
+            logger.warning("sm_copy_exception", uid=user_id, error=str(e))
 
     @app.on_event("startup")
     async def _startup() -> None:
@@ -1248,7 +1619,16 @@ def create_app(
         # Bybit sembollerini startup'ta dinamik genişlet (daha yüksek kapsama)
         await _refresh_bybit_symbols()
 
-        # Binance + Bybit + HyperLiquid WS accumulator'ları başlat
+        # Liquidation live broadcast — _push_liq sends every >$10K liq to
+        # connected WS clients. Used by the mobile "Live Feed" panel.
+        if manager.broadcast not in _LIQ_BROADCAST:
+            _LIQ_BROADCAST.append(manager.broadcast)
+
+        # Binance + Bybit + OKX WS accumulator'ları başlat
+        # Note: Hyperliquid disabled — HL has no public liquidation feed and
+        # the OI-delta heuristic produces synthetic estimates, not real data.
+        # We refuse to surface synthetic numbers; HL aggregate liq still comes
+        # in via Coinglass (real) for the heatmap totals.
         asyncio.create_task(_binance_ws_loop())
         # Bybit'te tek socket'e çok fazla topic basınca veri düşebiliyor.
         # Bu yüzden sembolleri shard'layıp paralel soketlerle dinle.
@@ -1258,13 +1638,99 @@ def create_app(
             asyncio.create_task(_bybit_ws_loop(_BYBIT_SYMBOLS[i:i + bybit_chunk_size]))
             bybit_shards += 1
         logger.info("liq_ws_bybit_shards_started", symbols=len(_BYBIT_SYMBOLS), shards=bybit_shards)
+        # OKX contract-value map must be ready before _okx_ws_loop emits;
+        # kick the refresher first and start the WS loop in parallel — the
+        # WS loop reads from the dict on every event and degrades gracefully
+        # if it's empty (the row is skipped via `ct_val <= 0`).
+        asyncio.create_task(_refresh_okx_ct_val())
         asyncio.create_task(_okx_ws_loop())
-        asyncio.create_task(_hype_ws_loop())
-        asyncio.create_task(_hype_rest_poll())
+        # Hyperliquid synthetic liq loops disabled — see comment above.
+        # asyncio.create_task(_hype_ws_loop())
+        # asyncio.create_task(_hype_rest_poll())
         asyncio.create_task(_cmc_rest_poll())
 
         # DB batch flusher
         asyncio.create_task(_db_batch_flusher())
+
+        # ── Smart Money Tracker ────────────────────────────────────────
+        # Real-time Hyperliquid userFills subscription for every wallet
+        # any user follows. Persists fills + fans out push/WS/auto-copy.
+        nonlocal smart_money_tracker
+        try:
+            from ..smartmoney import SmartMoneyTracker
+            smart_money_tracker = SmartMoneyTracker(
+                broadcast=_sm_broadcast,
+                push=_sm_push,
+                copy=_sm_copy,
+                testnet=False,
+            )
+            await smart_money_tracker.start()
+        except Exception as e:
+            logger.warning("smtracker_start_failed", error=str(e))
+
+        # ── Symbol Resolver ─────────────────────────────────────────────
+        # Caches HL meta to turn raw fill symbols ("xyz:CL", "@142") into
+        # human-readable labels for the UI.
+        nonlocal symbol_resolver
+        try:
+            from ..smartmoney import SymbolResolver
+            symbol_resolver = SymbolResolver()
+            await symbol_resolver.start()
+        except Exception as e:
+            logger.warning("symbol_resolver_start_failed", error=str(e))
+
+        # ── Positioning Tracker (REST snapshots) ────────────────────────
+        # Complements the flow tracker: every 5 min, polls clearinghouseState
+        # for top 500 qualifying whales and aggregates net long/short by coin.
+        # Adds breadth without WS sub limits.
+        nonlocal positioning_tracker
+        try:
+            from ..smartmoney import PositioningTracker
+            positioning_tracker = PositioningTracker(
+                max_whales=1500,
+                refresh_interval_sec=360,
+                min_account_value=250_000,
+                min_month_vlm=1_000_000,
+                request_concurrency=12,
+            )
+            await positioning_tracker.start()
+            from ..smartmoney._state import set_positioning_tracker
+            set_positioning_tracker(positioning_tracker)
+        except Exception as e:
+            logger.warning("positioning_tracker_start_failed", error=str(e))
+
+        # ── Funding Rate Tracker ────────────────────────────────────────
+        nonlocal funding_tracker
+        try:
+            from ..funding import FundingRateTracker
+            funding_tracker = FundingRateTracker()
+            await funding_tracker.start()
+        except Exception as e:
+            logger.warning("funding_tracker_start_failed", error=str(e))
+
+        # ── Big Transfers trackers ──────────────────────────────────────
+        # Free, public WSS sources — no API keys, real-time on-chain whale
+        # detection. BTC via Mempool.space, ETH USDT/USDC via PublicNode.
+        nonlocal btc_mempool_tracker, evm_transfer_tracker, auto_label_tracker
+        try:
+            from ..big_transfers import BtcMempoolTracker, EvmTransferTracker, AutoLabelTracker
+            # Start auto-label tracker FIRST so _persist_big_transfer can use it
+            auto_label_tracker = AutoLabelTracker()
+            await auto_label_tracker.start()
+
+            btc_mempool_tracker = BtcMempoolTracker(
+                price_fn=_btc_price,
+                on_transfer=_persist_big_transfer,
+                min_usd=500_000.0,
+            )
+            evm_transfer_tracker = EvmTransferTracker(
+                on_transfer=_persist_big_transfer,
+                min_usd=500_000.0,
+            )
+            await btc_mempool_tracker.start()
+            await evm_transfer_tracker.start()
+        except Exception as e:
+            logger.warning("big_transfers_start_failed", error=str(e))
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:
@@ -1272,6 +1738,50 @@ def create_app(
         düzgün kapat. Aksi halde uvicorn kill edilirken background thread'ler
         asılı kalır, sonraki başlatmada port bind çakışması veya zombie
         ws connection'lar olabilir."""
+        # Smart Money Tracker
+        nonlocal smart_money_tracker, positioning_tracker, symbol_resolver, btc_mempool_tracker, evm_transfer_tracker, auto_label_tracker, funding_tracker
+        if symbol_resolver is not None:
+            try:
+                await symbol_resolver.stop()
+            except Exception as e:
+                logger.debug("symbol_resolver_stop_failed", error=str(e))
+            symbol_resolver = None
+        if positioning_tracker is not None:
+            try:
+                await positioning_tracker.stop()
+            except Exception as e:
+                logger.debug("positioning_tracker_stop_failed", error=str(e))
+            from ..smartmoney._state import set_positioning_tracker
+            set_positioning_tracker(None)
+            positioning_tracker = None
+        if funding_tracker is not None:
+            try:
+                await funding_tracker.stop()
+            except Exception as e:
+                logger.debug("funding_tracker_stop_failed", error=str(e))
+        funding_tracker = None
+        if smart_money_tracker is not None:
+            try:
+                await smart_money_tracker.stop()
+            except Exception as e:
+                logger.debug("smtracker_stop_failed", error=str(e))
+            smart_money_tracker = None
+        # Big Transfers trackers
+        for name, tr in (("btc", btc_mempool_tracker), ("evm", evm_transfer_tracker)):
+            if tr is not None:
+                try:
+                    await tr.stop()
+                except Exception as e:
+                    logger.debug("big_transfer_stop_failed", which=name, error=str(e))
+        btc_mempool_tracker = None
+        evm_transfer_tracker = None
+        # Auto-label tracker (flushes any pending hints on stop)
+        if auto_label_tracker is not None:
+            try:
+                await auto_label_tracker.stop()
+            except Exception as e:
+                logger.debug("autolabel_stop_failed", error=str(e))
+        auto_label_tracker = None
         # HL executor'lar — stop_user_stream WS'i kapatır + unsubscribe
         for uid, ex in list(_user_executors.items()):
             try:
@@ -1442,6 +1952,761 @@ def create_app(
                 "DELETE FROM price_alerts WHERE id=$1 AND user_id=$2", alert_id, user_id
             )
         return None
+
+    # ── APNs device token registration ─────────────────────────
+    @app.post("/api/push-token", status_code=200)
+    async def register_push_token(body: dict, user_id: int = Depends(_get_uid)):
+        """iOS cihaz token'ını kaydeder (upsert). Capacitor registration event'ten gelir."""
+        token    = (body.get("token") or "").strip()
+        platform = (body.get("platform") or "ios").strip()
+        if not token:
+            raise HTTPException(400, "token gerekli")
+        from ..persistence.database import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO device_tokens (user_id, token, platform, updated_at)
+                   VALUES ($1, $2, $3, NOW())
+                   ON CONFLICT (user_id, token) DO UPDATE SET updated_at = NOW()""",
+                user_id, token, platform,
+            )
+        return {"ok": True}
+
+    @app.delete("/api/push-token", status_code=204)
+    async def unregister_push_token(body: dict, user_id: int = Depends(_get_uid)):
+        """Uygulama silindiğinde veya logout olunduğunda token'ı temizler."""
+        token = (body.get("token") or "").strip()
+        if not token:
+            return None
+        from ..persistence.database import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM device_tokens WHERE user_id=$1 AND token=$2", user_id, token
+            )
+        return None
+
+    # ── Market Compass: master composite sentiment ────────────────────────
+    @app.get("/api/sentiment/compass")
+    @_limiter.limit("60/minute")
+    async def sentiment_compass(request: Request):
+        """Master sentiment — weighted blend of Smart Money + Big Transfers +
+        Funding + Liquidations + Volume + ETF + Global F&G.
+
+        Returns score / verdict / confidence + each component's individual
+        reading so the UI can show *why* the master leans the way it does.
+        """
+        from ..sentiment import compute_compass
+        # Advisor (setup + risks + watch) artık compute_compass içinde
+        # hesaplanıyor; setup_key snapshot ile birlikte DB'ye yazılıyor.
+        return await compute_compass()
+
+    # ── Backtest: setup → BTC fiyat etkisi tablosu ────────────────────────
+    @app.get("/api/sentiment/backtest")
+    @_limiter.limit("6/minute")
+    async def sentiment_backtest(request: Request):
+        """compass_history'den setup tetiklenmelerini al, her biri için
+        BTC fiyat değişimini 1h/6h/24h/7d penceresinde hesapla. Win rate ve
+        ortalama getiri ile setup'ların gerçek edge'ini ölç.
+
+        Pahalı bir çağrı (her tetiklenme için Binance klines) — 6/dakika limit.
+        İlk birkaç gün düşük sample size → `insufficient_samples` işareti.
+        """
+        from ..sentiment.backtest import run_backtest
+        return await run_backtest(actionable_only=True)
+
+    # ── Funding Rates: snapshot from all 5 exchanges (DB-backed) ──────────
+    @app.get("/api/funding/snapshot")
+    @_limiter.limit("60/minute")
+    async def funding_snapshot(request: Request):
+        """Latest funding rate per (exchange, symbol). Returns a coin-keyed
+        map so the UI can render a grid. No auth required — public data.
+        """
+        from ..persistence.database import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT exchange, symbol, rate, next_funding_ms, interval_hours,
+                       EXTRACT(EPOCH FROM fetched_at)::BIGINT AS fetched_sec
+                FROM funding_rates
+                """,
+            )
+        by_coin: dict[str, dict] = {}
+        for r in rows:
+            coin = r["symbol"]
+            ex   = r["exchange"]
+            by_coin.setdefault(coin, {})[ex] = {
+                "rate":            float(r["rate"]),
+                "next_funding_ms": int(r["next_funding_ms"]) if r["next_funding_ms"] else None,
+                "interval_hours":  int(r["interval_hours"]),
+                "fetched_sec":     int(r["fetched_sec"]),
+            }
+        return {"rates": by_coin}
+
+    @app.get("/api/funding/sentiment")
+    @_limiter.limit("60/minute")
+    async def funding_sentiment(request: Request):
+        """Market-wide funding sentiment.
+
+        Standard contrarian interpretation:
+          oversold  (avg rate < -0.01% across exchanges) → bullish (squeeze)
+          overbought(avg rate > +0.01%)                  → bearish (long unwind)
+          score = (oversold_count - overbought_count) / max(1, classified)
+        Everything is derived from the current funding_rates table — public,
+        no key, refreshed every 60 seconds by the tracker.
+        """
+        from ..persistence.database import get_pool
+
+        OVERSOLD_T   = -0.0001   # -0.01%
+        OVERBOUGHT_T =  0.0001   # +0.01%
+        EXTREME_T    =  0.0005   # |0.05%|
+        ARB_T        =  0.0003   # 0.03% cross-exchange spread = arb-worthy
+
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT symbol,
+                       AVG(rate) AS avg_rate,
+                       MAX(rate) AS max_rate,
+                       MIN(rate) AS min_rate,
+                       COUNT(*) AS ex_count
+                FROM funding_rates
+                GROUP BY symbol
+                HAVING COUNT(*) >= 1
+                """
+            )
+
+        oversold = []   # [(symbol, avg, max, min)]
+        overbought = []
+        avg_sum = 0.0
+        avg_n   = 0
+        arb_count = 0
+        arb_top   = []  # symbols with biggest spread
+        for r in rows:
+            sym = r["symbol"]
+            avg = float(r["avg_rate"] or 0)
+            mx  = float(r["max_rate"] or 0)
+            mn  = float(r["min_rate"] or 0)
+            spread = mx - mn
+            avg_sum += avg
+            avg_n   += 1
+            if avg <= OVERSOLD_T:
+                oversold.append((sym, avg, mx, mn))
+            elif avg >= OVERBOUGHT_T:
+                overbought.append((sym, avg, mx, mn))
+            if spread >= ARB_T:
+                arb_count += 1
+                arb_top.append((sym, spread, mx, mn))
+
+        total_classified = len(oversold) + len(overbought)
+        score = (len(oversold) - len(overbought)) / max(1, total_classified)
+        verdict = "BULLISH" if score >  0.3 else \
+                  "BEARISH" if score < -0.3 else "NEUTRAL"
+
+        # Sort & cap for top lists shown in the UI
+        oversold.sort(key=lambda x: x[1])              # most-negative first
+        overbought.sort(key=lambda x: -x[1])           # most-positive first
+        arb_top.sort(key=lambda x: -x[1])
+
+        def _pack(arr, n=5):
+            return [
+                {"symbol": s, "avg_rate": a, "max_rate": mx, "min_rate": mn}
+                for s, a, mx, mn in arr[:n]
+            ]
+
+        return {
+            "score":            round(score, 3),
+            "verdict":          verdict,
+            "avg_rate":         (avg_sum / avg_n) if avg_n else 0.0,
+            "total_symbols":    avg_n,
+            "oversold_count":   len(oversold),
+            "overbought_count": len(overbought),
+            "extreme_count":    sum(1 for _, a, _, _ in oversold + overbought if abs(a) >= EXTREME_T),
+            "arb_count":        arb_count,
+            "top_oversold":     _pack(oversold),
+            "top_overbought":   _pack(overbought),
+            "top_arb":          [
+                {"symbol": s, "spread": sp, "max_rate": mx, "min_rate": mn}
+                for s, sp, mx, mn in arb_top[:5]
+            ],
+        }
+
+    @app.get("/api/funding/spreads")
+    @_limiter.limit("60/minute")
+    async def funding_spreads(request: Request, limit: int = 100):
+        """Per-coin cross-exchange spread (max rate - min rate).
+
+        Useful for spotting funding-arb opportunities: when one venue pays
+        +0.05% and another pays -0.02% on the same coin, longing the cheap
+        side / shorting the expensive side captures the spread every
+        funding cycle.
+        """
+        from ..persistence.database import get_pool
+        try:
+            limit = max(1, min(int(limit or 100), 300))
+        except (TypeError, ValueError):
+            limit = 100
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT symbol,
+                       MAX(rate) AS max_rate,
+                       MIN(rate) AS min_rate,
+                       (MAX(rate) - MIN(rate)) AS spread,
+                       COUNT(*) AS exchange_count
+                FROM funding_rates
+                GROUP BY symbol
+                HAVING COUNT(*) >= 2
+                ORDER BY (MAX(rate) - MIN(rate)) DESC
+                LIMIT $1
+                """,
+                limit,
+            )
+        return {
+            "spreads": [
+                {
+                    "symbol":         r["symbol"],
+                    "max_rate":       float(r["max_rate"]),
+                    "min_rate":       float(r["min_rate"]),
+                    "spread":         float(r["spread"]),
+                    "exchange_count": int(r["exchange_count"]),
+                }
+                for r in rows
+            ],
+        }
+
+    # ── Big Transfers: 24h aggregates per flow category (for dashboard) ───
+    @app.get("/api/big-transfers/aggregates")
+    @_limiter.limit("60/minute")
+    async def big_transfers_aggregates(
+        request: Request,
+        window_sec: int = 86400,
+        _user_id: int = Depends(_require_pro),
+    ):
+        """Last-N-seconds rolling sums per flow_category.
+
+        Used by the mobile dashboard's 4-card summary so users can compare
+        Inflow vs Outflow vs Mint vs Burn at a glance. Lightweight GROUP BY
+        — typical query returns <1ms with the flow index.
+        """
+        from ..persistence.database import get_pool
+
+        try:
+            window_sec = max(60, min(int(window_sec or 86400), 7 * 86400))
+        except (TypeError, ValueError):
+            window_sec = 86400
+        since_sec = int(time.time()) - window_sec
+
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT COALESCE(flow_category, 'unknown') AS flow,
+                       COUNT(*) AS cnt,
+                       SUM(amount_usd) AS sum_usd
+                FROM big_transfers
+                WHERE ts_sec >= $1
+                GROUP BY flow_category
+                """,
+                since_sec,
+            )
+
+        by_flow = {
+            r["flow"]: {"count": int(r["cnt"]), "sum_usd": float(r["sum_usd"] or 0)}
+            for r in rows
+        }
+        # Always return all known buckets so the UI doesn't need null-handling
+        for k in ("cex_inflow", "cex_outflow", "cex_internal", "mint", "burn", "unknown"):
+            by_flow.setdefault(k, {"count": 0, "sum_usd": 0.0})
+
+        return {
+            "window_sec": window_sec,
+            "flows": by_flow,
+        }
+
+    @app.get("/api/big-transfers/insights")
+    @_limiter.limit("30/minute")
+    async def big_transfers_insights(
+        request: Request,
+        window_sec: int = 86400,
+        _user_id: int = Depends(_require_pro),
+    ):
+        """Rule-based flow analysis for the BigTransfers sentiment sheet.
+
+        Mirrors /api/smart-money/insights in spirit: pure observation, no
+        buy/sell calls. Derives a directional read from on-chain exchange
+        flow + stablecoin mint/burn, then explains *why* with tagged
+        narrative lines plus the top assets driving the flow and the
+        biggest single transfers in the window.
+        """
+        from ..persistence.database import get_pool
+
+        try:
+            window_sec = max(60, min(int(window_sec or 86400), 7 * 86400))
+        except (TypeError, ValueError):
+            window_sec = 86400
+        since_sec = int(time.time()) - window_sec
+
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            flow_rows = await conn.fetch(
+                """
+                SELECT COALESCE(flow_category, 'unknown') AS flow,
+                       COUNT(*) AS cnt, SUM(amount_usd) AS sum_usd
+                FROM big_transfers
+                WHERE ts_sec >= $1
+                GROUP BY flow_category
+                """,
+                since_sec,
+            )
+            asset_rows = await conn.fetch(
+                """
+                SELECT asset,
+                       COALESCE(flow_category, 'unknown') AS flow,
+                       COUNT(*) AS cnt, SUM(amount_usd) AS sum_usd
+                FROM big_transfers
+                WHERE ts_sec >= $1
+                  AND flow_category IN ('cex_inflow', 'cex_outflow')
+                GROUP BY asset, flow_category
+                """,
+                since_sec,
+            )
+            biggest_rows = await conn.fetch(
+                """
+                SELECT chain, asset, amount_usd, flow_category,
+                       from_label, to_label, ts_sec, link
+                FROM big_transfers
+                WHERE ts_sec >= $1
+                ORDER BY amount_usd DESC
+                LIMIT 6
+                """,
+                since_sec,
+            )
+            # Momentum: net exchange flow in the most recent 6h vs the rest of
+            # the window, so we can tell if pressure is accelerating or flipped.
+            recent_sec = int(time.time()) - 6 * 3600
+            recent_rows = await conn.fetch(
+                """
+                SELECT COALESCE(flow_category, 'unknown') AS flow,
+                       SUM(amount_usd) AS sum_usd
+                FROM big_transfers
+                WHERE ts_sec >= $1 AND flow_category IN ('cex_inflow', 'cex_outflow')
+                GROUP BY flow_category
+                """,
+                recent_sec,
+            )
+            # Per-exchange flow — labels identify the venue (Binance, OKX, …).
+            exch_rows = await conn.fetch(
+                """
+                SELECT COALESCE(flow_category, 'unknown') AS flow,
+                       from_label, to_label, SUM(amount_usd) AS sum_usd, COUNT(*) AS cnt
+                FROM big_transfers
+                WHERE ts_sec >= $1 AND flow_category IN ('cex_inflow', 'cex_outflow')
+                GROUP BY flow_category, from_label, to_label
+                """,
+                since_sec,
+            )
+            # Hourly net exchange flow buckets — sparkline timeline.
+            hourly_rows = await conn.fetch(
+                """
+                SELECT FLOOR((ts_sec - $2) / 3600.0)::int AS hr,
+                       COALESCE(flow_category, 'unknown') AS flow,
+                       SUM(amount_usd) AS sum_usd
+                FROM big_transfers
+                WHERE ts_sec >= $1 AND flow_category IN ('cex_inflow', 'cex_outflow')
+                GROUP BY hr, flow_category
+                """,
+                since_sec, since_sec,
+            )
+            # 7-day daily exchange volume — baseline for anomaly detection.
+            since_7d = int(time.time()) - 7 * 86400
+            daily_rows = await conn.fetch(
+                """
+                SELECT FLOOR((ts_sec - $2) / 86400.0)::int AS day,
+                       SUM(amount_usd) AS sum_usd
+                FROM big_transfers
+                WHERE ts_sec >= $1 AND flow_category IN ('cex_inflow', 'cex_outflow')
+                GROUP BY day
+                """,
+                since_7d, since_7d,
+            )
+            # Clustering — addresses that repeatedly move the same direction.
+            cluster_rows = await conn.fetch(
+                """
+                SELECT flow_category AS flow,
+                       CASE WHEN flow_category = 'cex_inflow' THEN from_addr ELSE to_addr END AS whale,
+                       COUNT(*) AS n, SUM(amount_usd) AS s
+                FROM big_transfers
+                WHERE ts_sec >= $1 AND flow_category IN ('cex_inflow', 'cex_outflow')
+                GROUP BY flow_category, whale
+                HAVING COUNT(*) >= 3
+                ORDER BY SUM(amount_usd) DESC
+                LIMIT 10
+                """,
+                since_sec,
+            )
+
+        flows = {r["flow"]: {"count": int(r["cnt"]), "sum_usd": float(r["sum_usd"] or 0)} for r in flow_rows}
+        for k in ("cex_inflow", "cex_outflow", "cex_internal", "mint", "burn", "unknown"):
+            flows.setdefault(k, {"count": 0, "sum_usd": 0.0})
+
+        inflow  = flows["cex_inflow"]["sum_usd"]
+        outflow = flows["cex_outflow"]["sum_usd"]
+        mint    = flows["mint"]["sum_usd"]
+        burn    = flows["burn"]["sum_usd"]
+        exch = (outflow - inflow) / (outflow + inflow) if (outflow + inflow) > 0 else 0.0
+        liq  = (mint - burn) / (mint + burn) if (mint + burn) > 0 else 0.0
+        has_liq = (mint + burn) > 0
+        # Score is computed below, after coin/stablecoin flows are separated.
+
+        # Top assets by absolute net exchange flow (outflow - inflow)
+        per_asset: dict[str, dict] = {}
+        for r in asset_rows:
+            a = per_asset.setdefault(r["asset"] or "?", {"asset": r["asset"] or "?", "inflow": 0.0, "outflow": 0.0, "count": 0})
+            if r["flow"] == "cex_inflow":
+                a["inflow"] += float(r["sum_usd"] or 0)
+            else:
+                a["outflow"] += float(r["sum_usd"] or 0)
+            a["count"] += int(r["cnt"])
+        top_assets = []
+        for a in per_asset.values():
+            a["net"] = a["outflow"] - a["inflow"]
+            top_assets.append(a)
+        top_assets.sort(key=lambda x: -abs(x["net"]))
+        top_assets = top_assets[:5]
+
+        # Coin vs stablecoin exchange flow — separated because the signal is
+        # opposite: coins (BTC/ETH) leaving exchanges = accumulation (bullish),
+        # stablecoins arriving = dry powder. Lumping them muddies the read, so
+        # we surface coin netflow on its own (the textbook exchange-netflow).
+        _STABLES = {"USDT", "USDC", "DAI", "FDUSD", "PYUSD", "USDP", "TUSD",
+                    "BUSD", "USDE", "GUSD", "USDS", "USD1", "USDD"}
+        coin_in = coin_out = 0.0
+        by_coin: dict[str, dict] = {}
+        for a in per_asset.values():
+            sym = (a["asset"] or "").upper()
+            if sym in _STABLES:
+                continue
+            coin_in += a["inflow"]
+            coin_out += a["outflow"]
+            by_coin[sym] = {"asset": sym, "inflow": a["inflow"], "outflow": a["outflow"], "net": a["net"], "count": a["count"]}
+        coin_net = coin_out - coin_in
+        coin_flow = {"inflow": coin_in, "outflow": coin_out, "net": coin_net}
+        # Headline per-coin list (BTC/ETH first), biggest absolute net first.
+        coins = sorted(by_coin.values(), key=lambda x: -abs(x["net"]))[:5]
+
+        # ── Sentiment score (model B): three separated signals ──
+        # 1) Coin netflow (BTC/ETH): coins LEAVING exchanges = accumulation (+).
+        # 2) Stablecoin liquidity (mint/burn): net mint = new buying power (+).
+        # 3) Stablecoin → exchange flow: stables ARRIVING at exchanges = dry
+        #    powder ready to buy (+). Opposite sign convention from coins, which
+        #    is exactly why we no longer lump them into one number.
+        stable_in  = max(0.0, inflow - coin_in)
+        stable_out = max(0.0, outflow - coin_out)
+        coin_exch  = coin_net / (coin_in + coin_out) if (coin_in + coin_out) > 0 else 0.0
+        # net stablecoin INTO exchanges, normalized → bullish when positive
+        stable_sig = (stable_in - stable_out) / (stable_in + stable_out) if (stable_in + stable_out) > 0 else 0.0
+        has_coin   = (coin_in + coin_out) > 0
+        has_stable = (stable_in + stable_out) > 0
+        comps = []
+        if has_coin:   comps.append((coin_exch, 0.5))
+        if has_liq:    comps.append((liq, 0.3))
+        if has_stable: comps.append((stable_sig, 0.2))
+        if comps:
+            wsum = sum(w for _, w in comps)
+            score = sum(v * w for v, w in comps) / wsum
+        else:
+            score = exch  # fallback: all-asset flow when nothing classified
+        verdict = "BULLISH" if score > 0.3 else "BEARISH" if score < -0.3 else "NEUTRAL"
+
+        biggest = [
+            {
+                "chain": r["chain"], "asset": r["asset"],
+                "amount_usd": float(r["amount_usd"] or 0),
+                "flow_category": r["flow_category"],
+                "from_label": r["from_label"], "to_label": r["to_label"],
+                "ts": int(r["ts_sec"]), "link": r["link"],
+            }
+            for r in biggest_rows
+        ]
+
+        # ── Rule-based narrative (observation only) ──
+        def _usd(n: float) -> str:
+            n = abs(n)
+            if n >= 1e9: return f"${n/1e9:.1f}B"
+            if n >= 1e6: return f"${n/1e6:.1f}M"
+            if n >= 1e3: return f"${n/1e3:.0f}K"
+            return f"${n:.0f}"
+
+        insights: list[dict] = []
+        net_exch = outflow - inflow
+        if (outflow + inflow) > 0 and abs(exch) >= 0.2:
+            if net_exch > 0:
+                insights.append({"tag": "EXCHANGE FLOW", "tone": "bull",
+                    "text": f"Borsalardan net {_usd(net_exch)} çıkış — coin'ler borsadan çekiliyor, biriktirme eğilimi"})
+            else:
+                insights.append({"tag": "EXCHANGE FLOW", "tone": "bear",
+                    "text": f"Borsalara net {_usd(net_exch)} giriş — satış için hazırlık, dağıtım baskısı olabilir"})
+        elif (outflow + inflow) > 0:
+            insights.append({"tag": "EXCHANGE FLOW", "tone": "neutral",
+                "text": f"Borsa giriş/çıkışı dengeli ({_usd(inflow)} giriş / {_usd(outflow)} çıkış) — net yön zayıf"})
+
+        if has_liq:
+            mint_net = mint - burn
+            if abs(liq) >= 0.2:
+                if mint_net > 0:
+                    insights.append({"tag": "STABLECOIN", "tone": "bull",
+                        "text": f"Net {_usd(mint_net)} stablecoin basıldı — piyasaya yeni alım gücü giriyor"})
+                else:
+                    insights.append({"tag": "STABLECOIN", "tone": "bear",
+                        "text": f"Net {_usd(mint_net)} stablecoin yakıldı — likidite çekiliyor"})
+
+        if top_assets and abs(top_assets[0]["net"]) > 0:
+            t = top_assets[0]
+            side = "çıkış" if t["net"] > 0 else "giriş"
+            tone = "bull" if t["net"] > 0 else "bear"
+            insights.append({"tag": "CONCENTRATION", "tone": tone,
+                "text": f"Akışı {t['asset']} sürüklüyor — net {_usd(t['net'])} {side} ({t['count']} transfer)"})
+
+        # Coin netflow (BTC/ETH) — directional accumulation/distribution signal.
+        if (coin_in + coin_out) > 0 and abs(coin_net) >= 10_000_000:
+            if coin_net > 0:
+                insights.append({"tag": "COIN NETFLOW", "tone": "bull",
+                    "text": f"Coin'ler borsadan çıkıyor — net {_usd(coin_net)} (BTC/ETH) → biriktirme sinyali"})
+            else:
+                insights.append({"tag": "COIN NETFLOW", "tone": "bear",
+                    "text": f"Coin'ler borsaya giriyor — net {_usd(coin_net)} (BTC/ETH) → satış baskısı sinyali"})
+
+        if biggest and biggest[0]["amount_usd"] >= 50_000_000:
+            b = biggest[0]
+            insights.append({"tag": "WHALE MOVE", "tone": "warn",
+                "text": f"Tek seferde {_usd(b['amount_usd'])} {b['asset']} hareketi — dikkat çekici büyüklük"})
+
+        # ── Momentum: recent 6h vs prior 18h net exchange flow rate ──
+        recent_flows = {r["flow"]: float(r["sum_usd"] or 0) for r in recent_rows}
+        recent_net = recent_flows.get("cex_outflow", 0.0) - recent_flows.get("cex_inflow", 0.0)
+        prior_net = net_exch - recent_net  # remaining 18h
+        recent_rate = recent_net / 6.0      # per hour
+        prior_rate = prior_net / 18.0
+        momentum = {"recent_net": recent_net, "prior_net": prior_net,
+                    "recent_rate": recent_rate, "prior_rate": prior_rate, "state": "steady"}
+        if abs(recent_rate) > 1_000_000 or abs(prior_rate) > 1_000_000:
+            if (recent_rate > 0) != (prior_rate > 0) and abs(recent_rate) > 1_000_000:
+                momentum["state"] = "flip"
+                tone = "bull" if recent_rate > 0 else "bear"
+                yön = "çıkışa (biriktirme)" if recent_rate > 0 else "girişe (dağıtım)"
+                insights.append({"tag": "MOMENTUM", "tone": tone,
+                    "text": f"Yön döndü — son 6 saatte akış {yön} geçti ({_usd(recent_net)}/6s)"})
+            elif abs(recent_rate) >= 1.5 * max(abs(prior_rate), 1.0):
+                momentum["state"] = "accelerating"
+                tone = "bull" if recent_rate > 0 else "bear"
+                yön = "çıkış" if recent_rate > 0 else "giriş"
+                insights.append({"tag": "MOMENTUM", "tone": tone,
+                    "text": f"Hızlanıyor — borsa {yön} baskısı son 6 saatte arttı ({_usd(recent_net)}/6s vs {_usd(prior_net)}/18s)"})
+            elif abs(recent_rate) <= 0.4 * abs(prior_rate):
+                momentum["state"] = "fading"
+                insights.append({"tag": "MOMENTUM", "tone": "neutral",
+                    "text": f"Yavaşlıyor — akış hızı son 6 saatte düştü ({_usd(recent_net)}/6s)"})
+
+        # ── Per-exchange net flow (outflow − inflow, by venue) ──
+        import re
+        def _venue(label: str | None) -> str | None:
+            if not label:
+                return None
+            s = re.sub(r"\(.*?\)", "", label)
+            s = re.sub(r"\b(Deposit|Withdrawals?|Hot|Cold|Wallet|auto)\b", "", s, flags=re.I)
+            s = re.sub(r"\s+\d+\b", "", s).strip()
+            if not s or s.lower() in ("null address", "unknown", "?"):
+                return None
+            return s
+
+        venues: dict[str, dict] = {}
+        for r in exch_rows:
+            usd = float(r["sum_usd"] or 0)
+            cnt = int(r["cnt"] or 0)
+            if r["flow"] == "cex_inflow":
+                name = _venue(r["to_label"])     # deposits land at the venue
+                if not name:
+                    continue
+                v = venues.setdefault(name, {"venue": name, "inflow": 0.0, "outflow": 0.0, "count": 0})
+                v["inflow"] += usd
+            else:
+                name = _venue(r["from_label"])   # withdrawals leave the venue
+                if not name:
+                    continue
+                v = venues.setdefault(name, {"venue": name, "inflow": 0.0, "outflow": 0.0, "count": 0})
+                v["outflow"] += usd
+            v["count"] += cnt
+        exchanges = []
+        for v in venues.values():
+            v["net"] = v["outflow"] - v["inflow"]
+            exchanges.append(v)
+        exchanges.sort(key=lambda x: -abs(x["net"]))
+        exchanges = exchanges[:6]
+        if exchanges and abs(exchanges[0]["net"]) > 0:
+            e = exchanges[0]
+            side = "çıkış" if e["net"] > 0 else "giriş"
+            tone = "bull" if e["net"] > 0 else "bear"
+            insights.append({"tag": "EXCHANGE", "tone": tone,
+                "text": f"En belirgin hareket {e['venue']}'de — net {_usd(e['net'])} {side}"})
+
+        # ── Hourly net flow sparkline (oldest → newest) ──
+        n_buckets = max(1, (window_sec + 3599) // 3600)
+        hourly_net = [0.0] * n_buckets
+        for r in hourly_rows:
+            hr = int(r["hr"] or 0)
+            if 0 <= hr < n_buckets:
+                v = float(r["sum_usd"] or 0)
+                hourly_net[hr] += v if r["flow"] == "cex_outflow" else -v
+        hourly = [round(x) for x in hourly_net]
+
+        # ── Anomaly: today's exchange volume vs 7-day daily average ──
+        per_day: dict[int, float] = {}
+        for r in daily_rows:
+            per_day[int(r["day"])] = float(r["sum_usd"] or 0)
+        anomaly = None
+        if per_day:
+            today_key = max(per_day.keys())
+            today_vol = per_day[today_key]
+            prior = [v for k, v in per_day.items() if k != today_key]
+            if prior:
+                avg = sum(prior) / len(prior)
+                ratio = (today_vol / avg) if avg > 0 else 0.0
+                anomaly = {"today_vol": today_vol, "avg_vol": avg, "ratio": round(ratio, 2), "days": len(prior)}
+                if ratio >= 1.8:
+                    insights.append({"tag": "UNUSUAL", "tone": "warn",
+                        "text": f"Olağandışı yoğunluk — bugünkü borsa hacmi {len(prior)} günlük ortalamanın {ratio:.1f} katı"})
+                elif ratio <= 0.5:
+                    insights.append({"tag": "QUIET", "tone": "neutral",
+                        "text": f"Sakin gün — borsa hacmi normalin {ratio:.1f} katı ({len(prior)} günlük ortalamaya göre)"})
+
+        # ── Clustering: repeated same-direction movers (conviction) ──
+        dep_addrs = sum(1 for r in cluster_rows if r["flow"] == "cex_inflow")
+        wd_addrs  = sum(1 for r in cluster_rows if r["flow"] == "cex_outflow")
+        clustering = {"repeat_depositors": dep_addrs, "repeat_withdrawers": wd_addrs}
+        if dep_addrs >= 2 and dep_addrs > wd_addrs:
+            insights.append({"tag": "CLUSTERING", "tone": "bear",
+                "text": f"{dep_addrs} adres üst üste borsaya yatırıyor — ısrarlı satış baskısı"})
+        elif wd_addrs >= 2 and wd_addrs > dep_addrs:
+            insights.append({"tag": "CLUSTERING", "tone": "bull",
+                "text": f"{wd_addrs} adres üst üste borsadan çekiyor — ısrarlı biriktirme"})
+
+        if not insights:
+            insights.append({"tag": "QUIET", "tone": "neutral",
+                "text": "Bu pencerede kayda değer akış yok — piyasa sakin"})
+
+        return {
+            "window_sec": window_sec,
+            "sentiment": {
+                "score": round(score, 3), "verdict": verdict,
+                "exch": round(exch, 3), "liq": round(liq, 3), "has_liq": has_liq,
+                "coin_exch": round(coin_exch, 3), "stable_sig": round(stable_sig, 3),
+                "has_coin": has_coin, "has_stable": has_stable,
+            },
+            "flows": flows,
+            "totals": {"inflow": inflow, "outflow": outflow, "mint": mint, "burn": burn,
+                       "net_exchange": net_exch, "net_liquidity": (mint - burn)},
+            "momentum": momentum,
+            "hourly": hourly,
+            "anomaly": anomaly,
+            "clustering": clustering,
+            "coin_flow": coin_flow,
+            "coins": coins,
+            "top_assets": top_assets,
+            "exchanges": exchanges,
+            "biggest": biggest,
+            "insights": insights,
+        }
+
+    # ── Big Transfers: real on-chain feed (shared, populated by trackers) ─
+    @app.get("/api/big-transfers/feed")
+    @_limiter.limit("60/minute")
+    async def big_transfers_feed(
+        request: Request,
+        min_usd: float = 500_000,
+        chains: str | None = None,
+        since: int | None = None,
+        limit: int = 200,
+        _user_id: int = Depends(_require_pro),
+    ):
+        """Live on-chain big-transfers — Mempool.space (BTC) + PublicNode (ETH).
+
+        Filters are server-side so mobile pages stay small:
+        - min_usd: drop anything below this USD value (default $500k)
+        - chains: comma list, e.g. "btc,eth"; omit for all
+        - since: ts_sec, only newer
+        - limit: cap rows (max 500)
+        """
+        from ..persistence.database import get_pool
+
+        chain_filter: list[str] | None = None
+        if chains:
+            chain_filter = [c.strip().lower() for c in chains.split(",") if c.strip()]
+            if not chain_filter:
+                chain_filter = None
+
+        try:
+            min_usd = max(0.0, float(min_usd))
+        except (TypeError, ValueError):
+            min_usd = 500_000.0
+        # 24h volume at $500K threshold is ~700 rows — cap at 2000 to comfortably
+        # fit a full day in one fetch.
+        limit = max(1, min(int(limit or 200), 2000))
+        since_sec = int(since) if since else int(time.time()) - 24 * 3600
+
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            if chain_filter:
+                rows = await conn.fetch(
+                    """
+                    SELECT chain, asset, tx_hash, amount_native, amount_usd,
+                           from_addr, to_addr, block_height, ts_sec, link,
+                           from_label, to_label, flow_category
+                    FROM big_transfers
+                    WHERE ts_sec >= $1
+                      AND amount_usd >= $2
+                      AND chain = ANY($3::text[])
+                    ORDER BY ts_sec DESC
+                    LIMIT $4
+                    """,
+                    since_sec, min_usd, chain_filter, limit,
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT chain, asset, tx_hash, amount_native, amount_usd,
+                           from_addr, to_addr, block_height, ts_sec, link,
+                           from_label, to_label, flow_category
+                    FROM big_transfers
+                    WHERE ts_sec >= $1 AND amount_usd >= $2
+                    ORDER BY ts_sec DESC
+                    LIMIT $3
+                    """,
+                    since_sec, min_usd, limit,
+                )
+        return {
+            "transfers": [
+                {
+                    "chain":         r["chain"],
+                    "asset":         r["asset"],
+                    "tx_hash":       r["tx_hash"],
+                    "amount":        float(r["amount_native"] or 0),
+                    "amount_usd":    float(r["amount_usd"] or 0),
+                    "from":          r["from_addr"],
+                    "to":            r["to_addr"],
+                    "from_label":    r["from_label"],
+                    "to_label":      r["to_label"],
+                    "flow_category": r["flow_category"],
+                    "block":         int(r["block_height"]) if r["block_height"] else None,
+                    "ts":            int(r["ts_sec"]),
+                    "link":          r["link"],
+                }
+                for r in rows
+            ],
+        }
 
     # ── Big Transfers (per-user 24h persistence) ───────────────
     @app.get("/api/big-transfers")
@@ -1759,15 +3024,9 @@ def create_app(
     from ..persistence.redis_client import cache_get, cache_set
     _liq_cache: dict = {"data": None, "ts": 0.0}  # fallback (Redis yoksa)
 
-    # OKX linear USDT-M swap contract values (1 contract = ctVal base asset)
-    # Source: OKX /api/v5/public/instruments?instType=SWAP
-    _OKX_CT_VAL: dict = {
-        "BTC": 0.01, "ETH": 0.1,  "SOL": 1.0,  "XRP": 10.0,
-        "BNB": 0.1,  "DOGE": 10.0,"AVAX": 1.0, "LINK": 1.0,
-        "LTC": 0.1,  "ADA": 10.0, "DOT": 1.0,  "MATIC": 10.0,
-        "ATOM": 1.0, "NEAR": 1.0, "APT": 1.0,  "ARB": 10.0,
-        "OP": 10.0,  "INJ": 0.1,  "SUI": 10.0, "TIA": 1.0,
-    }
+    # OKX contract values are now populated at module scope by
+    # _refresh_okx_ct_val() — see top of file. Local alias for clarity.
+    pass
 
     def _make_empty_result() -> dict:
         return {
@@ -1924,7 +3183,9 @@ def create_app(
                             body_okx = r_okx.json()
                             for item in (body_okx.get("data") or []):
                                 sym_raw = (uly.split("-")[0] if uly else "")
-                                ct_val = _OKX_CT_VAL.get(sym_raw, 1.0)
+                                ct_val = _OKX_CT_VAL.get(sym_raw, 0.0)
+                                if ct_val <= 0:
+                                    continue
                                 for detail in (item.get("details") or []):
                                     t = int(detail.get("ts", detail.get("time", 0)) or 0)
                                     if t <= 0:
@@ -2332,22 +3593,36 @@ def create_app(
             return _hl_markets_cache["data"]
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.post(
-                    "https://api.hyperliquid.xyz/info",
-                    json={"type": "meta"},
+                perp_r, spot_r = await asyncio.gather(
+                    client.post("https://api.hyperliquid.xyz/info", json={"type": "meta"}),
+                    client.post("https://api.hyperliquid.xyz/info", json={"type": "spotMeta"}),
                 )
-                meta = r.json()
-            universe = meta.get("universe", [])
+                perp_meta = perp_r.json()
+                spot_meta = spot_r.json()
             markets = []
-            for i, a in enumerate(universe):
+            for i, a in enumerate(perp_meta.get("universe", [])):
                 name = a.get("name", "")
                 markets.append({
                     "symbol": name + "USDT",
                     "name": name,
                     "index": i,
+                    "market_type": "perp",
                     "max_leverage": a.get("maxLeverage", 1),
                     "sz_decimals": a.get("szDecimals", 4),
                 })
+            seen = {m["name"] for m in markets}
+            for t in spot_meta.get("tokens", []):
+                name = t.get("name", "")
+                if name and name not in seen and name != "USDC":
+                    seen.add(name)
+                    markets.append({
+                        "symbol": name + "/USDC",
+                        "name": name,
+                        "index": t.get("index", 0),
+                        "market_type": "spot",
+                        "max_leverage": 1,
+                        "sz_decimals": t.get("szDecimals", 2),
+                    })
             result = {"markets": markets, "count": len(markets)}
             try:
                 await cache_set("ct:hl_markets", json.dumps(result), ttl=_HL_MARKETS_TTL)
@@ -2851,6 +4126,159 @@ def create_app(
             return {"source": "spot", "data": data}
         except Exception:
             return {"source": "unavailable", "data": []}
+
+    @app.get("/api/market/volume-monitor")
+    @_limiter.limit("30/minute")
+    async def get_volume_monitor(request: Request, limit: int = 50):
+        """Volume monitor — top USDT perps ranked by *anomaly*, not raw volume.
+
+        Process:
+          1. Pull all 24h tickers, take top 100 by quote volume (the universe).
+          2. For each, fetch 8 daily klines and compute 7d average quote volume.
+          3. Score = (vol_24h / avg_7d) * |price_change_24h_pct|.
+             Hacim *ve* fiyat birlikte hareket etmedikçe yüksek skor çıkmaz —
+             wash trading'i doğal olarak süzer.
+          4. Sort by score desc, return top `limit` with band labels.
+
+        Cached 5 min: 100 paralel kline çağrısı kısa sürer ama her istek için
+        tekrarlamanın anlamı yok.
+        """
+        cache_key = f"_volmon_{limit}"
+        now = time.time()
+        cached = _proxy_cache.get(cache_key)
+        if cached and now - cached[0] < 300:
+            return cached[1]
+
+        # 1) Universe: top 100 USDT perps
+        try:
+            tickers = await _cached_json_fetch(
+                "https://fapi.binance.com/fapi/v1/ticker/24hr", ttl=30
+            )
+        except Exception as e:
+            return {"available": False, "error": str(e), "items": []}
+        if not isinstance(tickers, list):
+            return {"available": False, "items": []}
+
+        usdt = [t for t in tickers if t.get("symbol", "").endswith("USDT")]
+        for t in usdt:
+            try:
+                t["_qv"] = float(t.get("quoteVolume") or 0)
+            except (TypeError, ValueError):
+                t["_qv"] = 0.0
+        usdt.sort(key=lambda x: x["_qv"], reverse=True)
+        universe = usdt[:100]
+
+        # 2) 7d avg quote volume via daily klines (parallel)
+        async def _avg7(sym: str) -> float:
+            try:
+                k = await _cached_json_fetch(
+                    "https://fapi.binance.com/fapi/v1/klines",
+                    params={"symbol": sym, "interval": "1d", "limit": 8},
+                    ttl=600,
+                )
+                if not isinstance(k, list) or len(k) < 2:
+                    return 0.0
+                # Use the prior 7 closed days (exclude in-progress current day at index -1).
+                # Kline index 7 (quote asset volume) per Binance schema.
+                prior = k[-8:-1] if len(k) >= 8 else k[:-1]
+                qvs = []
+                for row in prior:
+                    try:
+                        qvs.append(float(row[7]))
+                    except (TypeError, ValueError, IndexError):
+                        continue
+                return (sum(qvs) / len(qvs)) if qvs else 0.0
+            except Exception:
+                return 0.0
+
+        avgs = await asyncio.gather(*[_avg7(t["symbol"]) for t in universe])
+
+        # 3) Score & assemble
+        items: list[dict] = []
+        for t, avg7 in zip(universe, avgs):
+            try:
+                vol_24h = t["_qv"]
+                chg = float(t.get("priceChangePercent") or 0)
+                price = float(t.get("lastPrice") or 0)
+            except (TypeError, ValueError):
+                continue
+            ratio = (vol_24h / avg7) if avg7 > 0 else 0.0
+            score = ratio * abs(chg)
+            # Filter likely wash/manipulation: absurd ratio with tiny price move
+            if ratio > 20 and abs(chg) < 2:
+                continue
+            if ratio >= 2.5:   band = "spike"
+            elif ratio >= 1.3: band = "active"
+            else:              band = "normal"
+            items.append({
+                "symbol": t["symbol"],
+                "price": price,
+                "change_24h_pct": round(chg, 2),
+                "volume_24h": vol_24h,
+                "volume_7d_avg": avg7,
+                "ratio": round(ratio, 2),
+                "anomaly_score": round(score, 2),
+                "band": band,
+            })
+
+        items.sort(key=lambda x: x["anomaly_score"], reverse=True)
+
+        # Volume × Price sentiment — top 100 evrenden hesaplanır (anomaly
+        # filtresinden geçenler değil). Böylece BTC/ETH gibi sakin ama büyük
+        # hacimli coinler de piyasa yönüne katkı verir.
+        bull_vol = sum(t["_qv"] for t in universe
+                       if (float(t.get("priceChangePercent") or 0)) >= 0)
+        bear_vol = sum(t["_qv"] for t in universe
+                       if (float(t.get("priceChangePercent") or 0)) <  0)
+        total_vol = bull_vol + bear_vol
+        sent_score = (bull_vol - bear_vol) / total_vol if total_vol > 0 else 0.0
+        if   sent_score >  0.3: sent_verdict = "BUYING"
+        elif sent_score < -0.3: sent_verdict = "SELLING"
+        else:                   sent_verdict = "NEUTRAL"
+
+        # Majors — sabit 4 lider, anomaly skorundan bağımsız her zaman göster.
+        majors_syms = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT")
+        by_sym = {t["symbol"]: t for t in universe}
+        avg_by_sym = dict(zip([t["symbol"] for t in universe], avgs))
+        majors: list[dict] = []
+        for sym in majors_syms:
+            t = by_sym.get(sym)
+            if not t:
+                continue
+            try:
+                vol_24h = t["_qv"]
+                chg = float(t.get("priceChangePercent") or 0)
+                price = float(t.get("lastPrice") or 0)
+            except (TypeError, ValueError):
+                continue
+            avg7 = avg_by_sym.get(sym, 0.0)
+            ratio = (vol_24h / avg7) if avg7 > 0 else 0.0
+            majors.append({
+                "symbol": sym,
+                "price": price,
+                "change_24h_pct": round(chg, 2),
+                "volume_24h": vol_24h,
+                "volume_7d_avg": avg7,
+                "ratio": round(ratio, 2),
+            })
+
+        out = {
+            "available": True,
+            "universe_size": len(universe),
+            "returned": min(limit, len(items)),
+            "items": items[:limit],
+            "majors": majors,
+            "sentiment": {
+                "score":   round(sent_score, 3),
+                "verdict": sent_verdict,
+                "bull_volume": bull_vol,
+                "bear_volume": bear_vol,
+                "universe_size": len(universe),
+            },
+            "ts": int(now),
+        }
+        _proxy_cache[cache_key] = (now, out)
+        return out
 
     @app.get("/api/tradfi/support-matrix")
     @_limiter.limit("30/minute")
@@ -4179,6 +5607,13 @@ def create_app(
                 """,
                 user_id, encoded,
             )
+        # Push the new follow-list straight to the tracker so subscriptions
+        # update immediately instead of waiting for the next 30s sync.
+        if smart_money_tracker is not None:
+            try:
+                await smart_money_tracker.notify_followed_changed(user_id)
+            except Exception as e:
+                logger.debug("sm_notify_failed", error=str(e))
         return {"ok": True, "count": len(followed)}
 
     @app.get("/api/smart-money/leaderboard")
@@ -4212,17 +5647,17 @@ def create_app(
                         return float(p.get("vlm", 0))
                 return 0.0
 
-            # Gerçek balina filtresi:
-            # - Şu an en az $50k aktif sermaye (parayı çekmemiş)
-            # - All-time PnL en az $500k (kanıtlanmış trader)
-            # - Son 30 günde aktif (işlem hacmi > 0)
+            # Listing: top 1000 trading wallets by accountValue. We require
+            # allTime volume > 0 so the list contains real traders, not idle
+            # vault/bridge/treasury contracts. The Canlı sentiment uses its
+            # own stricter filter in smartmoney/tracker.py — only signal-
+            # quality whales feed the gauge.
             filtered = [
                 r for r in rows
                 if float(r.get("accountValue", 0)) >= 50_000
-                and _pnl(r, "allTime") >= 500_000
-                and _vlm(r, "month") > 0
+                and _vlm(r, "allTime") > 0
             ]
-            top = sorted(filtered, key=lambda r: _pnl(r, "allTime"), reverse=True)[:50]
+            top = sorted(filtered, key=lambda r: float(r.get("accountValue", 0)), reverse=True)[:1000]
 
             result = []
             for t in top:
@@ -4246,6 +5681,499 @@ def create_app(
         except Exception as e:
             logger.warning("sm_leaderboard_failed", error=str(e))
             raise HTTPException(status_code=502, detail="Smart Money leaderboard verisi alınamadı")
+
+    @app.get("/api/smart-money/fills")
+    @_limiter.limit("60/minute")
+    async def sm_fills(
+        request: Request,
+        since: int | None = None,
+        limit: int = 100,
+        user_id: int = Depends(_require_pro),
+    ):
+        """Return recent real fills from the wallets this user follows.
+
+        - since: optional ts_ms — only fills newer than this
+        - limit: max rows (capped at 500)
+        Data is sourced from `smart_money_fills` which the SmartMoneyTracker
+        populates from the live HL userFills WebSocket. No synthetic rows.
+        """
+        from ..persistence.database import get_pool
+
+        # Read user's followed addresses (lower-cased) from settings
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT followed_json FROM smart_money_settings WHERE user_id=$1",
+                user_id,
+            )
+        if not row or not row["followed_json"]:
+            return {"fills": []}
+        try:
+            cfg_map = json.loads(row["followed_json"] or "{}")
+        except Exception:
+            return {"fills": []}
+        addrs = [str(a).strip().lower() for a in cfg_map.keys() if a]
+        if not addrs:
+            return {"fills": []}
+
+        # Build a display-name lookup for the response
+        names: dict[str, str] = {}
+        for a, cfg in cfg_map.items():
+            if isinstance(cfg, dict):
+                names[a.lower()] = str(cfg.get("displayName") or "")
+
+        limit = max(1, min(int(limit or 100), 500))
+        since_ms = int(since) if since else 0
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT address, coin, side, size_usd, px, sz, ts_ms, oid, dir, closed_pnl
+                FROM smart_money_fills
+                WHERE address = ANY($1::text[]) AND ts_ms > $2
+                ORDER BY ts_ms DESC
+                LIMIT $3
+                """,
+                addrs, since_ms, limit,
+            )
+
+        fills = []
+        for r in rows:
+            a = r["address"]
+            res = _resolve_coin(r["coin"])
+            fills.append({
+                "address":   a,
+                "name":      names.get(a) or (a[:6] + "…" + a[-4:]),
+                "coin":      r["coin"],
+                "coin_label": res["label"],
+                "coin_kind":  res["kind"],
+                "side":      r["side"],
+                "dir":       r["dir"],
+                "px":        float(r["px"] or 0),
+                "sz":        float(r["sz"] or 0),
+                "size_usd":  float(r["size_usd"] or 0),
+                "ts":        int(r["ts_ms"]),
+                "oid":       r["oid"],
+                "closed_pnl": float(r["closed_pnl"]) if r["closed_pnl"] is not None else None,
+            })
+        return {"fills": fills}
+
+    @app.get("/api/smart-money/sentiment")
+    @_limiter.limit("60/minute")
+    async def sm_sentiment(
+        request: Request,
+        window_sec: int = 86400,
+        min_usd: float = 5_000,
+        _user_id: int = Depends(_require_pro),
+    ):
+        """Global whale sentiment across ALL tracked leaderboard whales.
+
+        Counts every directional action, not just opens. Mapping:
+            BULLISH:  Open Long, Close Short, Buy
+            BEARISH:  Open Short, Close Long, Sell
+
+        Rationale — a whale closing a short IS buying back into the market
+        (bullish pressure) even though it's not a fresh open. Same for
+        closing a long. Treating closes as inverse signals gives a far more
+        honest read of pressure than counting opens alone.
+        """
+        from ..persistence.database import get_pool
+
+        try:
+            window_sec = max(60, min(int(window_sec or 86400), 7 * 86400))
+        except (TypeError, ValueError):
+            window_sec = 86400
+        try:
+            min_usd = max(0.0, float(min_usd))
+        except (TypeError, ValueError):
+            min_usd = 5_000.0
+        since_ms = int((time.time() - window_sec) * 1000)
+
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT coin, dir, COUNT(*) AS cnt, SUM(size_usd) AS sum_usd
+                FROM smart_money_fills
+                WHERE ts_ms >= $1
+                  AND size_usd >= $2
+                  AND dir IN ('Open Long','Open Short','Close Long','Close Short',
+                              'Buy','Sell','Long > Short','Short > Long')
+                GROUP BY coin, dir
+                """,
+                since_ms, min_usd,
+            )
+
+        # Map each HL dir to either bullish pressure or bearish pressure.
+        # Position flips ("Long > Short" / "Short > Long") count as a single
+        # event but represent a full direction reversal — they're a strong
+        # signal so we honour them with the same weight as a Close+Open pair.
+        BULL_DIRS = {"Open Long", "Close Short", "Buy", "Short > Long"}
+        BEAR_DIRS = {"Open Short", "Close Long", "Sell", "Long > Short"}
+
+        bull_count = bear_count = 0
+        bull_vol   = bear_vol   = 0.0
+        by_coin: dict[str, dict] = {}
+        for r in rows:
+            coin = r["coin"]
+            dir_ = r["dir"] or ""
+            cnt  = int(r["cnt"])
+            usd  = float(r["sum_usd"] or 0)
+            is_bull = dir_ in BULL_DIRS
+            if is_bull:
+                bull_count += cnt; bull_vol += usd
+            elif dir_ in BEAR_DIRS:
+                bear_count += cnt; bear_vol += usd
+            else:
+                continue
+            c = by_coin.setdefault(coin, {
+                "coin": coin,
+                "long": 0, "short": 0,
+                "long_vol": 0.0, "short_vol": 0.0, "total_vol": 0.0,
+            })
+            if is_bull:
+                c["long"]     += cnt
+                c["long_vol"] += usd
+            else:
+                c["short"]     += cnt
+                c["short_vol"] += usd
+            c["total_vol"] += usd
+
+        total = bull_vol + bear_vol
+        score = (bull_vol - bear_vol) / total if total > 0 else 0.0
+        verdict = "BULLISH" if score >  0.3 else \
+                  "BEARISH" if score < -0.3 else "NEUTRAL"
+
+        top_coins = sorted(by_coin.values(), key=lambda x: -x["total_vol"])[:8]
+        for c in top_coins:
+            res = _resolve_coin(c.get("coin"))
+            c["coin_label"] = res["label"]
+            c["coin_kind"]  = res["kind"]
+
+        return {
+            "window_sec":   window_sec,
+            "min_usd":      min_usd,
+            "score":        round(score, 3),
+            "verdict":      verdict,
+            # Renamed for clarity but kept long/short keys for backwards-compat
+            # with existing mobile build.
+            "long_count":   bull_count,
+            "short_count":  bear_count,
+            "long_vol":     bull_vol,
+            "short_vol":    bear_vol,
+            "bull_count":   bull_count,
+            "bear_count":   bear_count,
+            "bull_vol":     bull_vol,
+            "bear_vol":     bear_vol,
+            "by_coin":      top_coins,
+        }
+
+    def _resolve_coin(coin: str | None) -> dict:
+        """Wrapper that returns a default resolution if the resolver isn't ready."""
+        if symbol_resolver is None or not coin:
+            return {"symbol": coin or "", "label": coin or "", "kind": "perp"}
+        return symbol_resolver.resolve(coin)
+
+    @app.get("/api/smart-money/positioning")
+    @_limiter.limit("30/minute")
+    async def sm_positioning(request: Request, _user_id: int = Depends(_require_pro)):
+        """Aggregated whale POSITIONING snapshot.
+
+        Returns what tracked whales currently HOLD (vs. /insights which is what
+        they recently DID). Refreshed every ~5 min by PositioningTracker via
+        REST polls of HL clearinghouseState.
+
+        Delta fields compare against the previous snapshot if available.
+        """
+        snap = positioning_tracker.get_snapshot() if positioning_tracker else None
+        if not snap:
+            return {
+                "available": False,
+                "message": "Pozisyon snapshot'ı henüz hazır değil — ilk tarama 5 dk sürer.",
+            }
+        prev = positioning_tracker._previous if positioning_tracker else None
+        prev_by_coin: dict[str, dict] = {}
+        if prev:
+            prev_by_coin = {c["coin"]: c for c in prev.get("coins", [])}
+
+        coins_with_delta = []
+        for c in snap["coins"]:
+            p = prev_by_coin.get(c["coin"])
+            delta_net = c["net_notional"] - (p["net_notional"] if p else c["net_notional"]) if p else 0.0
+            delta_long_whales = c["long_whales"] - (p["long_whales"] if p else 0) if p else 0
+            delta_short_whales = c["short_whales"] - (p["short_whales"] if p else 0) if p else 0
+            res = _resolve_coin(c.get("coin"))
+            coins_with_delta.append({
+                **c,
+                "coin_label": res["label"],
+                "coin_kind":  res["kind"],
+                "delta_net_notional": delta_net,
+                "delta_long_whales": delta_long_whales,
+                "delta_short_whales": delta_short_whales,
+            })
+
+        total_long = sum(c["long_notional"] for c in snap["coins"])
+        total_short = sum(c["short_notional"] for c in snap["coins"])
+        total = total_long + total_short
+        net_ratio = (total_long - total_short) / total if total > 0 else 0.0
+        verdict = "BULLISH" if net_ratio > 0.15 else "BEARISH" if net_ratio < -0.15 else "BALANCED"
+
+        return {
+            "available": True,
+            "ts_ms": snap["ts_ms"],
+            "whales_polled": snap["whales_polled"],
+            "whales_with_positions": snap["whales_with_positions"],
+            "total_long_notional": total_long,
+            "total_short_notional": total_short,
+            "net_ratio": round(net_ratio, 3),
+            "verdict": verdict,
+            "coins": coins_with_delta,
+            "has_delta": prev is not None,
+        }
+
+    @app.get("/api/smart-money/insights")
+    @_limiter.limit("30/minute")
+    async def sm_insights(
+        request: Request,
+        window_sec: int = 86400,
+        min_usd: float = 5_000,
+        _user_id: int = Depends(_require_pro),
+    ):
+        """Rule-based whale activity analysis. Observation, not advice.
+
+        Returns per-coin deep stats + insight tags derived purely from
+        `smart_money_fills`. Same data the sentiment endpoint uses, but
+        broken down further: unique whale count, recency density, clustering,
+        and conviction signals.
+        """
+        from ..persistence.database import get_pool
+
+        try:
+            window_sec = max(60, min(int(window_sec or 86400), 7 * 86400))
+        except (TypeError, ValueError):
+            window_sec = 86400
+        try:
+            min_usd = max(0.0, float(min_usd))
+        except (TypeError, ValueError):
+            min_usd = 5_000.0
+
+        now_ms = int(time.time() * 1000)
+        since_ms = now_ms - window_sec * 1000
+        recent_ms = now_ms - 4 * 3600 * 1000  # last 4h window for "clustering"
+
+        BULL_DIRS = {"Open Long", "Close Short", "Buy", "Short > Long"}
+        BEAR_DIRS = {"Open Short", "Close Long", "Sell", "Long > Short"}
+
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            fills = await conn.fetch(
+                """
+                SELECT address, coin, dir, size_usd, ts_ms
+                FROM smart_money_fills
+                WHERE ts_ms >= $1 AND size_usd >= $2
+                  AND dir = ANY($3::text[])
+                """,
+                since_ms, min_usd,
+                list(BULL_DIRS | BEAR_DIRS),
+            )
+
+        by_coin: dict[str, dict] = {}
+        for f in fills:
+            coin = f["coin"]
+            dir_ = f["dir"] or ""
+            usd  = float(f["size_usd"] or 0)
+            addr = f["address"]
+            ts   = int(f["ts_ms"])
+            is_bull = dir_ in BULL_DIRS
+
+            c = by_coin.setdefault(coin, {
+                "coin": coin,
+                "bull_count": 0, "bear_count": 0,
+                "bull_vol": 0.0,  "bear_vol": 0.0,
+                "total_vol": 0.0,
+                "bull_whales": set(), "bear_whales": set(),
+                "recent_bull": 0, "recent_bear": 0,  # in last 4h
+                "open_count": 0, "close_count": 0,
+                "last_ts": 0,
+            })
+            if is_bull:
+                c["bull_count"] += 1; c["bull_vol"] += usd; c["bull_whales"].add(addr)
+                if ts >= recent_ms: c["recent_bull"] += 1
+            else:
+                c["bear_count"] += 1; c["bear_vol"] += usd; c["bear_whales"].add(addr)
+                if ts >= recent_ms: c["recent_bear"] += 1
+            c["total_vol"] += usd
+            if dir_.startswith("Open"):  c["open_count"]  += 1
+            if dir_.startswith("Close"): c["close_count"] += 1
+            if ts > c["last_ts"]: c["last_ts"] = ts
+
+        def _classify(c: dict) -> dict:
+            bull_w = len(c["bull_whales"])
+            bear_w = len(c["bear_whales"])
+            unique_w = len(c["bull_whales"] | c["bear_whales"])
+            total_vol = c["bull_vol"] + c["bear_vol"]
+            net_vol = c["bull_vol"] - c["bear_vol"]
+            net_ratio = net_vol / total_vol if total_vol > 0 else 0.0
+            direction = "BULLISH" if net_ratio > 0.3 else \
+                        "BEARISH" if net_ratio < -0.3 else "MIXED"
+
+            insights: list[dict] = []
+
+            # Clustering — ≥3 whales same side in last 4h
+            if c["recent_bull"] >= 3 and c["recent_bull"] >= 2 * c["recent_bear"]:
+                insights.append({
+                    "tag": "CLUSTERING",
+                    "tone": "bull",
+                    "text": f"Son 4 saatte {c['recent_bull']} alıcı whale aksiyonu, kümelenme var",
+                })
+            elif c["recent_bear"] >= 3 and c["recent_bear"] >= 2 * c["recent_bull"]:
+                insights.append({
+                    "tag": "CLUSTERING",
+                    "tone": "bear",
+                    "text": f"Son 4 saatte {c['recent_bear']} satıcı whale aksiyonu, kümelenme var",
+                })
+
+            # Conviction — heavy one-sided net pressure
+            if abs(net_ratio) >= 0.6 and total_vol >= 100_000:
+                tone = "bull" if net_ratio > 0 else "bear"
+                side = "alıcı" if net_ratio > 0 else "satıcı"
+                insights.append({
+                    "tag": "CONVICTION",
+                    "tone": tone,
+                    "text": f"Net {side} baskısı toplam hacmin %{abs(net_ratio)*100:.0f}'i",
+                })
+
+            # Distribution — closes outweigh opens significantly
+            if c["close_count"] >= 5 and c["close_count"] >= 1.5 * max(c["open_count"], 1):
+                insights.append({
+                    "tag": "DISTRIBUTION",
+                    "tone": "warn",
+                    "text": f"Açılıştan çok kapanış var ({c['close_count']} kapanış / {c['open_count']} açılış) — whaleler pozisyon boşaltıyor olabilir",
+                })
+
+            # Broad agreement — many unique whales same direction
+            if unique_w >= 5:
+                if bull_w >= 4 and bull_w >= 2 * bear_w:
+                    insights.append({
+                        "tag": "AGREEMENT",
+                        "tone": "bull",
+                        "text": f"{bull_w} farklı whale aynı yönde (long) — geniş uzlaşı",
+                    })
+                elif bear_w >= 4 and bear_w >= 2 * bull_w:
+                    insights.append({
+                        "tag": "AGREEMENT",
+                        "tone": "bear",
+                        "text": f"{bear_w} farklı whale aynı yönde (short) — geniş uzlaşı",
+                    })
+                elif abs(bull_w - bear_w) <= 1:
+                    insights.append({
+                        "tag": "DIVERGENCE",
+                        "tone": "warn",
+                        "text": f"Whaleler bölünmüş ({bull_w} long / {bear_w} short) — yön belirsiz",
+                    })
+
+            # Confidence score: more unique whales + higher vol + recent activity → higher
+            recency_w = (c["recent_bull"] + c["recent_bear"]) / max(c["bull_count"] + c["bear_count"], 1)
+            confidence = min(1.0, (unique_w / 8.0) * 0.5 + min(total_vol / 5_000_000, 1.0) * 0.3 + recency_w * 0.2)
+
+            return {
+                "coin": c["coin"],
+                "direction": direction,
+                "net_ratio": round(net_ratio, 3),
+                "bull_count": c["bull_count"],
+                "bear_count": c["bear_count"],
+                "bull_vol": c["bull_vol"],
+                "bear_vol": c["bear_vol"],
+                "total_vol": c["total_vol"],
+                "unique_whales": unique_w,
+                "open_count": c["open_count"],
+                "close_count": c["close_count"],
+                "recent_bull": c["recent_bull"],
+                "recent_bear": c["recent_bear"],
+                "last_ts": c["last_ts"],
+                "confidence": round(confidence, 2),
+                "insights": insights,
+            }
+
+        coins_out = [_classify(c) for c in by_coin.values()]
+        coins_out.sort(key=lambda x: (-x["confidence"], -x["total_vol"]))
+        for c in coins_out:
+            res = _resolve_coin(c.get("coin"))
+            c["coin_label"] = res["label"]
+            c["coin_kind"]  = res["kind"]
+
+        # Top active whales — by total notional in window
+        whale_agg: dict[str, dict] = {}
+        for f in fills:
+            a = f["address"]
+            w = whale_agg.setdefault(a, {
+                "address": a, "fills": 0, "total_vol": 0.0,
+                "bull": 0, "bear": 0, "coins": set(), "last_ts": 0,
+            })
+            w["fills"] += 1
+            w["total_vol"] += float(f["size_usd"] or 0)
+            if (f["dir"] or "") in BULL_DIRS: w["bull"] += 1
+            else: w["bear"] += 1
+            w["coins"].add(f["coin"])
+            if int(f["ts_ms"]) > w["last_ts"]: w["last_ts"] = int(f["ts_ms"])
+
+        # Pull display names for whales from leaderboard cache if available
+        names: dict[str, str] = {}
+        try:
+            cached = _sm_leaderboard_cache.get("data") or []
+            for row in cached:
+                names[str(row.get("address", "")).lower()] = row.get("displayName") or ""
+        except Exception:
+            pass
+
+        top_whales = []
+        for w in sorted(whale_agg.values(), key=lambda x: -x["total_vol"])[:10]:
+            a = w["address"]
+            top_whales.append({
+                "address": a,
+                "name": names.get(a.lower()) or (a[:6] + "…" + a[-4:]),
+                "fills": w["fills"],
+                "total_vol": w["total_vol"],
+                "bull": w["bull"],
+                "bear": w["bear"],
+                "coins": sorted(w["coins"]),
+                "coin_labels": [_resolve_coin(co)["label"] for co in sorted(w["coins"])],
+                "last_ts": w["last_ts"],
+                "bias": "BULL" if w["bull"] > w["bear"] else ("BEAR" if w["bear"] > w["bull"] else "MIXED"),
+            })
+
+        # Overall verdict — same logic as sentiment endpoint
+        total_bull = sum(c["bull_vol"] for c in by_coin.values())
+        total_bear = sum(c["bear_vol"] for c in by_coin.values())
+        total = total_bull + total_bear
+        score = (total_bull - total_bear) / total if total > 0 else 0.0
+        verdict = "BULLISH" if score > 0.3 else "BEARISH" if score < -0.3 else "NEUTRAL"
+
+        # Headline — single rule-based summary line
+        if total == 0:
+            headline = "Belirtilen pencerede whale aktivitesi yok."
+        else:
+            unique_total = len({a for c in by_coin.values() for a in (c["bull_whales"] | c["bear_whales"])})
+            side = "alıcı" if score > 0 else "satıcı"
+            headline = (
+                f"Son {window_sec//3600}s'de {unique_total} farklı whale, "
+                f"{len(coins_out)} coin'de toplam ${total/1e6:.1f}M hacim oluşturdu — "
+                f"net {side} baskısı %{abs(score)*100:.0f}."
+            )
+
+        return {
+            "window_sec": window_sec,
+            "min_usd": min_usd,
+            "score": round(score, 3),
+            "verdict": verdict,
+            "bull_vol": total_bull,
+            "bear_vol": total_bear,
+            "total_vol": total,
+            "headline": headline,
+            "coins": coins_out,
+            "top_whales": top_whales,
+            "disclaimer": "Bu yatırım tavsiyesi değildir. On-chain whale aktivitesi gözlemidir.",
+        }
 
     @app.get("/api/smart-money/positions/{address}")
     @_limiter.limit("60/minute")
@@ -4366,6 +6294,125 @@ def create_app(
                 "source": "paper",
             }
         return {"balances": {}, "source": "paper"}
+
+    @app.get("/api/hl/positions")
+    async def hl_get_positions(user_id: int = Depends(_get_uid)):
+        """Kullanıcının açık HL pozisyonlarını döner."""
+        executor = _user_executors.get(user_id)
+        if not executor:
+            return {"connected": False, "positions": []}
+        try:
+            positions = await executor.get_open_positions()
+            return {"connected": True, "positions": positions}
+        except Exception as e:
+            logger.error("hl_positions_failed", error=str(e))
+            return {"connected": True, "positions": [], "error": str(e)}
+
+    @app.post("/api/hl/close")
+    @_limiter.limit("30/minute")
+    async def hl_close_position(request: Request, user_id: int = Depends(_get_uid)):
+        """Pozisyonu market order ile kapat.
+
+        Body: { coin } — pozisyonu otomatik bulup tamamını kapatır.
+        """
+        executor = _user_executors.get(user_id)
+        if not executor:
+            return {"status": "error", "message": "Hyperliquid bağlı değil"}
+        try:
+            body = await request.json()
+        except Exception:
+            return {"status": "error", "message": "Geçersiz istek"}
+
+        coin = str(body.get("coin", "")).strip().upper()
+        if not coin:
+            return {"status": "error", "message": "Sembol eksik"}
+
+        try:
+            from ..execution.hyperliquid_executor import resolve_hl_symbol
+            sym = resolve_hl_symbol(coin)
+            positions = await executor.get_open_positions()
+            match = next((p for p in positions if p["symbol"].replace("USDT", "") == sym), None)
+            if not match:
+                return {"status": "error", "message": "Bu sembol için açık pozisyon yok"}
+
+            ok = await executor.close_position(
+                symbol=sym,
+                quantity=match["quantity"],
+                is_long=(match["side"] == "long"),
+            )
+            if not ok:
+                return {"status": "error", "message": "Kapatma reddedildi"}
+            return {"status": "ok", "symbol": sym, "closed_qty": match["quantity"]}
+        except Exception as e:
+            logger.error("hl_close_failed", error=str(e), coin=coin)
+            return {"status": "error", "message": str(e)}
+
+    @app.post("/api/hl/order")
+    @_limiter.limit("30/minute")
+    async def hl_open_position(request: Request, user_id: int = Depends(_get_uid)):
+        """Mobile app HL trade endpoint — market order'la pozisyon açar.
+
+        Body: { coin, is_buy, sz_usd, leverage, order_type='market' }
+        """
+        executor = _user_executors.get(user_id)
+        if not executor:
+            return {"status": "error", "message": "Hyperliquid bağlı değil. Wallet sekmesinden bağlanın."}
+
+        try:
+            body = await request.json()
+        except Exception:
+            return {"status": "error", "message": "Geçersiz istek gövdesi"}
+
+        coin = str(body.get("coin", "")).strip().upper()
+        is_buy = bool(body.get("is_buy", True))
+        sz_usd = float(body.get("sz_usd", 0) or 0)
+        leverage = int(body.get("leverage", 1) or 1)
+        if not coin or sz_usd <= 0:
+            return {"status": "error", "message": "Sembol veya miktar eksik"}
+
+        try:
+            from ..execution.hyperliquid_executor import (
+                resolve_hl_symbol, get_hl_price, normalize_hl_size,
+            )
+            from ..core.models import Order
+            from ..core.enums import OrderSide, OrderType, OrderStatus
+            import uuid
+
+            sym = resolve_hl_symbol(coin)
+            price = await get_hl_price(sym)
+            if not price or price <= 0:
+                return {"status": "error", "message": f"{coin} için fiyat alınamadı"}
+
+            raw_qty = sz_usd / price
+            qty = await normalize_hl_size(sym, raw_qty)
+            if qty <= 0:
+                return {"status": "error", "message": "Minimum size altında"}
+
+            order = Order(
+                internal_id=str(uuid.uuid4()),
+                user_id=user_id,
+                symbol=sym,
+                side=OrderSide.BUY if is_buy else OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=qty,
+                leverage=max(1, leverage),
+                notional_usd=sz_usd,
+            )
+            fill = await executor.execute(order, price)
+            if fill is None or order.status == OrderStatus.REJECTED:
+                return {"status": "error", "message": order.error or "Emir reddedildi"}
+
+            return {
+                "status": "ok",
+                "fill_price": fill.price,
+                "qty": fill.quantity,
+                "side": "buy" if is_buy else "sell",
+                "leverage": leverage,
+                "symbol": sym,
+            }
+        except Exception as e:
+            logger.error("hl_order_failed", error=str(e), coin=coin)
+            return {"status": "error", "message": str(e)}
 
     @app.post("/api/hl/withdraw")
     @_limiter.limit("10/minute")
@@ -4616,6 +6663,9 @@ def create_app(
                 raw = await ws.receive_text()
                 try:
                     msg = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                try:
                     if msg.get("type") == "subscribe" and isinstance(msg.get("symbols"), list):
                         msg_user_id = await _verify_ws_token(msg.get("token"))
                         manager.authenticate(ws, msg_user_id)
@@ -4625,13 +6675,22 @@ def create_app(
                             for symbol in symbols[:100]:
                                 try:
                                     await market_service.add_symbol(symbol)
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    logger.debug("ws_add_symbol_failed", symbol=symbol, error=str(e))
                     elif msg.get("type") == "ping":
-                        await ws.send_text(json.dumps({"type": "pong", "ts": msg.get("ts")}))
-                except Exception:
-                    pass
+                        try:
+                            await ws.send_text(json.dumps({"type": "pong", "ts": msg.get("ts")}))
+                        except Exception as e:
+                            logger.debug("ws_pong_send_failed", error=str(e))
+                            break  # connection is dead — exit loop cleanly
+                except Exception as e:
+                    logger.warning("ws_message_handler_error", error=str(e))
+                    continue
         except WebSocketDisconnect:
+            pass
+        except Exception as e:
+            logger.warning("ws_endpoint_error", error=str(e))
+        finally:
             manager.disconnect(ws)
 
     # ── Static files (React build) ──────────────────────────────
