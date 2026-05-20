@@ -38,11 +38,23 @@ _WS_URLS = [
 # keccak("Transfer(address,address,uint256)")
 _TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
-# Contract address → (symbol, decimals)
+# Stablecoin contracts → (symbol, decimals). Priced at $1.
 _STABLECOINS = {
     "0xdac17f958d2ee523a2206206994597c13d831ec7": ("USDT", 6),
     "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": ("USDC", 6),
 }
+
+# ETH-denominated ERC-20s → (symbol, decimals). Priced at the live ETH price.
+# WETH is one of the most-transferred tokens on Ethereum and is where the
+# bulk of large ETH-value flow actually lives (DEX, bridges, CEX), so tracking
+# it via the same high-frequency log subscription gives ETH the dynamic flow
+# that native value transfers alone can't (those carry no log event).
+_ETH_TOKENS = {
+    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": ("WETH", 18),
+}
+
+# All ERC-20 contracts we subscribe to.
+_ERC20_TOKENS = {**_STABLECOINS, **_ETH_TOKENS}
 
 _DEFAULT_MIN_USD = 500_000.0
 # Native ETH single-tx transfers run smaller than aggregated stablecoin moves
@@ -164,8 +176,8 @@ class EvmTransferTracker:
                     url, ping_interval=25, ping_timeout=20, max_size=2**23
                 ) as ws:
                     self._pending_block_reqs.clear()
-                    # One subscription per stablecoin contract …
-                    for addr in _STABLECOINS:
+                    # One subscription per tracked ERC-20 contract …
+                    for addr in _ERC20_TOKENS:
                         await ws.send(json.dumps({
                             "jsonrpc": "2.0", "id": self._next_id,
                             "method": "eth_subscribe",
@@ -311,7 +323,7 @@ class EvmTransferTracker:
     async def _handle_log(self, log: dict) -> None:
         try:
             contract = (log.get("address") or "").lower()
-            meta = _STABLECOINS.get(contract)
+            meta = _ERC20_TOKENS.get(contract)
             if not meta:
                 return  # foreign contract (shouldn't happen, filter applied)
             symbol, decimals = meta
@@ -324,9 +336,14 @@ class EvmTransferTracker:
             if raw_amount <= 0:
                 return
             amount_native = raw_amount / (10 ** decimals)
-            # Stablecoin ≈ $1; we keep it simple and assume peg holds. If we
-            # later track non-pegged tokens we'll wire a price provider.
-            amount_usd = amount_native
+            # Stablecoins ≈ $1 (peg assumed); ETH-denominated tokens (WETH) use
+            # the live ETH price.
+            if contract in _ETH_TOKENS:
+                if not self._eth_price:
+                    return  # price not ready — can't value WETH yet
+                amount_usd = amount_native * self._eth_price
+            else:
+                amount_usd = amount_native
             if amount_usd < self._min_usd:
                 return
             tx_hash = log.get("transactionHash") or ""

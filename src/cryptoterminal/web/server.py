@@ -2401,9 +2401,17 @@ def create_app(
             sym = (a["asset"] or "").upper()
             if sym in _STABLES:
                 continue
+            # WETH is wrapped ETH — fold it into ETH so the user sees one
+            # unified ETH netflow rather than ETH and WETH split apart.
+            if sym == "WETH":
+                sym = "ETH"
             coin_in += a["inflow"]
             coin_out += a["outflow"]
-            by_coin[sym] = {"asset": sym, "inflow": a["inflow"], "outflow": a["outflow"], "net": a["net"], "count": a["count"]}
+            agg = by_coin.setdefault(sym, {"asset": sym, "inflow": 0.0, "outflow": 0.0, "net": 0.0, "count": 0})
+            agg["inflow"] += a["inflow"]
+            agg["outflow"] += a["outflow"]
+            agg["net"] += a["net"]
+            agg["count"] += a["count"]
         coin_net = coin_out - coin_in
         coin_flow = {"inflow": coin_in, "outflow": coin_out, "net": coin_net}
         # Headline per-coin list (BTC/ETH first), biggest absolute net first.
