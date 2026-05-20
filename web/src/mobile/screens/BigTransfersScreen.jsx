@@ -467,14 +467,17 @@ function FlowInsightsSheet({ open, onClose, token }) {
             {data.top_assets?.length > 0 && (
               <div style={{ marginTop: 18 }}>
                 <div style={{ fontSize: 10, color: '#888', fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>AKIŞI SÜRÜKLEYEN VARLIKLAR</div>
-                {data.top_assets.map((a, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>{a.asset}</span>
-                    <span style={{ fontSize: 11, fontWeight: 800, fontFamily: 'var(--mono)', color: a.net >= 0 ? '#00d992' : '#f43f5e' }}>
-                      {a.net >= 0 ? '+' : '−'}{fmtUSD(Math.abs(a.net))} {a.net >= 0 ? 'çıkış' : 'giriş'}
-                    </span>
-                  </div>
-                ))}
+                {data.top_assets.map((a, i) => {
+                  const bull = a.bullish !== undefined ? a.bullish : a.net >= 0
+                  return (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>{a.asset}</span>
+                      <span style={{ fontSize: 11, fontWeight: 800, fontFamily: 'var(--mono)', color: bull ? '#00d992' : '#f43f5e' }}>
+                        {fmtUSD(Math.abs(a.net))} {a.net >= 0 ? 'çıkış' : 'giriş'}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </>

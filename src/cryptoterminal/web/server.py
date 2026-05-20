@@ -2417,6 +2417,16 @@ def create_app(
         # Headline per-coin list (BTC/ETH first), biggest absolute net first.
         coins = sorted(by_coin.values(), key=lambda x: -abs(x["net"]))[:5]
 
+        # Per-asset bullishness for UI colour. Sign convention is asset-aware:
+        # a coin LEAVING exchanges (net>0) is bullish, but a stablecoin leaving
+        # is bearish (buying power gone) — so a USDC INFLOW must read green.
+        for a in top_assets:
+            sym = (a["asset"] or "").upper()
+            if sym in _STABLES:
+                a["bullish"] = a["net"] < 0   # stablecoin inflow = dry powder
+            else:
+                a["bullish"] = a["net"] > 0   # coin outflow = accumulation
+
         # ── Sentiment score (model B): three separated signals ──
         # 1) Coin netflow (BTC/ETH): coins LEAVING exchanges = accumulation (+).
         # 2) Stablecoin liquidity (mint/burn): net mint = new buying power (+).
