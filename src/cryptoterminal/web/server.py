@@ -751,6 +751,45 @@ async def _cached_json_fetch(url: str, params: dict[str, Any] | None = None, ttl
             return data
 
 
+# Stablecoin symbols — used to split exchange flow into coin vs stablecoin,
+# which carry opposite signals (coin out = accumulation; stable in = dry powder).
+_STABLE_SYMS = {"USDT", "USDC", "DAI", "FDUSD", "PYUSD", "USDP", "TUSD",
+                "BUSD", "USDE", "GUSD", "USDS", "USD1", "USDD"}
+
+
+def _compute_flow_sentiment(inflow: float, outflow: float, mint: float, burn: float,
+                            coin_in: float, coin_out: float) -> dict:
+    """Single source of truth for the big-transfers sentiment score (model B).
+
+    Three asset-aware signals, dynamically weighted over whichever are present:
+      • coin netflow (BTC/ETH): coins leaving exchanges = accumulation (+)
+      • stablecoin liquidity (mint/burn): net mint = new buying power (+)
+      • stablecoin → exchange flow: stables arriving = dry powder (+)
+    Coins and stablecoins are kept apart because their flow meaning is opposite.
+    """
+    exch = (outflow - inflow) / (outflow + inflow) if (outflow + inflow) > 0 else 0.0
+    liq  = (mint - burn) / (mint + burn) if (mint + burn) > 0 else 0.0
+    has_liq = (mint + burn) > 0
+    stable_in  = max(0.0, inflow - coin_in)
+    stable_out = max(0.0, outflow - coin_out)
+    coin_exch  = (coin_out - coin_in) / (coin_in + coin_out) if (coin_in + coin_out) > 0 else 0.0
+    stable_sig = (stable_in - stable_out) / (stable_in + stable_out) if (stable_in + stable_out) > 0 else 0.0
+    has_coin   = (coin_in + coin_out) > 0
+    has_stable = (stable_in + stable_out) > 0
+    comps = []
+    if has_coin:   comps.append((coin_exch, 0.5))
+    if has_liq:    comps.append((liq, 0.3))
+    if has_stable: comps.append((stable_sig, 0.2))
+    score = (sum(v * w for v, w in comps) / sum(w for _, w in comps)) if comps else exch
+    verdict = "BULLISH" if score > 0.3 else "BEARISH" if score < -0.3 else "NEUTRAL"
+    return {
+        "score": round(score, 3), "verdict": verdict,
+        "exch": round(exch, 3), "liq": round(liq, 3), "has_liq": has_liq,
+        "coin_exch": round(coin_exch, 3), "stable_sig": round(stable_sig, 3),
+        "has_coin": has_coin, "has_stable": has_stable,
+    }
+
+
 def create_app(
     bus: EventBus,
     market_service=None,
@@ -2224,6 +2263,19 @@ def create_app(
                 """,
                 since_sec,
             )
+            # Per-asset cex flow so the headline gauge can use the same
+            # coin/stablecoin-aware sentiment as the insights sheet.
+            asset_rows = await conn.fetch(
+                """
+                SELECT asset, COALESCE(flow_category, 'unknown') AS flow,
+                       SUM(amount_usd) AS sum_usd
+                FROM big_transfers
+                WHERE ts_sec >= $1
+                  AND flow_category IN ('cex_inflow', 'cex_outflow')
+                GROUP BY asset, flow_category
+                """,
+                since_sec,
+            )
 
         by_flow = {
             r["flow"]: {"count": int(r["cnt"]), "sum_usd": float(r["sum_usd"] or 0)}
@@ -2233,9 +2285,26 @@ def create_app(
         for k in ("cex_inflow", "cex_outflow", "cex_internal", "mint", "burn", "unknown"):
             by_flow.setdefault(k, {"count": 0, "sum_usd": 0.0})
 
+        # Coin (non-stablecoin) exchange flow → asset-aware sentiment.
+        coin_in = coin_out = 0.0
+        for r in asset_rows:
+            if (r["asset"] or "").upper() in _STABLE_SYMS:
+                continue
+            v = float(r["sum_usd"] or 0)
+            if r["flow"] == "cex_outflow":
+                coin_out += v
+            else:
+                coin_in += v
+        sentiment = _compute_flow_sentiment(
+            by_flow["cex_inflow"]["sum_usd"], by_flow["cex_outflow"]["sum_usd"],
+            by_flow["mint"]["sum_usd"], by_flow["burn"]["sum_usd"],
+            coin_in, coin_out,
+        )
+
         return {
             "window_sec": window_sec,
             "flows": by_flow,
+            "sentiment": sentiment,
         }
 
     @app.get("/api/big-transfers/insights")
@@ -2393,13 +2462,11 @@ def create_app(
         # opposite: coins (BTC/ETH) leaving exchanges = accumulation (bullish),
         # stablecoins arriving = dry powder. Lumping them muddies the read, so
         # we surface coin netflow on its own (the textbook exchange-netflow).
-        _STABLES = {"USDT", "USDC", "DAI", "FDUSD", "PYUSD", "USDP", "TUSD",
-                    "BUSD", "USDE", "GUSD", "USDS", "USD1", "USDD"}
         coin_in = coin_out = 0.0
         by_coin: dict[str, dict] = {}
         for a in per_asset.values():
             sym = (a["asset"] or "").upper()
-            if sym in _STABLES:
+            if sym in _STABLE_SYMS:
                 continue
             # WETH is wrapped ETH — fold it into ETH so the user sees one
             # unified ETH netflow rather than ETH and WETH split apart.
@@ -2422,34 +2489,15 @@ def create_app(
         # is bearish (buying power gone) — so a USDC INFLOW must read green.
         for a in top_assets:
             sym = (a["asset"] or "").upper()
-            if sym in _STABLES:
+            if sym in _STABLE_SYMS:
                 a["bullish"] = a["net"] < 0   # stablecoin inflow = dry powder
             else:
                 a["bullish"] = a["net"] > 0   # coin outflow = accumulation
 
-        # ── Sentiment score (model B): three separated signals ──
-        # 1) Coin netflow (BTC/ETH): coins LEAVING exchanges = accumulation (+).
-        # 2) Stablecoin liquidity (mint/burn): net mint = new buying power (+).
-        # 3) Stablecoin → exchange flow: stables ARRIVING at exchanges = dry
-        #    powder ready to buy (+). Opposite sign convention from coins, which
-        #    is exactly why we no longer lump them into one number.
+        # ── Sentiment score (model B) — shared helper, single source of truth ──
+        sent = _compute_flow_sentiment(inflow, outflow, mint, burn, coin_in, coin_out)
         stable_in  = max(0.0, inflow - coin_in)
         stable_out = max(0.0, outflow - coin_out)
-        coin_exch  = coin_net / (coin_in + coin_out) if (coin_in + coin_out) > 0 else 0.0
-        # net stablecoin INTO exchanges, normalized → bullish when positive
-        stable_sig = (stable_in - stable_out) / (stable_in + stable_out) if (stable_in + stable_out) > 0 else 0.0
-        has_coin   = (coin_in + coin_out) > 0
-        has_stable = (stable_in + stable_out) > 0
-        comps = []
-        if has_coin:   comps.append((coin_exch, 0.5))
-        if has_liq:    comps.append((liq, 0.3))
-        if has_stable: comps.append((stable_sig, 0.2))
-        if comps:
-            wsum = sum(w for _, w in comps)
-            score = sum(v * w for v, w in comps) / wsum
-        else:
-            score = exch  # fallback: all-asset flow when nothing classified
-        verdict = "BULLISH" if score > 0.3 else "BEARISH" if score < -0.3 else "NEUTRAL"
 
         biggest = [
             {
@@ -2478,7 +2526,7 @@ def create_app(
         # "exchange flow" line, which mixed coins and stables under one (coin)
         # sign and could read backwards.
         stable_net_in = stable_in - stable_out
-        if has_stable and abs(stable_sig) >= 0.15:
+        if sent["has_stable"] and abs(sent["stable_sig"]) >= 0.15:
             if stable_net_in > 0:
                 insights.append({"tag": "STABLECOIN FLOW", "tone": "bull",
                     "text": f"Borsalara net {_usd(stable_net_in)} stablecoin girişi — alım gücü hazırlanıyor"})
@@ -2524,7 +2572,7 @@ def create_app(
         # Coin convention: net outflow (>0) = accumulation (bullish).
         recent_coin_in = recent_coin_out = 0.0
         for r in recent_rows:
-            if (r["asset"] or "").upper() in _STABLES:
+            if (r["asset"] or "").upper() in _STABLE_SYMS:
                 continue
             v = float(r["sum_usd"] or 0)
             if r["flow"] == "cex_outflow":
@@ -2646,12 +2694,7 @@ def create_app(
 
         return {
             "window_sec": window_sec,
-            "sentiment": {
-                "score": round(score, 3), "verdict": verdict,
-                "exch": round(exch, 3), "liq": round(liq, 3), "has_liq": has_liq,
-                "coin_exch": round(coin_exch, 3), "stable_sig": round(stable_sig, 3),
-                "has_coin": has_coin, "has_stable": has_stable,
-            },
+            "sentiment": sent,
             "flows": flows,
             "totals": {"inflow": inflow, "outflow": outflow, "mint": mint, "burn": burn,
                        "net_exchange": net_exch, "net_liquidity": (mint - burn)},

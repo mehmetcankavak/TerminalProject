@@ -176,11 +176,16 @@ function SentimentGauge({ aggregates, onOpen }) {
       </div>
     )
   }
-  const tone = s.verdict === 'BULLISH' ? '#00d992'
-             : s.verdict === 'BEARISH' ? '#f43f5e'
-             :                            '#aaa'
+  // Prefer the backend's coin/stablecoin-aware score (single source of truth);
+  // fall back to the local all-asset estimate only if the API didn't send it.
+  const bk = aggregates?.sentiment
+  const score = bk ? bk.score : s.score
+  const verdict = bk ? bk.verdict : s.verdict
+  const tone = verdict === 'BULLISH' ? '#00d992'
+             : verdict === 'BEARISH' ? '#f43f5e'
+             :                          '#aaa'
   // Map [-1, +1] → [0%, 100%] for marker position
-  const pct = Math.max(0, Math.min(100, (s.score + 1) * 50))
+  const pct = Math.max(0, Math.min(100, (score + 1) * 50))
   const net = s.outflow - s.inflow
   const netStr = (net >= 0 ? '+' : '') + fmtUSD(Math.abs(net))
   const mintNet = s.mint - s.burn
@@ -205,13 +210,13 @@ function SentimentGauge({ aggregates, onOpen }) {
             fontSize: 12, fontWeight: 800, fontFamily: 'var(--mono)',
             color: tone,
           }}>
-            {s.score >= 0 ? '+' : ''}{s.score.toFixed(2)}
+            {score >= 0 ? '+' : ''}{score.toFixed(2)}
           </span>
           <span style={{
             fontSize: 12, fontWeight: 900, letterSpacing: 0.6,
             color: tone,
           }}>
-            {s.verdict}
+            {verdict}
           </span>
         </div>
       </div>
