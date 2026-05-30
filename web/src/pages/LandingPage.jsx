@@ -5,19 +5,19 @@ import { useLang } from '../context/LangContext'
 
 // ── Static data ──────────────────────────────────────────────────────────────
 const TOOLS = [
-  { id: 'liquidations-stream', tag: 'LIQ',   pro: true  },
-  { id: 'funding-rate',        tag: 'FUND',  pro: true  },
-  { id: 'long-short-ratio',    tag: 'L/S',   pro: true  },
-  { id: 'volume-monitor',      tag: 'VOL',   pro: true  },
-  { id: 'big-transfers',       tag: 'WHALE', pro: true  },
-  { id: 'token-unlock',        tag: 'VEST',  pro: true  },
-  { id: 'custom-alerts',       tag: 'ALT',   pro: true  },
-  { id: 'portfolio',           tag: 'PF',    pro: true  },
-  { id: 'smart-money',         tag: 'SM',    pro: true  },
-  { id: 'global-metrics',      tag: 'MKT',   pro: false },
-  { id: 'economic-calendar',   tag: 'CAL',   pro: false },
-  { id: 'spot-markets',        tag: 'SPOT',  pro: false },
-  { id: 'terminal',            tag: 'TERM',  pro: true  },
+  { id: 'liquidations-stream', tag: 'LIQ',   pro: true,  color: '#f23645', dim: 'rgba(242,54,69,0.14)'   },
+  { id: 'funding-rate',        tag: 'FUND',  pro: true,  color: '#3b82f6', dim: 'rgba(59,130,246,0.14)'  },
+  { id: 'long-short-ratio',    tag: 'L/S',   pro: true,  color: '#f5a623', dim: 'rgba(245,166,35,0.14)'  },
+  { id: 'volume-monitor',      tag: 'VOL',   pro: true,  color: '#a855f7', dim: 'rgba(168,85,247,0.14)'  },
+  { id: 'big-transfers',       tag: 'WHALE', pro: true,  color: '#06b6d4', dim: 'rgba(6,182,212,0.14)'   },
+  { id: 'token-unlock',        tag: 'VEST',  pro: true,  color: '#f97316', dim: 'rgba(249,115,22,0.14)'  },
+  { id: 'custom-alerts',       tag: 'ALT',   pro: true,  color: '#eab308', dim: 'rgba(234,179,8,0.14)'   },
+  { id: 'portfolio',           tag: 'PF',    pro: true,  color: '#00e87a', dim: 'rgba(0,232,122,0.14)'   },
+  { id: 'smart-money',         tag: 'SM',    pro: true,  color: '#2dd4bf', dim: 'rgba(45,212,191,0.14)'  },
+  { id: 'global-metrics',      tag: 'MKT',   pro: false, color: '#8b5cf6', dim: 'rgba(139,92,246,0.14)'  },
+  { id: 'economic-calendar',   tag: 'CAL',   pro: false, color: '#94a3b8', dim: 'rgba(148,163,184,0.14)' },
+  { id: 'spot-markets',        tag: 'SPOT',  pro: false, color: '#f59e0b', dim: 'rgba(245,158,11,0.14)'  },
+  { id: 'terminal',            tag: 'TERM',  pro: true,  color: '#00e87a', dim: 'rgba(0,232,122,0.14)'   },
 ]
 
 const MARQUEE_ITEMS = [
@@ -28,6 +28,112 @@ const MARQUEE_ITEMS = [
 
 function rnd(min, max, dec = 1) {
   return (min + Math.random() * (max - min)).toFixed(dec)
+}
+
+// ── Tool icons (inline SVG glyphs) ───────────────────────────────────────────
+function ToolIcon({ id, color }) {
+  const icons = {
+    'liquidations-stream': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <path d="M10 2 L6 10 H9 L7 18 L14 8 H11 Z" fill={color} opacity=".9"/>
+      </svg>
+    ),
+    'funding-rate': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="10" r="7" stroke={color} strokeWidth="1.5" opacity=".7"/>
+        <path d="M7 13 L10 7 L13 13" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="10" cy="13.5" r="1" fill={color}/>
+      </svg>
+    ),
+    'long-short-ratio': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <rect x="3" y="11" width="5" height="6" rx="1" fill={color} opacity=".85"/>
+        <rect x="12" y="7" width="5" height="10" rx="1" fill={color} opacity=".45"/>
+        <path d="M5.5 11 L5.5 4 M5.5 4 L3.5 6 M5.5 4 L7.5 6" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
+      </svg>
+    ),
+    'volume-monitor': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <rect x="2"  y="13" width="3" height="5" rx="1" fill={color} opacity=".45"/>
+        <rect x="7"  y="9"  width="3" height="9" rx="1" fill={color} opacity=".65"/>
+        <rect x="12" y="5"  width="3" height="13" rx="1" fill={color} opacity=".85"/>
+        <rect x="17" y="11" width="3" height="7" rx="1" fill={color} opacity=".55"/>
+      </svg>
+    ),
+    'big-transfers': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <path d="M3 10 Q10 4 17 10" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity=".6"/>
+        <path d="M3 10 Q10 16 17 10" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity=".9"/>
+        <circle cx="3"  cy="10" r="2" fill={color} opacity=".7"/>
+        <circle cx="17" cy="10" r="2" fill={color} opacity=".7"/>
+      </svg>
+    ),
+    'token-unlock': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <rect x="5" y="9" width="10" height="8" rx="2" stroke={color} strokeWidth="1.5" opacity=".85"/>
+        <path d="M7.5 9 V6.5 A2.5 2.5 0 0 1 12.5 6.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity=".6"/>
+        <circle cx="10" cy="13" r="1.5" fill={color}/>
+      </svg>
+    ),
+    'custom-alerts': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <path d="M10 3 A5 5 0 0 1 15 8 V12 L16.5 14 H3.5 L5 12 V8 A5 5 0 0 1 10 3 Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" opacity=".85"/>
+        <path d="M8.5 14 A1.5 1.5 0 0 0 11.5 14" stroke={color} strokeWidth="1.3" strokeLinecap="round" opacity=".7"/>
+        <circle cx="14" cy="4" r="2.5" fill={color}/>
+      </svg>
+    ),
+    'portfolio': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <path d="M10 10 L10 3 A7 7 0 0 1 17 10 Z" fill={color} opacity=".85"/>
+        <path d="M10 10 L3 10 A7 7 0 0 1 10 3 Z" fill={color} opacity=".45"/>
+        <path d="M10 10 L16.06 13.5 A7 7 0 0 1 3 10 Z" fill={color} opacity=".65"/>
+        <circle cx="10" cy="10" r="2.5" fill="#0a0a0a"/>
+      </svg>
+    ),
+    'smart-money': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="9" r="5" stroke={color} strokeWidth="1.5" opacity=".8"/>
+        <circle cx="8.5" cy="8" r="1" fill={color}/>
+        <circle cx="11.5" cy="8" r="1" fill={color}/>
+        <path d="M8 11 Q10 13 12 11" stroke={color} strokeWidth="1.2" strokeLinecap="round" opacity=".7"/>
+        <path d="M5 15 Q10 17 15 15" stroke={color} strokeWidth="1.2" strokeLinecap="round" opacity=".45"/>
+      </svg>
+    ),
+    'global-metrics': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="10" r="7" stroke={color} strokeWidth="1.4" opacity=".7"/>
+        <path d="M10 3 Q13 10 10 17 Q7 10 10 3" stroke={color} strokeWidth="1.2" opacity=".6"/>
+        <path d="M3.5 8 H16.5 M3.5 12 H16.5" stroke={color} strokeWidth="1.2" opacity=".5"/>
+      </svg>
+    ),
+    'economic-calendar': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <rect x="3" y="5" width="14" height="12" rx="2" stroke={color} strokeWidth="1.4" opacity=".7"/>
+        <path d="M3 9 H17" stroke={color} strokeWidth="1.2" opacity=".5"/>
+        <path d="M7 3 V7 M13 3 V7" stroke={color} strokeWidth="1.4" strokeLinecap="round" opacity=".7"/>
+        <rect x="6"  y="12" width="2" height="2" rx=".5" fill={color} opacity=".7"/>
+        <rect x="9"  y="12" width="2" height="2" rx=".5" fill={color} opacity=".5"/>
+        <rect x="12" y="12" width="2" height="2" rx=".5" fill={color} opacity=".35"/>
+      </svg>
+    ),
+    'spot-markets': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <rect x="4"  y="7" width="3" height="6" rx="1" stroke={color} strokeWidth="1.3" opacity=".8"/>
+        <rect x="8.5" y="5" width="3" height="4" rx="1" fill={color} opacity=".85"/>
+        <rect x="13" y="8" width="3" height="5" rx="1" stroke={color} strokeWidth="1.3" opacity=".8"/>
+        <path d="M4 13 H5.5 M8.5 9 H10 M13 10.5 H14.5" stroke={color} strokeWidth="1" opacity=".6"/>
+        <path d="M3 16 Q10 14 17 16" stroke={color} strokeWidth="1.2" strokeLinecap="round" opacity=".4"/>
+      </svg>
+    ),
+    'terminal': (
+      <svg viewBox="0 0 20 20" fill="none">
+        <rect x="2" y="4" width="16" height="12" rx="2" stroke={color} strokeWidth="1.4" opacity=".7"/>
+        <path d="M6 8 L9 11 L6 14" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M11 14 H15" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+  }
+  return icons[id] || null
 }
 
 // ── 3D Tilt card ─────────────────────────────────────────────────────────────
@@ -591,22 +697,49 @@ export default function LandingPage() {
       </section>
 
       {/* ── All tools ── */}
-      <section className="ld3-section ld3-section-alt">
+      <section className="ld3-section ld3-section-alt tc2-section">
         <div className="ld3-inner">
           <div className="ld3-section-hd">
-            <h2 className="ld3-h2">13 tools. One terminal.</h2>
+            <div className="tc2-hd-tag">ALL TOOLS</div>
+            <h2 className="ld3-h2">13 tools. <span className="tc2-title-em">One terminal.</span></h2>
             <p className="ld3-hsub">No switching tabs. No missed signals. Everything in one place.</p>
           </div>
-          <div className="ld3-tools">
-            {TOOLS.map(tool => (
-              <div key={tool.id} className={`ld3-tool ${tool.pro ? 'pro' : ''}`}>
-                <div className="ld3-tool-top">
-                  <span className="ld3-tool-tag">{tool.tag}</span>
-                  {tool.pro && <span className="ld3-tool-pro">PRO</span>}
+          <div className="tc2-grid">
+            {TOOLS.map((tool, i) => (
+              <TiltCard
+                key={tool.id}
+                className="tc2-card"
+                style={{
+                  '--tc-color': tool.color,
+                  '--tc-dim': tool.dim,
+                  animationDelay: `${i * 55}ms`,
+                }}
+              >
+                {/* accent top bar */}
+                <div className="tc2-accent-bar" />
+                {/* index number */}
+                <span className="tc2-idx">{String(i + 1).padStart(2, '0')}</span>
+                {/* icon */}
+                <div className="tc2-icon-wrap">
+                  <ToolIcon id={tool.id} color={tool.color} />
                 </div>
-                <div className="ld3-tool-name">{t(`label_${tool.id}`)}</div>
-                <div className="ld3-tool-desc">{t(`desc_${tool.id}`)}</div>
-              </div>
+                {/* tag + pro row */}
+                <div className="tc2-meta-row">
+                  <span className="tc2-tag">{tool.tag}</span>
+                  {tool.pro && (
+                    <span className="tc2-pro">
+                      <span className="tc2-pro-shine" />
+                      PRO
+                    </span>
+                  )}
+                </div>
+                {/* name */}
+                <div className="tc2-name">{t(`label_${tool.id}`)}</div>
+                {/* desc */}
+                <div className="tc2-desc">{t(`desc_${tool.id}`)}</div>
+                {/* hover glow */}
+                <div className="tc2-glow" />
+              </TiltCard>
             ))}
           </div>
         </div>
