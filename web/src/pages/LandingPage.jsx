@@ -123,131 +123,308 @@ function TerminalPreview() {
 }
 
 // ── Bento mini-visualizations ─────────────────────────────────────────────────
+
+function Sparkline({ data, color, height = 32 }) {
+  if (!data || data.length < 2) return null
+  const w = 120, h = height
+  const min = Math.min(...data), max = Math.max(...data)
+  const range = max - min || 1
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w
+    const y = h - ((v - min) / range) * h
+    return `${x},${y}`
+  }).join(' ')
+  return (
+    <svg width={w} height={h} style={{ overflow:'visible' }}>
+      <defs>
+        <linearGradient id={`sg-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,${h} ${pts} ${w},${h}`} fill={`url(#sg-${color.replace('#','')})`} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function LiqMini() {
   const [rows, setRows] = useState([
-    { side:'LONG',  sym:'BTC', val:4.2, ex:'Binance',    new:false },
-    { side:'SHORT', sym:'ETH', val:1.8, ex:'OKX',        new:false },
-    { side:'LONG',  sym:'SOL', val:0.9, ex:'Bybit',      new:false },
+    { id:1, side:'LONG',  sym:'BTC',  val:4.2,  ex:'Binance',     new:false },
+    { id:2, side:'SHORT', sym:'ETH',  val:1.8,  ex:'OKX',         new:false },
+    { id:3, side:'LONG',  sym:'SOL',  val:0.9,  ex:'Bybit',       new:false },
+    { id:4, side:'SHORT', sym:'HYPE', val:2.1,  ex:'Hyperliquid', new:false },
   ])
+  const [total, setTotal] = useState(18.4)
+  const [sparkData, setSparkData] = useState([12,14,11,18,15,22,19,24,18,20,25,18])
+  const nextId = useRef(5)
+
   useEffect(() => {
-    const syms=['BTC','ETH','SOL','BNB','HYPE','ARB'], exs=['Binance','OKX','Bybit','Hyperliquid']
+    const syms=['BTC','ETH','SOL','BNB','HYPE','ARB','DOGE','AVAX','SUI','WIF']
+    const exs=['Binance','OKX','Bybit','Hyperliquid']
     const id = setInterval(() => {
-      const entry = { side:Math.random()>.5?'LONG':'SHORT', sym:syms[Math.floor(Math.random()*syms.length)], val:parseFloat(rnd(0.4,9.5)), ex:exs[Math.floor(Math.random()*exs.length)], new:true }
-      setRows(p => [entry, ...p.slice(0,2)])
-      setTimeout(() => setRows(p => p.map(r => ({ ...r, new:false }))), 500)
-    }, 2000)
+      const val = parseFloat(rnd(0.3, 11))
+      const entry = {
+        id: nextId.current++,
+        side: Math.random() > .5 ? 'LONG' : 'SHORT',
+        sym: syms[Math.floor(Math.random() * syms.length)],
+        val, ex: exs[Math.floor(Math.random() * exs.length)], new: true
+      }
+      setRows(p => [entry, ...p.slice(0, 3)])
+      setTotal(t => parseFloat((t + val * 0.1).toFixed(1)))
+      setSparkData(p => [...p.slice(1), parseFloat(rnd(10, 30))])
+      setTimeout(() => setRows(p => p.map(r => r.id === entry.id ? { ...r, new: false } : r)), 600)
+    }, 1800)
     return () => clearInterval(id)
   }, [])
+
   return (
-    <div className="ld3-mini-liq">
-      {rows.map((r,i) => (
-        <div key={i} className={`ld3-liq-row ${r.side==='LONG'?'long':'short'} ${r.new?'new':''}`} style={{ opacity: 1 - i * 0.2 }}>
-          <span className={`ld3-liq-side ${r.side==='LONG'?'long':'short'}`}>{r.side}</span>
-          <span className="ld3-liq-sym">{r.sym}/USDT</span>
-          <span className="ld3-liq-val">${r.val.toFixed(1)}M</span>
-          <span className="ld3-liq-ex">{r.ex}</span>
+    <div className="bm-liq">
+      <div className="bm-liq-header">
+        <div className="bm-live-badge"><span className="bm-pulse-dot" />LIVE FEED</div>
+        <div className="bm-liq-total">
+          <span className="bm-liq-total-val">${total}M</span>
+          <span className="bm-liq-total-lbl">liquidated</span>
         </div>
-      ))}
+      </div>
+      <div className="bm-liq-spark">
+        <Sparkline data={sparkData} color="#ff4d6a" height={28} />
+      </div>
+      <div className="bm-liq-feed">
+        {rows.map((r, i) => (
+          <div key={r.id} className={`bm-liq-row ${r.side === 'LONG' ? 'long' : 'short'} ${r.new ? 'new' : ''}`}
+               style={{ opacity: 1 - i * 0.18 }}>
+            <div className={`bm-liq-badge ${r.side === 'LONG' ? 'long' : 'short'}`}>{r.side}</div>
+            <span className="bm-liq-sym">{r.sym}<span className="bm-liq-pair">/USDT</span></span>
+            <div className="bm-liq-right">
+              <span className={`bm-liq-amt ${r.val > 5 ? 'big' : ''}`}>${r.val.toFixed(1)}M</span>
+              <span className="bm-liq-ex">{r.ex}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
 function WhaleMini() {
-  const [rows, setRows] = useState([
-    { addr:'0x1a4f...9e2c', sym:'BTC', side:'BUY',  val:6.1, new:false },
-    { addr:'0x8c31...4a7d', sym:'ETH', side:'SELL', val:2.4, new:false },
-  ])
+  const CHAINS = { BTC:'₿', ETH:'Ξ', USDT:'₮', SOL:'◎', BNB:'⬡' }
+  const CHAIN_COLOR = { BTC:'#f59e0b', ETH:'#a78bfa', USDT:'#00e87a', SOL:'#9945ff', BNB:'#f0b90b' }
+  const [transfer, setTransfer] = useState({
+    chain:'ETH', sym:'USDT', val:48.2,
+    from:'0x1a4f...9e2c', to:'0x7f2a...c891',
+    label:'Binance Hot Wallet', new:false
+  })
+  const [history, setHistory] = useState([48.2, 12.1, 93.4, 31.0, 67.8, 22.5, 55.3])
+
   useEffect(() => {
-    const syms=['BTC','ETH','SOL','BNB']
+    const chains = ['ETH','BTC','USDT','SOL']
+    const labels = ['Binance Hot Wallet','Unknown Wallet','Coinbase Custody','Jump Trading','OKX Exchange','DWF Labs']
     const addr = () => '0x'+Math.random().toString(16).slice(2,6)+'...'+Math.random().toString(16).slice(2,6)
     const id = setInterval(() => {
-      const entry = { addr:addr(), sym:syms[Math.floor(Math.random()*syms.length)], side:Math.random()>.5?'BUY':'SELL', val:parseFloat(rnd(1.5,12)), new:true }
-      setRows(p => [entry, ...p.slice(0,1)])
-      setTimeout(() => setRows(p => p.map(r => ({ ...r, new:false }))), 500)
-    }, 2600)
+      const chain = chains[Math.floor(Math.random()*chains.length)]
+      const val = parseFloat(rnd(5, 150))
+      setTransfer({ chain, sym:chain==='BTC'?'BTC':chain==='SOL'?'SOL':'USDT',
+        val, from:addr(), to:addr(),
+        label:labels[Math.floor(Math.random()*labels.length)], new:true })
+      setHistory(p => [...p.slice(1), val])
+      setTimeout(() => setTransfer(t => ({ ...t, new: false })), 700)
+    }, 3000)
     return () => clearInterval(id)
   }, [])
+
+  const col = CHAIN_COLOR[transfer.chain] || '#f59e0b'
+
   return (
-    <div className="ld3-mini-whale">
-      {rows.map((r,i) => (
-        <div key={i} className={`ld3-whale-row ${r.new?'new':''}`} style={{ opacity: 1 - i*0.3 }}>
-          <span className="ld3-whale-addr">{r.addr}</span>
-          <span className={`ld3-whale-side ${r.side==='BUY'?'buy':'sell'}`}>{r.side}</span>
-          <span className="ld3-whale-sym">{r.sym}</span>
-          <span className="ld3-whale-val">${r.val.toFixed(1)}M</span>
+    <div className="bm-whale">
+      <div className="bm-whale-spark">
+        <Sparkline data={history} color={col} height={24} />
+      </div>
+      <div className={`bm-whale-card ${transfer.new ? 'new' : ''}`} style={{ '--wc': col }}>
+        <div className="bm-whale-chain">
+          <span className="bm-whale-icon" style={{ color: col }}>{CHAINS[transfer.chain] || '◈'}</span>
+          <span className="bm-whale-chain-name">{transfer.chain}</span>
+          <span className="bm-whale-confirmed"><span className="bm-pulse-dot green" />ON-CHAIN</span>
         </div>
-      ))}
+        <div className="bm-whale-amount" style={{ color: col }}>${transfer.val.toFixed(1)}M</div>
+        <div className="bm-whale-flow">
+          <div className="bm-whale-addr-box">
+            <div className="bm-whale-addr-lbl">FROM</div>
+            <div className="bm-whale-addr">{transfer.from}</div>
+          </div>
+          <div className="bm-whale-arrow">
+            <svg width="32" height="12" viewBox="0 0 32 12"><path d="M0 6h26M22 2l6 4-6 4" stroke={col} strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
+          </div>
+          <div className="bm-whale-addr-box right">
+            <div className="bm-whale-addr-lbl">TO</div>
+            <div className="bm-whale-addr">{transfer.to}</div>
+            <div className="bm-whale-label" style={{ color: col }}>{transfer.label}</div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
 function FundMini() {
   const [rates, setRates] = useState([
-    { sym:'BTC', rate:0.0082, ex:'Binance' },
-    { sym:'ETH', rate:0.0071, ex:'OKX' },
-    { sym:'SOL', rate:-0.0031, ex:'Bybit' },
+    { sym:'BTC', bnb:0.0082, okx:0.0091, byb:0.0076, hist:[0.006,0.007,0.008,0.0082] },
+    { sym:'ETH', bnb:0.0071, okx:0.0065, byb:0.0079, hist:[0.005,0.006,0.007,0.0071] },
+    { sym:'SOL', bnb:-0.003, okx:-0.002, byb:-0.004, hist:[-0.001,-0.002,-0.003,-0.003] },
+    { sym:'HYPE',bnb:0.0120, okx:0.0118, byb:0.0125, hist:[0.008,0.010,0.011,0.012] },
   ])
   useEffect(() => {
-    const id = setInterval(() => setRates(prev => prev.map(r => ({ ...r, rate: parseFloat((r.rate + (Math.random()-0.49)*0.002).toFixed(4)) }))), 2200)
+    const id = setInterval(() => setRates(prev => prev.map(r => {
+      const delta = (Math.random() - 0.49) * 0.002
+      const nb = parseFloat((r.bnb + delta).toFixed(4))
+      return { ...r, bnb: nb, okx: parseFloat((r.okx + delta*0.9).toFixed(4)), byb: parseFloat((r.byb + delta*1.1).toFixed(4)), hist: [...r.hist.slice(1), nb] }
+    })), 2000)
     return () => clearInterval(id)
   }, [])
+
+  const maxAbs = Math.max(...rates.map(r => Math.abs(r.bnb)), 0.015)
+
   return (
-    <div className="ld3-mini-fund">
-      {rates.map(r => (
-        <div key={r.sym} className="ld3-fund-row">
-          <span className="ld3-fund-sym">{r.sym}</span>
-          <span className="ld3-fund-ex">{r.ex}</span>
-          <div className="ld3-fund-bar-wrap">
-            <div className="ld3-fund-bar" style={{ width:`${Math.min(Math.abs(r.rate)*5000, 100)}%`, background: r.rate>=0?'#00e87a':'#ff4d6a' }} />
+    <div className="bm-fund">
+      <div className="bm-fund-header">
+        <span className="bm-fund-exlbl">SYM</span>
+        <span className="bm-fund-exlbl">BNB</span>
+        <span className="bm-fund-exlbl">OKX</span>
+        <span className="bm-fund-exlbl">BYBIT</span>
+        <span className="bm-fund-exlbl">TREND</span>
+      </div>
+      {rates.map(r => {
+        const pos = r.bnb >= 0
+        return (
+          <div key={r.sym} className="bm-fund-row">
+            <span className="bm-fund-sym">{r.sym}</span>
+            <span className={`bm-fund-rate ${pos?'pos':'neg'}`}>{r.bnb>=0?'+':''}{(r.bnb*100).toFixed(3)}%</span>
+            <span className={`bm-fund-rate sm ${r.okx>=0?'pos':'neg'}`}>{r.okx>=0?'+':''}{(r.okx*100).toFixed(3)}%</span>
+            <span className={`bm-fund-rate sm ${r.byb>=0?'pos':'neg'}`}>{r.byb>=0?'+':''}{(r.byb*100).toFixed(3)}%</span>
+            <div className="bm-fund-spark">
+              <Sparkline data={r.hist} color={pos?'#00e87a':'#ff4d6a'} height={18} />
+            </div>
           </div>
-          <span className={`ld3-fund-rate ${r.rate>=0?'pos':'neg'}`}>{r.rate>=0?'+':''}{(r.rate*100).toFixed(4)}%</span>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
 function SmartMini() {
-  const traders = [
-    { addr:'0x7f2a...c891', sym:'HYPE', side:'LONG',  lev:10, pnl:'+$84K' },
-    { addr:'0x3e9b...12fa', sym:'BTC',  side:'SHORT', lev:5,  pnl:'+$31K' },
-    { addr:'0xaa19...e73b', sym:'SOL',  side:'LONG',  lev:8,  pnl:'+$12K' },
-  ]
+  const [traders, setTraders] = useState([
+    { id:1, addr:'0x7f2a...c891', sym:'HYPE', side:'LONG',  lev:10, pnl:84200, size:2.4 },
+    { id:2, addr:'0x3e9b...12fa', sym:'BTC',  side:'SHORT', lev:5,  pnl:31500, size:1.1 },
+    { id:3, addr:'0xaa19...e73b', sym:'SOL',  side:'LONG',  lev:8,  pnl:12300, size:0.7 },
+  ])
+  const [totalPnl, setTotalPnl] = useState(128000)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTraders(prev => prev.map(t => ({
+        ...t,
+        pnl: Math.max(0, t.pnl + (Math.random() - 0.38) * 500)
+      })))
+      setTotalPnl(p => Math.max(0, p + (Math.random() - 0.38) * 800))
+    }, 1500)
+    return () => clearInterval(id)
+  }, [])
+
+  const fmt = (n) => n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(0)}`
+
   return (
-    <div className="ld3-mini-smart">
-      {traders.map((t,i) => (
-        <div key={i} className="ld3-smart-row">
-          <span className="ld3-smart-addr">{t.addr}</span>
-          <span className={`ld3-smart-side ${t.side==='LONG'?'long':'short'}`}>{t.side}</span>
-          <span className="ld3-smart-sym">{t.sym}</span>
-          <span className="ld3-smart-lev">{t.lev}x</span>
-          <span className="ld3-smart-pnl">{t.pnl}</span>
+    <div className="bm-smart">
+      <div className="bm-smart-header">
+        <div className="bm-smart-total">
+          <div className="bm-smart-total-lbl">TOP TRADERS TODAY</div>
+          <div className="bm-smart-total-pnl">{fmt(totalPnl)} <span className="bm-smart-total-tag">realized PnL</span></div>
         </div>
-      ))}
+      </div>
+      <div className="bm-smart-list">
+        {traders.map((t, i) => (
+          <div key={t.id} className="bm-smart-row">
+            <div className="bm-smart-rank">#{i+1}</div>
+            <div className="bm-smart-info">
+              <span className="bm-smart-addr">{t.addr}</span>
+              <div className="bm-smart-tags">
+                <span className={`bm-smart-side ${t.side==='LONG'?'long':'short'}`}>{t.side}</span>
+                <span className="bm-smart-sym">{t.sym}</span>
+                <span className="bm-smart-lev">{t.lev}x</span>
+              </div>
+            </div>
+            <div className="bm-smart-right">
+              <div className="bm-smart-pnl">{fmt(t.pnl)}</div>
+              <div className="bm-smart-bar-wrap">
+                <div className="bm-smart-bar" style={{ width:`${Math.min(t.size/3*100,100)}%` }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
 function LSMini() {
-  const [ratio, setRatio] = useState(58.4)
+  const [data, setData] = useState({
+    btc: 58.4, eth: 52.1, sol: 61.3
+  })
+  const [hist, setHist] = useState([54,56,55,58,57,59,58,60,58,59,61,58])
+
   useEffect(() => {
-    const id = setInterval(() => setRatio(r => Math.max(32, Math.min(68, r + (Math.random()-0.47)*0.9))), 1600)
+    const id = setInterval(() => {
+      setData(d => ({
+        btc: Math.max(30, Math.min(70, d.btc + (Math.random()-0.47)*1.2)),
+        eth: Math.max(30, Math.min(70, d.eth + (Math.random()-0.50)*1.0)),
+        sol: Math.max(30, Math.min(70, d.sol + (Math.random()-0.45)*1.4)),
+      }))
+      setHist(p => [...p.slice(1), parseFloat(rnd(45,65))])
+    }, 1600)
     return () => clearInterval(id)
   }, [])
-  const s = (100-ratio).toFixed(1), l = ratio.toFixed(1)
+
+  const pairs = [
+    { sym:'BTC', long: data.btc },
+    { sym:'ETH', long: data.eth },
+    { sym:'SOL', long: data.sol },
+  ]
+  const mainLong = data.btc.toFixed(1)
+  const mainShort = (100 - data.btc).toFixed(1)
+  const signal = data.btc > 55 ? 'bull' : data.btc < 45 ? 'bear' : 'neutral'
+
   return (
-    <div className="ld3-mini-ls">
-      <div className="ld3-ls-sym">BTC · Binance Perp</div>
-      <div className="ld3-ls-bar">
-        <div className="ld3-ls-long-fill"  style={{ width:`${l}%` }} />
-        <div className="ld3-ls-short-fill" style={{ width:`${s}%` }} />
+    <div className="bm-ls">
+      <div className="bm-ls-spark">
+        <Sparkline data={hist} color="#00e87a" height={24} />
       </div>
-      <div className="ld3-ls-labels">
-        <span className="ld3-ls-ll">LONG {l}%</span>
-        <span className="ld3-ls-sl">SHORT {s}%</span>
+      <div className="bm-ls-main">
+        <div className="bm-ls-bar-outer">
+          <div className="bm-ls-long-fill" style={{ width:`${mainLong}%` }}>
+            <span className="bm-ls-bar-lbl">{mainLong}%</span>
+          </div>
+          <div className="bm-ls-short-fill" style={{ width:`${mainShort}%` }}>
+            <span className="bm-ls-bar-lbl right">{mainShort}%</span>
+          </div>
+        </div>
+        <div className="bm-ls-bar-labels">
+          <span className="bm-ls-ll">▲ LONG</span>
+          <span className="bm-ls-sl">SHORT ▼</span>
+        </div>
       </div>
-      <div className={`ld3-ls-signal ${parseFloat(l)>55?'bull':parseFloat(l)<45?'bear':'neutral'}`}>
-        {parseFloat(l)>55?'LONG HEAVY':parseFloat(l)<45?'SHORT HEAVY':'NEUTRAL'}
+      <div className="bm-ls-pairs">
+        {pairs.map(p => (
+          <div key={p.sym} className="bm-ls-pair-row">
+            <span className="bm-ls-pair-sym">{p.sym}</span>
+            <div className="bm-ls-mini-bar-wrap">
+              <div className="bm-ls-mini-long" style={{ width:`${p.long}%` }} />
+              <div className="bm-ls-mini-short" style={{ width:`${(100-p.long)}%` }} />
+            </div>
+            <span className={`bm-ls-pair-pct ${p.long>55?'bull':p.long<45?'bear':'neut'}`}>{p.long.toFixed(0)}%L</span>
+          </div>
+        ))}
+      </div>
+      <div className={`bm-ls-signal ${signal}`}>
+        {signal==='bull'?'🟢 LONG HEAVY':signal==='bear'?'🔴 SHORT HEAVY':'⚪ NEUTRAL'}
       </div>
     </div>
   )
