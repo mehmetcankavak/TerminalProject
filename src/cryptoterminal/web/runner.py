@@ -103,15 +103,24 @@ async def run_web(host: str = "0.0.0.0", port: int = 8000, workers: int = 1) -> 
     app.state.cmd_registry = cmd_registry
     app.state.handlers = handlers  # multi-tenant: per-request inject için
 
-    # Servisleri başlat
-    asyncio.create_task(bus.start(), name="event_bus")
-    asyncio.create_task(market_service.start(), name="market_data")
-    asyncio.create_task(news_service.start(), name="news")
-    asyncio.create_task(execution_engine.trailing_loop(), name="trailing_stop")
-    # HL meta + prices background refresh — universe TTL yok yoksa eski leverage
-    # limitleri ve eski fiyatlarla sizing yapılır
-    from ..execution.hyperliquid_executor import hl_meta_refresh_loop
-    asyncio.create_task(hl_meta_refresh_loop(), name="hl_meta_refresh")
+    # Servisleri başlat — her task izole; birinin çökmesi web sunucusunu etkilemez
+    def _safe_task(coro, name: str):
+        async def _wrapper():
+            try:
+                await coro
+            except Exception as exc:
+                logger.warning("background_task_failed", task=name, error=str(exc))
+        asyncio.create_task(_wrapper(), name=name)
+
+    _safe_task(bus.start(), "event_bus")
+    _safe_task(market_service.start(), "market_data")
+    _safe_task(news_service.start(), "news")
+    _safe_task(execution_engine.trailing_loop(), "trailing_stop")
+    try:
+        from ..execution.hyperliquid_executor import hl_meta_refresh_loop
+        _safe_task(hl_meta_refresh_loop(), "hl_meta_refresh")
+    except Exception as exc:
+        logger.warning("hl_meta_refresh_import_failed", error=str(exc))
 
     config = uvicorn.Config(
         app,
@@ -141,7 +150,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="CryptoTerminal Web UI")
     parser.add_argument("--host",    default="0.0.0.0")
-    parser.add_argument("--port",    type=int, default=8000)
+    parser.add_argument("--port",    type=int, default=int(os.environ.get("PORT", 8000)))
     parser.add_argument("--workers", type=int, default=1,
                         help="Uvicorn worker sayısı (PostgreSQL+Redis gerekli)")
     args = parser.parse_args()
