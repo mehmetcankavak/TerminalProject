@@ -47,21 +47,32 @@ def normalise(raw: str) -> str:
 
 # ── Per-exchange fetchers ────────────────────────────────────────────────
 async def _fetch_binance(client: httpx.AsyncClient) -> list[tuple[str, float, int | None]]:
-    r = await client.get("https://fapi.binance.com/fapi/v1/premiumIndex", timeout=10)
-    r.raise_for_status()
+    """Use WebSocket !markPrice@arr stream — avoids REST geo-block (451)."""
+    import aiohttp
+    import json as _json
     out: list[tuple[str, float, int | None]] = []
-    for item in r.json():
-        sym = item.get("symbol", "")
-        if not sym.endswith("USDT"):
-            continue
-        rate = item.get("lastFundingRate")
-        if rate is None:
-            continue
-        try:
-            out.append((normalise(sym[:-4]), float(rate),
-                        int(item.get("nextFundingTime") or 0) or None))
-        except (TypeError, ValueError):
-            continue
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.ws_connect(
+                "wss://fstream.binance.com/ws/!markPrice@arr@1s",
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as ws:
+                msg = await asyncio.wait_for(ws.receive(), timeout=10)
+                if msg.type == aiohttp.WSMsgType.TEXT:
+                    for item in _json.loads(msg.data):
+                        sym = item.get("s", "")
+                        if not sym.endswith("USDT"):
+                            continue
+                        rate = item.get("r")
+                        if rate in (None, ""):
+                            continue
+                        try:
+                            nft = int(item.get("T") or 0) or None
+                            out.append((normalise(sym[:-4]), float(rate), nft))
+                        except (TypeError, ValueError):
+                            continue
+    except Exception as e:
+        logger.warning("binance_funding_ws_error", error=str(e))
     return out
 
 
@@ -69,6 +80,7 @@ async def _fetch_bybit(client: httpx.AsyncClient) -> list[tuple[str, float, int 
     r = await client.get(
         "https://api.bybit.com/v5/market/tickers?category=linear&limit=300",
         timeout=10,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; CryptoTerminal/1.0)"},
     )
     r.raise_for_status()
     out: list[tuple[str, float, int | None]] = []
