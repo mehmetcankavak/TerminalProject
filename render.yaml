@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: cryptoterminal
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    buildArgs:
+      VITE_API_URL: ""
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: "10000"
+    healthCheckPath: /
+    autoDeploy: true

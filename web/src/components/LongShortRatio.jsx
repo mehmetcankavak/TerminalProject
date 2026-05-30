@@ -6,7 +6,7 @@ const SYMBOLS = [
   'NEARUSDT','APTUSDT','ARBUSDT','OPUSDT','INJUSDT','SUIUSDT',
 ]
 
-const PERIODS = ['5m','15m','1h','4h','1d']
+const PERIODS = ['5m', '15m', '1h', '4h', '1d']
 
 async function fetchRatio(symbol, period) {
   try {
@@ -24,57 +24,115 @@ async function fetchRatio(symbol, period) {
       topLongPct:  t ? parseFloat(t.longAccount)  * 100 : null,
       topShortPct: t ? parseFloat(t.shortAccount) * 100 : null,
     }
-  } catch (err) {
-    console.warn('[L/S Ratio] fetch error', symbol, err)
+  } catch {
     return { symbol, longPct: null, shortPct: null, topLongPct: null, topShortPct: null }
   }
 }
 
-function GaugeMeter({ longPct }) {
-  if (longPct === null) return <div className="lsr-gauge-empty">Yükleniyor...</div>
+/* ── Horizontal gauge bar ───────────────────────────────────────── */
+function GaugeBar({ longPct, size = 'normal' }) {
+  if (longPct === null) return <div className="lsr2-gauge-empty">Loading…</div>
   const shortPct = 100 - longPct
-  const angle    = (longPct / 100) * 180 - 90
-  const dominant = longPct > 52 ? 'LONG AĞIRLIKLI' : longPct < 48 ? 'SHORT AĞIRLIKLI' : 'NÖTR'
-  const color    = longPct > 52 ? '#22ab94' : longPct < 48 ? '#f23645' : '#fbbf24'
+  const tone     = longPct > 52 ? '#00e87a' : longPct < 48 ? '#f43f5e' : '#fbbf24'
+  const isLarge  = size === 'large'
 
   return (
-    <div className="lsr-gauge">
-      <svg viewBox="0 0 200 110" className="lsr-gauge-svg">
-        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#1e2130" strokeWidth="18" strokeLinecap="round"/>
-        <path d="M 20 100 A 80 80 0 0 1 100 20"  fill="none" stroke="rgba(242,54,69,.3)"   strokeWidth="18" strokeLinecap="round"/>
-        <path d="M 100 20 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(34,171,148,.3)"  strokeWidth="18" strokeLinecap="round"/>
-        <line
-          x1="100" y1="100"
-          x2={100 + 65 * Math.cos((angle - 90) * Math.PI / 180)}
-          y2={100 + 65 * Math.sin((angle - 90) * Math.PI / 180)}
-          stroke={color} strokeWidth="3" strokeLinecap="round"
-        />
-        <circle cx="100" cy="100" r="6" fill={color}/>
-        <text x="12"  y="108" fontSize="9" fill="#f23645" fontFamily="monospace">SHORT</text>
-        <text x="143" y="108" fontSize="9" fill="#22ab94" fontFamily="monospace">LONG</text>
-      </svg>
-      <div className="lsr-gauge-label" style={{ color }}>
-        <span className="lsr-gauge-dominant">{dominant}</span>
-        <div className="lsr-gauge-pcts">
-          <span style={{ color: '#22ab94' }}>{longPct.toFixed(1)}%</span>
-          <span style={{ color: '#555' }}> / </span>
-          <span style={{ color: '#f23645' }}>{shortPct.toFixed(1)}%</span>
-        </div>
+    <div className={`lsr2-gauge ${isLarge ? 'lsr2-gauge-large' : ''}`}>
+
+      {/* Track */}
+      <div className="lsr2-gauge-track" style={{ height: isLarge ? 10 : 6 }}>
+        <div style={{
+          position: 'absolute', inset: 0, borderRadius: isLarge ? 5 : 3,
+          background: 'linear-gradient(to right, rgba(244,63,94,0.45) 0%, rgba(244,63,94,0.12) 35%, rgba(255,255,255,0.05) 50%, rgba(0,232,122,0.12) 65%, rgba(0,232,122,0.45) 100%)',
+        }} />
+        <div style={{
+          position: 'absolute', top: -2, bottom: -2, left: '50%',
+          width: 1, background: 'rgba(255,255,255,0.15)', transform: 'translateX(-50%)',
+        }} />
+        <div style={{
+          position: 'absolute', top: '50%', left: longPct + '%',
+          width: isLarge ? 16 : 10, height: isLarge ? 16 : 10,
+          borderRadius: '50%', background: tone,
+          boxShadow: `0 0 ${isLarge ? 12 : 7}px ${tone}99`,
+          border: `${isLarge ? 2.5 : 1.5}px solid #000`,
+          transform: 'translate(-50%, -50%)',
+          transition: 'left 0.4s cubic-bezier(0.25,0.46,0.45,0.94)',
+        }} />
+      </div>
+
+      {/* Corner labels — SHORT% left · LONG% right */}
+      <div className="lsr2-gauge-corners">
+        <span style={{ color: '#f43f5e' }}>SHORT {shortPct.toFixed(1)}%</span>
+        {isLarge && <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 9 }}>NEUTRAL</span>}
+        <span style={{ color: '#00e87a' }}>LONG {longPct.toFixed(1)}%</span>
+      </div>
+
+    </div>
+  )
+}
+
+/* ── BTC Spotlight ──────────────────────────────────────────────── */
+function BtcSpotlight({ btc }) {
+  if (!btc) {
+    return (
+      <div className="lsr2-spotlight lsr2-spotlight-loading">
+        <div className="lsr2-section-hdr">BTC/USDT · LOADING…</div>
+      </div>
+    )
+  }
+  const tone = btc.longPct > 52 ? '#00e87a' : btc.longPct < 48 ? '#f43f5e' : '#fbbf24'
+
+  return (
+    <div className="lsr2-spotlight">
+      <div className="lsr2-spotlight-top">
+        <div className="lsr2-section-hdr">BTC/USDT · LONG/SHORT RATIO</div>
+        <span className="lsr2-spot-badge" style={{ color: tone, borderColor: tone + '55', background: tone + '18' }}>
+          {btc.longPct > 52 ? 'LONG HEAVY' : btc.longPct < 48 ? 'SHORT HEAVY' : 'NEUTRAL'}
+        </span>
+      </div>
+
+      <GaugeBar longPct={btc.longPct} size="large" />
+
+      <div className="lsr2-stat-grid">
+        {[
+          { label: 'All Acct · Long',   val: btc.longPct,              color: '#00e87a' },
+          { label: 'All Acct · Short',  val: btc.longPct != null ? 100 - btc.longPct : null, color: '#f43f5e' },
+          { label: 'Top Trader · Long', val: btc.topLongPct,           color: '#6ee7d8' },
+          { label: 'Top Trader · Short',val: btc.topShortPct,          color: '#fca5a5' },
+        ].map(({ label, val, color }) => (
+          <div key={label} className="lsr2-stat-card">
+            <div className="lsr2-stat-label">{label}</div>
+            <div className="lsr2-stat-val" style={{ color }}>{val != null ? val.toFixed(2) + '%' : '—'}</div>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-function RatioBar({ longPct }) {
-  if (longPct === null) return <div style={{ height: 6, background: '#1e2130', borderRadius: 3 }} />
+/* ── Coin Card ──────────────────────────────────────────────────── */
+function CoinCard({ row }) {
+  const sym     = row.symbol.replace('USDT', '')
+  const tone    = row.longPct > 55 ? '#00e87a' : row.longPct < 45 ? '#f43f5e' : '#fbbf24'
+  const verdict = row.longPct > 55 ? 'LONG' : row.longPct < 45 ? 'SHORT' : 'NEUTRAL'
   return (
-    <div className="lsr-bar">
-      <div style={{ width: longPct + '%', background: '#22ab94', height: '100%', borderRadius: '3px 0 0 3px', transition: 'width .6s' }} />
-      <div style={{ width: (100-longPct) + '%', background: '#f23645', height: '100%', borderRadius: '0 3px 3px 0', transition: 'width .6s' }} />
+    <div className="lsr2-coin-card">
+      {/* col 1: symbol */}
+      <div className="lsr2-coin-sym">
+        <span>{sym}</span>
+        <span className="lsr2-coin-pair">/USDT</span>
+      </div>
+      {/* col 2: gauge bar — S% left corner / L% right corner */}
+      <GaugeBar longPct={row.longPct} />
+      {/* col 3: verdict badge */}
+      <span className="lsr2-signal-badge" style={{ color: tone, borderColor: tone + '55', background: tone + '18' }}>
+        {verdict}
+      </span>
     </div>
   )
 }
 
+/* ── Main ───────────────────────────────────────────────────────── */
 export default function LongShortRatio() {
   const [period,  setPeriod]  = useState('1h')
   const [rows,    setRows]    = useState([])
@@ -96,89 +154,53 @@ export default function LongShortRatio() {
   }, [loadAll])
 
   const btc = rows.find(r => r.symbol === 'BTCUSDT')
+  const others = rows.filter(r => r.symbol !== 'BTCUSDT')
 
   return (
-    <div className="lsr-page">
+    <div className="lsr2-page">
 
-      {/* Toolbar */}
-      <div className="lsr-toolbar">
-        <div className="lsr-source-row">
-          <span className="lsr-live-pill"><span className="lsr-live-dot2"/>LIVE</span>
-          <span className="lsr-source-label">Binance FAPI · Tüm Hesaplar + Top Trader</span>
-          {lastUp && <span className="lsr-updated">↻ {lastUp.toLocaleTimeString('tr-TR')}</span>}
+      {/* Header */}
+      <div className="lsr2-page-header">
+        <div>
+          <div className="lsr2-page-title">Long / Short Ratio</div>
+          <div className="lsr2-page-subtitle">
+            <span className="lsr2-live-dot" />
+            Binance FAPI · All Accounts + Top Traders
+          </div>
         </div>
-        <div className="lsr-periods">
-          {PERIODS.map(p => (
-            <button key={p} className={`lsr-period-btn ${period === p ? 'active' : ''}`} onClick={() => setPeriod(p)}>{p}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* BTC Spotlight */}
-      <div className="lsr-spotlight">
-        <div className="lsr-spotlight-title">
-          <span style={{ color: '#f7931a', fontWeight: 700 }}>BTC</span>/USDT — Long/Short Oranı
-        </div>
-        <div className="lsr-spotlight-body">
-          <GaugeMeter longPct={btc?.longPct ?? null} />
-          <div className="lsr-stat-grid">
-            {[
-              { label: 'Tüm Hesap · Long',  val: btc?.longPct,     color: '#22ab94' },
-              { label: 'Tüm Hesap · Short', val: btc ? 100 - btc.longPct : null, color: '#f23645' },
-              { label: 'Top Trader · Long', val: btc?.topLongPct,  color: '#6ee7d8' },
-              { label: 'Top Trader · Short',val: btc?.topShortPct, color: '#fca5a5' },
-            ].map(({ label, val, color }) => (
-              <div key={label} className="lsr-stat-card">
-                <span className="lsr-stat-label">{label}</span>
-                <span className="lsr-stat-val" style={{ color }}>{val != null ? val.toFixed(2) + '%' : '—'}</span>
-              </div>
+        <div className="lsr2-toolbar-right">
+          {lastUp && <span className="lsr2-updated">↻ {lastUp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>}
+          <div className="lsr2-periods">
+            {PERIODS.map(p => (
+              <button key={p} className={`lsr2-period-btn ${period === p ? 'active' : ''}`} onClick={() => setPeriod(p)}>
+                {p}
+              </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Full table */}
-      <div className="lsr-table-wrap">
-        {loading && rows.length === 0
-          ? <div className="lsr-loading"><div className="ldash-spinner"/><span>Veriler yükleniyor...</span></div>
-          : (
-          <table className="lsr-table">
-            <thead>
-              <tr>
-                <th>Coin</th>
-                <th>Long %</th>
-                <th>Short %</th>
-                <th style={{ minWidth: 160 }}>Oran</th>
-                <th>Top Long</th>
-                <th>Top Short</th>
-                <th>Sinyal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => {
-                const sym      = r.symbol.replace('USDT', '')
-                const dominant = r.longPct > 55 ? 'LONG' : r.longPct < 45 ? 'SHORT' : 'NÖTR'
-                const sigColor = r.longPct > 55 ? '#22ab94' : r.longPct < 45 ? '#f23645' : '#fbbf24'
-                return (
-                  <tr key={r.symbol} className="lsr-row">
-                    <td><span className="lsr-sym">{sym}</span><span className="lsr-pair">/USDT</span></td>
-                    <td style={{ color: '#22ab94', fontWeight: 600 }}>{r.longPct.toFixed(2)}%</td>
-                    <td style={{ color: '#f23645', fontWeight: 600 }}>{(100 - r.longPct).toFixed(2)}%</td>
-                    <td><RatioBar longPct={r.longPct} /></td>
-                    <td style={{ color: '#6ee7d8' }}>{r.topLongPct  ? r.topLongPct.toFixed(2)  + '%' : '—'}</td>
-                    <td style={{ color: '#fca5a5' }}>{r.topShortPct ? r.topShortPct.toFixed(2) + '%' : '—'}</td>
-                    <td>
-                      <span className="lsr-signal" style={{ color: sigColor, borderColor: sigColor + '55', background: sigColor + '18' }}>
-                        {dominant}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      {/* BTC Spotlight */}
+      <BtcSpotlight btc={btc} />
+
+      {/* Coin grid */}
+      <div className="lsr2-section">
+        <div className="lsr2-section-hdr lsr2-section-hdr-row">
+          <span>ALL PAIRS · {period.toUpperCase()}</span>
+          {loading && <span className="lsr2-updating">updating…</span>}
+        </div>
+        {loading && rows.length === 0 ? (
+          <div className="lsr2-loading">
+            <div className="ldash-spinner" />
+            <span>Loading data…</span>
+          </div>
+        ) : (
+          <div className="lsr2-coin-grid">
+            {others.map(r => <CoinCard key={r.symbol} row={r} />)}
+          </div>
         )}
       </div>
+
     </div>
   )
 }
