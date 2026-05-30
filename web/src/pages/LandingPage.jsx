@@ -536,6 +536,143 @@ function LSMini() {
   )
 }
 
+// ── Feature Showcase ─────────────────────────────────────────────────────────
+const SHOWCASE = [
+  {
+    id:'liq',   title:'Liquidation Stream', tagline:'Real-time cascade detection',
+    color:'#f23645', toolId:'liquidations-stream',
+    desc:'Watch cascading forced liquidations stream in across Binance, OKX, Bybit and Hyperliquid the instant they happen.',
+    stats:[{ v:'$420M+', l:'daily liquidated' }, { v:'<50ms', l:'latency' }, { v:'4 perps', l:'exchanges' }],
+  },
+  {
+    id:'whale', title:'Whale Alerts', tagline:'On-chain transfer monitoring',
+    color:'#f59e0b', toolId:'big-transfers',
+    desc:'Detect billion-dollar blockchain transfers the second they hit mempool. BTC, ETH, USDT, SOL and more tracked 24/7.',
+    stats:[{ v:'6+', l:'blockchains' }, { v:'$1M', l:'min alert size' }, { v:'<5s', l:'detection lag' }],
+  },
+  {
+    id:'fund',  title:'Funding Rates', tagline:'Cross-exchange spread finder',
+    color:'#3b82f6', toolId:'funding-rate',
+    desc:'Compare live perpetual funding rates across Binance, OKX and Bybit. Spot arbitrage opportunities instantly.',
+    stats:[{ v:'3 exch', l:'Binance OKX Bybit' }, { v:'1 min', l:'refresh rate' }, { v:'200+', l:'pairs tracked' }],
+  },
+  {
+    id:'smart', title:'Smart Money', tagline:'Copy top on-chain traders',
+    color:'#a855f7', toolId:'smart-money',
+    desc:'Track the top 50 Hyperliquid wallets in real-time. See their positions, leverage, realized PnL and size instantly.',
+    stats:[{ v:'Top 50', l:'wallets tracked' }, { v:'Live', l:'PnL updates' }, { v:'HL only', l:'Hyperliquid data' }],
+  },
+  {
+    id:'ls',    title:'Long / Short Ratio', tagline:'Live market sentiment signal',
+    color:'#00e87a', toolId:'long-short-ratio',
+    desc:'Track real-time long/short positioning across BTC, ETH and SOL. Know what the crowd is doing before it moves.',
+    stats:[{ v:'3 pairs', l:'BTC ETH SOL' }, { v:'Live', l:'sentiment updates' }, { v:'4 exch', l:'aggregated' }],
+  },
+]
+
+function FeatureShowcase() {
+  const [active, setActive] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [prog, setProg] = useState(0)
+  const DURATION = 5000
+  const TICK = 50
+
+  useEffect(() => {
+    if (paused) return
+    const id = setInterval(() => {
+      setProg(p => {
+        const next = p + (TICK / DURATION) * 100
+        if (next >= 100) {
+          setActive(a => (a + 1) % SHOWCASE.length)
+          return 0
+        }
+        return next
+      })
+    }, TICK)
+    return () => clearInterval(id)
+  }, [paused, active])
+
+  const handleSelect = (i) => { setActive(i); setProg(0) }
+  const f = SHOWCASE[active]
+
+  const MINI_MAP = {
+    liq: <LiqMini />, whale: <WhaleMini />, fund: <FundMini />,
+    smart: <SmartMini />, ls: <LSMini />,
+  }
+
+  return (
+    <div className="fl-root" onMouseEnter={() => setPaused(true)} onMouseLeave={() => { setPaused(false); setProg(0) }}>
+
+      {/* ── Left sidebar tabs ── */}
+      <div className="fl-sidebar">
+        {SHOWCASE.map((feat, i) => (
+          <button key={feat.id} className={`fl-tab ${i === active ? 'active' : ''}`}
+            style={{ '--fc': feat.color }} onClick={() => handleSelect(i)}>
+            <div className="fl-tab-bar" />
+            <div className="fl-tab-ico">
+              <ToolIcon id={feat.toolId} color={i === active ? feat.color : 'rgba(255,255,255,0.3)'} />
+            </div>
+            <div className="fl-tab-body">
+              <div className="fl-tab-name">{feat.title}</div>
+              <div className="fl-tab-sub">{feat.tagline}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Right stage ── */}
+      <TiltCard className="fl-stage" style={{ '--fc': f.color }}>
+        {/* Top chrome */}
+        <div className="fl-chrome">
+          <div className="fl-chrome-dots">
+            <span style={{ background:'#ff5f57' }} /><span style={{ background:'#febc2e' }} /><span style={{ background:'#28c840' }} />
+          </div>
+          <div className="fl-chrome-addr">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ color:'rgba(255,255,255,.3)' }}>
+              <rect x="5" y="11" width="14" height="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+            </svg>
+            cryptoterminal.app/{f.id}
+          </div>
+          <div className="fl-chrome-live"><span className="bm-pulse-dot" />LIVE</div>
+        </div>
+
+        {/* Body — key forces remount so mini animations restart fresh */}
+        <div className="fl-body" key={active}>
+          <div className="fl-preview">
+            {MINI_MAP[f.id]}
+          </div>
+          <div className="fl-aside">
+            <div className="fl-aside-title" style={{ color: f.color }}>{f.title}</div>
+            <div className="fl-aside-desc">{f.desc}</div>
+            <div className="fl-aside-stats">
+              {f.stats.map((s, i) => (
+                <div key={i} className="fl-stat" style={{ '--i': i }}>
+                  <div className="fl-stat-v" style={{ color: f.color }}>{s.v}</div>
+                  <div className="fl-stat-l">{s.l}</div>
+                </div>
+              ))}
+            </div>
+            <div className="fl-aside-dots">
+              {SHOWCASE.map((_, i) => (
+                <button key={i} className={`fl-dot ${i === active ? 'active' : ''}`}
+                  style={{ '--fc': SHOWCASE[i].color }} onClick={() => handleSelect(i)} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="fl-progbar">
+          <div className="fl-progbar-fill" style={{ width:`${prog}%`, background: f.color }} />
+        </div>
+
+        {/* Mouse-tracking glow */}
+        <div className="fl-glow" />
+      </TiltCard>
+    </div>
+  )
+}
+
 // ── FAQ ───────────────────────────────────────────────────────────────────────
 function FaqItem({ q, a }) {
   const [open, setOpen] = useState(false)
@@ -670,29 +807,15 @@ export default function LandingPage() {
         <Marquee items={MARQUEE_ITEMS} />
       </div>
 
-      {/* ── Bento feature grid ── */}
-      <section id="features" className="ld3-section">
+      {/* ── Feature Showcase ── */}
+      <section id="features" className="ld3-section fl-section">
         <div className="ld3-inner">
           <div className="ld3-section-hd">
+            <div className="tc2-hd-tag">LIVE PREVIEW</div>
             <h2 className="ld3-h2">{t('tools_title')}</h2>
             <p className="ld3-hsub">{t('tools_sub')}</p>
           </div>
-          <div className="ld3-bento">
-            {BENTO.map(card => (
-              <TiltCard key={card.key} className={`ld3-bcard ${card.cls}`} style={{ '--acc': card.accent }}>
-                <div className="ld3-bcard-glow" />
-                <div className="ld3-bcard-topline" />
-                <div className="ld3-bcard-header">
-                  <div>
-                    <div className="ld3-bcard-title">{card.title}</div>
-                    <div className="ld3-bcard-desc">{card.desc}</div>
-                  </div>
-                  {card.pro && <span className="ld3-pro-tag">PRO</span>}
-                </div>
-                <div className="ld3-bcard-mini">{card.mini}</div>
-              </TiltCard>
-            ))}
-          </div>
+          <FeatureShowcase />
         </div>
       </section>
 

@@ -20620,6 +20620,197 @@ body {
 .bm-ls-signal.bear    { background:rgba(255,77,106,.1); color:#ff4d6a; border:1px solid rgba(255,77,106,.2); }
 .bm-ls-signal.neutral { background:rgba(255,255,255,.05); color:rgba(255,255,255,.35); border:1px solid rgba(255,255,255,.1); }
 
+/* ── Feature Showcase (fl-) ───────────────────────────── */
+@keyframes fl-in {
+  from { opacity:0; transform:translateY(14px) scale(.98); }
+  to   { opacity:1; transform:none; }
+}
+@keyframes fl-stat-in {
+  from { opacity:0; transform:translateX(12px); }
+  to   { opacity:1; transform:none; }
+}
+
+.fl-section { background:transparent; }
+
+.fl-root {
+  display:grid;
+  grid-template-columns:260px 1fr;
+  gap:18px;
+  align-items:stretch;
+  margin-top:48px;
+}
+
+/* Sidebar */
+.fl-sidebar {
+  display:flex; flex-direction:column; gap:4px;
+}
+
+.fl-tab {
+  --fc: #00e87a;
+  position:relative; display:flex; align-items:center; gap:12px;
+  padding:13px 14px; background:transparent;
+  border:1px solid transparent; border-radius:12px;
+  cursor:pointer; text-align:left;
+  transition:background .2s, border-color .25s, box-shadow .25s;
+  overflow:hidden;
+}
+.fl-tab:hover {
+  background:rgba(255,255,255,.04);
+  border-color:rgba(255,255,255,.08);
+}
+.fl-tab.active {
+  background:rgba(255,255,255,.05);
+  border-color:var(--fc);
+  box-shadow:0 0 18px -8px var(--fc), inset 0 0 0 1px var(--fc);
+}
+
+.fl-tab-bar {
+  position:absolute; left:0; top:20%; bottom:20%;
+  width:2px; background:var(--fc); border-radius:2px;
+  opacity:0; transition:opacity .25s;
+}
+.fl-tab.active .fl-tab-bar { opacity:1; }
+
+.fl-tab-ico {
+  width:26px; height:26px; flex-shrink:0;
+}
+
+.fl-tab-body { flex:1; min-width:0; }
+.fl-tab-name {
+  font-family:var(--font-mono); font-size:11.5px; font-weight:500;
+  color:rgba(255,255,255,.6); margin-bottom:2px;
+  transition:color .2s;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.fl-tab.active .fl-tab-name { color:#fff; }
+.fl-tab-sub {
+  font-size:10.5px; color:rgba(255,255,255,.3);
+  transition:color .25s;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.fl-tab.active .fl-tab-sub { color:var(--fc); opacity:.8; }
+
+/* Stage */
+.fl-stage {
+  --fc: #00e87a;
+  position:relative; overflow:hidden;
+  background:rgba(255,255,255,.025);
+  border:1px solid var(--fc);
+  border-radius:18px;
+  box-shadow:0 0 80px -24px var(--fc), 0 24px 48px -16px rgba(0,0,0,.7);
+  transition:border-color .4s, box-shadow .4s;
+  display:flex; flex-direction:column;
+}
+
+/* Chrome */
+.fl-chrome {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 16px;
+  background:rgba(255,255,255,.03);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  flex-shrink:0;
+}
+.fl-chrome-dots { display:flex; gap:6px; align-items:center; }
+.fl-chrome-dots span { width:11px; height:11px; border-radius:50%; display:block; }
+.fl-chrome-addr {
+  font-family:var(--font-mono); font-size:11px;
+  color:rgba(255,255,255,.3); display:flex; align-items:center; gap:5px;
+}
+.fl-chrome-live {
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.08em;
+  color:var(--fc); display:flex; align-items:center; gap:5px; opacity:.85;
+}
+
+/* Body */
+.fl-body {
+  display:grid; grid-template-columns:1fr 220px; gap:0;
+  flex:1; animation:fl-in .45s cubic-bezier(.16,1,.3,1) both;
+}
+
+.fl-preview {
+  padding:20px; border-right:1px solid rgba(255,255,255,.06);
+  overflow:hidden;
+}
+
+/* Aside */
+.fl-aside {
+  padding:20px 18px; display:flex; flex-direction:column; gap:16px;
+  background:rgba(255,255,255,.015);
+}
+.fl-aside-title {
+  font-family:var(--font-mono); font-size:13px; font-weight:600;
+  letter-spacing:.02em;
+}
+.fl-aside-desc {
+  font-size:11.5px; color:rgba(255,255,255,.45); line-height:1.6;
+}
+.fl-aside-stats { display:flex; flex-direction:column; gap:8px; margin-top:auto; }
+
+.fl-stat {
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+  border-radius:10px; padding:10px 12px;
+  animation:fl-stat-in .4s cubic-bezier(.16,1,.3,1) both;
+  animation-delay:calc(var(--i,0) * 70ms);
+}
+.fl-stat-v {
+  font-family:var(--font-mono); font-size:15px; font-weight:600;
+  display:block; margin-bottom:2px;
+}
+.fl-stat-l { font-size:10px; color:rgba(255,255,255,.35); }
+
+/* Nav dots */
+.fl-aside-dots { display:flex; gap:7px; align-items:center; }
+.fl-dot {
+  --fc: #00e87a;
+  width:6px; height:6px; border-radius:50%; padding:0; border:none;
+  background:rgba(255,255,255,.18); cursor:pointer;
+  transition:background .2s, transform .25s, box-shadow .25s;
+}
+.fl-dot.active {
+  background:var(--fc); transform:scale(1.6);
+  box-shadow:0 0 8px var(--fc);
+}
+
+/* Progress bar */
+.fl-progbar {
+  height:2px; background:rgba(255,255,255,.06); flex-shrink:0;
+}
+.fl-progbar-fill {
+  height:100%; border-radius:2px;
+  transition:width .05s linear;
+}
+
+/* Glow overlay */
+.fl-glow {
+  position:absolute; inset:0; pointer-events:none; border-radius:18px;
+  background:radial-gradient(
+    ellipse 80% 80% at var(--gx,50%) var(--gy,50%),
+    rgba(255,255,255,.03) 0%, transparent 65%
+  );
+  opacity:0; transition:opacity .4s;
+}
+.fl-stage:hover .fl-glow { opacity:1; }
+
+/* Responsive */
+@media(max-width:900px) {
+  .fl-root { grid-template-columns:1fr; }
+  .fl-sidebar { flex-direction:row; overflow-x:auto; gap:6px; padding-bottom:4px; scrollbar-width:none; }
+  .fl-sidebar::-webkit-scrollbar { display:none; }
+  .fl-tab { flex-direction:column; align-items:center; text-align:center; min-width:100px; padding:10px 8px; }
+  .fl-tab-bar { top:0; left:20%; right:20%; bottom:auto; width:auto; height:2px; }
+  .fl-body { grid-template-columns:1fr; }
+  .fl-aside { border-top:1px solid rgba(255,255,255,.06); border-right:none; }
+  .fl-aside-stats { flex-direction:row; }
+  .fl-stat { flex:1; text-align:center; }
+}
+@media(max-width:520px) {
+  .fl-body { grid-template-columns:1fr; }
+  .fl-aside { display:none; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .fl-body, .fl-stat { animation:none !important; }
+}
+
 /* ── Tools grid ───────────────────────────────────────── */
 .ld3-tools {
   display:grid; grid-template-columns:repeat(4,1fr); gap:12px;
