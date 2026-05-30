@@ -14,7 +14,7 @@ _pool: asyncpg.Pool | None = None
 
 
 def _strip_sslmode(dsn: str) -> tuple[str, str | None]:
-    """asyncpg sometimes chokes on ?sslmode=require — strip it and return mode separately."""
+    """asyncpg chokes on libpq-only params — strip them and return ssl mode."""
     parsed = urlparse(dsn)
     if not parsed.query:
         return dsn, None
@@ -22,6 +22,9 @@ def _strip_sslmode(dsn: str) -> tuple[str, str | None]:
     sslmode = None
     if "sslmode" in params:
         sslmode = params.pop("sslmode")[0]
+    # Strip other libpq-only params that asyncpg doesn't understand
+    for k in ("channel_binding", "application_name", "options", "target_session_attrs"):
+        params.pop(k, None)
     new_query = urlencode(params, doseq=True)
     clean = urlunparse(parsed._replace(query=new_query))
     return clean, sslmode
