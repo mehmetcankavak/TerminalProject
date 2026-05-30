@@ -49,8 +49,4 @@ RUN mkdir -p data logs
 
 EXPOSE 8000
 
-# Use $PORT when the platform assigns one (Railway/Heroku); fall back to 8000.
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python3 -c "import os,urllib.request; urllib.request.urlopen('http://localhost:%s/' % os.environ.get('PORT','8000'))" || exit 1
-
-CMD ["python", "-m", "cryptoterminal.web.runner"]
+CMD ["python", "-u", "-m", "cryptoterminal.web.runner"]
