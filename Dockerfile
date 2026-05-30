@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /
 COPY pyproject.toml ./
 COPY src/ ./src/
 COPY config/ ./config/
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir . && pip show uvicorn fastapi
 
 COPY --from=frontend /app/web-dist ./web-dist
 
