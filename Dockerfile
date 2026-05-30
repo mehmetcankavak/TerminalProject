@@ -36,7 +36,10 @@ RUN pip install --no-cache-dir \
     "httpx[http2]>=0.27" \
     "websockets>=12.0" \
     "aiosqlite>=0.20" \
-    "uvloop>=0.19"
+    "uvloop>=0.19" \
+    "ccxt>=4.3" \
+    "aiohttp>=3.9" \
+    "feedparser>=6.0"
 
 COPY pyproject.toml ./
 COPY src/ ./src/
