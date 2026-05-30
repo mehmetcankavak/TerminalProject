@@ -16,12 +16,32 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libssl-dev && rm -rf /var/lib/apt/lists/*
+
+# Install core web server deps first (separate layer, always cached correctly)
+RUN pip install --no-cache-dir \
+    "uvicorn>=0.30" \
+    "fastapi>=0.111" \
+    "asyncpg>=0.29" \
+    "redis>=5.0" \
+    "pydantic>=2.5" \
+    "pydantic-settings>=2.1" \
+    "structlog>=24.0" \
+    "slowapi>=0.1.9" \
+    "passlib[bcrypt]>=1.7" \
+    "bcrypt>=3.0,<4.0" \
+    "python-jose[cryptography]>=3.3" \
+    "python-multipart>=0.0.9" \
+    "python-dotenv>=1.0" \
+    "httpx[http2]>=0.27" \
+    "websockets>=12.0" \
+    "aiosqlite>=0.20" \
+    "uvloop>=0.19"
 
 COPY pyproject.toml ./
 COPY src/ ./src/
 COPY config/ ./config/
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --no-deps .
 
 COPY --from=frontend /app/web-dist ./web-dist
 
