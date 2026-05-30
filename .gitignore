@@ -7,6 +7,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 dist/
+web-dist/
 *.egg-info/
 data/
 logs/
@@ -15,3 +16,4 @@ node_modules/
 *.log
 .idea/
 .vscode/
+migration/

@@ -751,43 +751,13 @@ async def _cached_json_fetch(url: str, params: dict[str, Any] | None = None, ttl
             return data
 
 
-# Stablecoin symbols — used to split exchange flow into coin vs stablecoin,
-# which carry opposite signals (coin out = accumulation; stable in = dry powder).
-_STABLE_SYMS = {"USDT", "USDC", "DAI", "FDUSD", "PYUSD", "USDP", "TUSD",
-                "BUSD", "USDE", "GUSD", "USDS", "USD1", "USDD"}
-
-
-def _compute_flow_sentiment(inflow: float, outflow: float, mint: float, burn: float,
-                            coin_in: float, coin_out: float) -> dict:
-    """Single source of truth for the big-transfers sentiment score (model B).
-
-    Three asset-aware signals, dynamically weighted over whichever are present:
-      • coin netflow (BTC/ETH): coins leaving exchanges = accumulation (+)
-      • stablecoin liquidity (mint/burn): net mint = new buying power (+)
-      • stablecoin → exchange flow: stables arriving = dry powder (+)
-    Coins and stablecoins are kept apart because their flow meaning is opposite.
-    """
-    exch = (outflow - inflow) / (outflow + inflow) if (outflow + inflow) > 0 else 0.0
-    liq  = (mint - burn) / (mint + burn) if (mint + burn) > 0 else 0.0
-    has_liq = (mint + burn) > 0
-    stable_in  = max(0.0, inflow - coin_in)
-    stable_out = max(0.0, outflow - coin_out)
-    coin_exch  = (coin_out - coin_in) / (coin_in + coin_out) if (coin_in + coin_out) > 0 else 0.0
-    stable_sig = (stable_in - stable_out) / (stable_in + stable_out) if (stable_in + stable_out) > 0 else 0.0
-    has_coin   = (coin_in + coin_out) > 0
-    has_stable = (stable_in + stable_out) > 0
-    comps = []
-    if has_coin:   comps.append((coin_exch, 0.5))
-    if has_liq:    comps.append((liq, 0.3))
-    if has_stable: comps.append((stable_sig, 0.2))
-    score = (sum(v * w for v, w in comps) / sum(w for _, w in comps)) if comps else exch
-    verdict = "BULLISH" if score > 0.3 else "BEARISH" if score < -0.3 else "NEUTRAL"
-    return {
-        "score": round(score, 3), "verdict": verdict,
-        "exch": round(exch, 3), "liq": round(liq, 3), "has_liq": has_liq,
-        "coin_exch": round(coin_exch, 3), "stable_sig": round(stable_sig, 3),
-        "has_coin": has_coin, "has_stable": has_stable,
-    }
+# Asset-aware flow sentiment lives in one shared module so the REST endpoints
+# and the Market Compass component never diverge. (Aliased to the old private
+# names so existing call sites stay unchanged.)
+from ..big_transfers.flow_sentiment import (  # noqa: E402
+    STABLE_SYMS as _STABLE_SYMS,
+    compute_flow_sentiment as _compute_flow_sentiment,
+)
 
 
 def create_app(
@@ -1177,6 +1147,146 @@ def create_app(
         except Exception as e:
             logger.warning("push_to_user_error", user_id=user_id, error=str(e))
 
+    # Directional read for a corridor's flow_category — shared by the alert
+    # push text and the WS payload so the wording stays consistent with the UI.
+    _CORRIDOR_READ = {
+        "cex_inflow":   "borsaya düzenli besleme — alım gücü geliyor",
+        "cex_outflow":  "borsadan düzenli çekiş — para çekiliyor",
+        "cex_internal": "borsalar arası transfer",
+        "mint":         "yeni stablecoin arzı",
+        "burn":         "arz yakımı",
+        "unknown":      "etiketsiz koridor — OTC / market maker şüphesi",
+    }
+
+    async def _compass_sampler_loop() -> None:
+        """Her ~10dk'da bir compute_compass() çağırır → compass_history'ye düzenli
+        snapshot yazılsın diye. Böylece momentum (3g önce) ve percentile (30g)
+        sayfa açılmasa bile dinamik ve güvenilir olur; yoksa snapshot'lar sadece
+        kullanıcı compass'ı açtığında yazılıyordu (seyrek, momentum 'warming_up')."""
+        await asyncio.sleep(45)  # startup'ta DB/servisler otursun
+        while True:
+            try:
+                from ..sentiment import compute_compass
+                await compute_compass()
+            except Exception as e:
+                logger.debug("compass_sampler_error", error=str(e))
+            await asyncio.sleep(600)  # 10 dk
+
+    async def _corridor_alert_loop() -> None:
+        """Her ~5dk'da bir tekrarlayan koridorları tarar; ısrarlı + yüksek
+        hacimli bir (gönderen → alıcı) çifti eşiği aşınca kayıtlı tüm cihazlara
+        push atar. Aynı koridor cooldown içinde tekrar bildirilmez — hacmi
+        ikiye katlamadığı sürece. Global sinyal: cihaz token'ı olan herkese."""
+        from ..persistence.database import get_pool
+
+        WINDOW_SEC   = 6 * 3600      # koridor birikimi penceresi
+        MIN_COUNT    = 3             # en az kaç tekrar
+        MIN_USD      = 25_000_000.0  # eşik: pencere içi toplam hacim
+        COOLDOWN_SEC = 6 * 3600      # aynı koridoru tekrar bildirme aralığı
+
+        def _usd(n: float) -> str:
+            n = abs(n)
+            if n >= 1e9: return f"${n/1e9:.1f}B"
+            if n >= 1e6: return f"${n/1e6:.1f}M"
+            if n >= 1e3: return f"${n/1e3:.0f}K"
+            return f"${n:.0f}"
+
+        logger.info("corridor_alert_loop_started")
+        await asyncio.sleep(60)  # tracker'lar ısınsın
+        while True:
+            try:
+                now = int(time.time())
+                since = now - WINDOW_SEC
+                logger.info("corridor_alert_scan", window_h=WINDOW_SEC // 3600)
+                pool = await get_pool()
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch(
+                        """
+                        SELECT chain, from_addr, to_addr,
+                               MAX(from_label) AS from_label, MAX(to_label) AS to_label,
+                               MAX(flow_category) AS flow,
+                               COUNT(*) AS cnt, SUM(amount_usd) AS total_usd,
+                               (array_agg(asset ORDER BY amount_usd DESC))[1] AS asset
+                        FROM big_transfers
+                        WHERE ts_sec >= $1 AND from_addr IS NOT NULL AND to_addr IS NOT NULL
+                        GROUP BY chain, from_addr, to_addr
+                        HAVING COUNT(*) >= $2 AND SUM(amount_usd) >= $3
+                        ORDER BY SUM(amount_usd) DESC
+                        LIMIT 20
+                        """,
+                        since, MIN_COUNT, MIN_USD,
+                    )
+                    if not rows:
+                        await asyncio.sleep(300)
+                        continue
+                    prior = {
+                        r["corridor_key"]: (float(r["last_total_usd"]), int(r["last_alert_ts"]))
+                        for r in await conn.fetch(
+                            "SELECT corridor_key, last_total_usd, last_alert_ts FROM corridor_alerts")
+                    }
+
+                to_fire = []
+                for r in rows:
+                    key = f"{r['chain']}:{r['from_addr']}:{r['to_addr']}"
+                    total = float(r["total_usd"] or 0)
+                    if key in prior:
+                        last_total, last_ts = prior[key]
+                        # Cooldown'da ve hacim ikiye katlamadıysa atla.
+                        if (now - last_ts) < COOLDOWN_SEC and total < last_total * 2:
+                            continue
+                    to_fire.append((key, r, total))
+
+                if not to_fire:
+                    await asyncio.sleep(300)
+                    continue
+
+                # Bildirilecek kullanıcılar — cihaz token'ı olan herkes.
+                async with pool.acquire() as conn:
+                    user_rows = await conn.fetch("SELECT DISTINCT user_id FROM device_tokens")
+                    for key, r, total in to_fire:
+                        await conn.execute(
+                            """
+                            INSERT INTO corridor_alerts (corridor_key, last_total_usd, last_count, last_alert_ts)
+                            VALUES ($1,$2,$3,$4)
+                            ON CONFLICT (corridor_key) DO UPDATE SET
+                                last_total_usd = EXCLUDED.last_total_usd,
+                                last_count     = EXCLUDED.last_count,
+                                last_alert_ts  = EXCLUDED.last_alert_ts
+                            """,
+                            key, total, int(r["cnt"]), now,
+                        )
+                user_ids = [u["user_id"] for u in user_rows]
+
+                for key, r, total in to_fire:
+                    flow = r["flow"] or "unknown"
+                    read = _CORRIDOR_READ.get(flow, _CORRIDOR_READ["unknown"])
+                    frm = r["from_label"] or (r["from_addr"][:6] + "…" + r["from_addr"][-4:])
+                    dst = r["to_label"]   or (r["to_addr"][:6] + "…" + r["to_addr"][-4:])
+                    asset = r["asset"] or ""
+                    title = "🔁 Tekrarlayan koridor"
+                    body = f"{frm} → {dst}: {r['cnt']}× {_usd(total)} {asset} — {read}"
+                    data = {"type": "corridor_alert", "chain": r["chain"],
+                            "from": r["from_addr"], "to": r["to_addr"],
+                            "count": int(r["cnt"]), "total_usd": total, "flow": flow}
+                    # Canlı WS — açık uygulama anında görsün.
+                    try:
+                        await manager.broadcast({**data, "title": title, "text": body})
+                    except Exception:
+                        pass
+                    for uid in user_ids:
+                        try:
+                            await _send_push_to_user(uid, title, body, data)
+                        except Exception as e:
+                            logger.debug("corridor_push_fail", uid=uid, error=str(e))
+                    logger.info("corridor_alert_fired", key=key, total=total, count=int(r["cnt"]))
+
+                await asyncio.sleep(300)
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.warning("corridor_alert_loop_error", error=str(e))
+                await asyncio.sleep(300)
+
     async def _funding_fee_loop(pm) -> None:
         """
         Her 8 saatte bir Binance'den funding rate çekip paper pozisyonlara uygular.
@@ -1439,6 +1549,7 @@ def create_app(
     # ── Big Transfers trackers (BTC + EVM) ──────────────────────────────
     btc_mempool_tracker = None
     evm_transfer_tracker = None
+    tron_transfer_tracker = None  # TRON TRC-20 (USDT/USDC) big-transfer poller
     auto_label_tracker = None  # heuristic CEX deposit-address discovery
     funding_tracker = None     # multi-exchange perp funding rate poller
 
@@ -1760,9 +1871,11 @@ def create_app(
         # ── Big Transfers trackers ──────────────────────────────────────
         # Free, public WSS sources — no API keys, real-time on-chain whale
         # detection. BTC via Mempool.space, ETH USDT/USDC via PublicNode.
-        nonlocal btc_mempool_tracker, evm_transfer_tracker, auto_label_tracker
+        nonlocal btc_mempool_tracker, evm_transfer_tracker, tron_transfer_tracker, auto_label_tracker
         try:
-            from ..big_transfers import BtcMempoolTracker, EvmTransferTracker, AutoLabelTracker
+            from ..big_transfers import (
+                BtcMempoolTracker, EvmTransferTracker, TronTransferTracker, AutoLabelTracker,
+            )
             # Start auto-label tracker FIRST so _persist_big_transfer can use it
             auto_label_tracker = AutoLabelTracker()
             await auto_label_tracker.start()
@@ -1776,9 +1889,16 @@ def create_app(
                 on_transfer=_persist_big_transfer,
                 min_usd=500_000.0,
                 eth_price_fn=_eth_price,
+                btc_price_fn=_btc_price,
+            )
+            tron_transfer_tracker = TronTransferTracker(
+                on_transfer=_persist_big_transfer,
+                min_usd=500_000.0,
+                api_key=getattr(settings, "trongrid_api_key", "") or "",
             )
             await btc_mempool_tracker.start()
             await evm_transfer_tracker.start()
+            await tron_transfer_tracker.start()
         except Exception as e:
             logger.warning("big_transfers_start_failed", error=str(e))
 
@@ -1789,7 +1909,7 @@ def create_app(
         asılı kalır, sonraki başlatmada port bind çakışması veya zombie
         ws connection'lar olabilir."""
         # Smart Money Tracker
-        nonlocal smart_money_tracker, positioning_tracker, symbol_resolver, btc_mempool_tracker, evm_transfer_tracker, auto_label_tracker, funding_tracker
+        nonlocal smart_money_tracker, positioning_tracker, symbol_resolver, btc_mempool_tracker, evm_transfer_tracker, tron_transfer_tracker, auto_label_tracker, funding_tracker
         if symbol_resolver is not None:
             try:
                 await symbol_resolver.stop()
@@ -1817,7 +1937,8 @@ def create_app(
                 logger.debug("smtracker_stop_failed", error=str(e))
             smart_money_tracker = None
         # Big Transfers trackers
-        for name, tr in (("btc", btc_mempool_tracker), ("evm", evm_transfer_tracker)):
+        for name, tr in (("btc", btc_mempool_tracker), ("evm", evm_transfer_tracker),
+                         ("tron", tron_transfer_tracker)):
             if tr is not None:
                 try:
                     await tr.stop()
@@ -1825,6 +1946,7 @@ def create_app(
                     logger.debug("big_transfer_stop_failed", which=name, error=str(e))
         btc_mempool_tracker = None
         evm_transfer_tracker = None
+        tron_transfer_tracker = None
         # Auto-label tracker (flushes any pending hints on stop)
         if auto_label_tracker is not None:
             try:
@@ -1880,6 +2002,12 @@ def create_app(
 
         # Fiyat alarm tetikleyici döngü (5s)
         asyncio.create_task(_price_alert_checker())
+
+        # Tekrarlayan koridor bildirim döngüsü (5dk)
+        asyncio.create_task(_corridor_alert_loop())
+
+        # Market Compass periyodik örnekleyici (10dk) — momentum/percentile dinamik
+        asyncio.create_task(_compass_sampler_loop())
 
         # Süresi dolan pro planları kontrol et (her 1 saat)
         async def _plan_expiry_loop():
@@ -2300,11 +2428,18 @@ def create_app(
             by_flow["mint"]["sum_usd"], by_flow["burn"]["sum_usd"],
             coin_in, coin_out,
         )
+        # Stablecoin exchange flow = total cex flow minus the coin portion.
+        # Surfaced separately so the UI can colour each correctly (coin and
+        # stablecoin netflow read in OPPOSITE directions).
+        stable_in  = max(0.0, by_flow["cex_inflow"]["sum_usd"]  - coin_in)
+        stable_out = max(0.0, by_flow["cex_outflow"]["sum_usd"] - coin_out)
 
         return {
             "window_sec": window_sec,
             "flows": by_flow,
             "sentiment": sentiment,
+            "coin":   {"inflow": coin_in,   "outflow": coin_out},
+            "stable": {"inflow": stable_in, "outflow": stable_out},
         }
 
     @app.get("/api/big-transfers/insights")
@@ -2472,6 +2607,9 @@ def create_app(
             # unified ETH netflow rather than ETH and WETH split apart.
             if sym == "WETH":
                 sym = "ETH"
+            # WBTC is BTC on Ethereum — fold into BTC for one unified BTC netflow.
+            elif sym == "WBTC":
+                sym = "BTC"
             coin_in += a["inflow"]
             coin_out += a["outflow"]
             agg = by_coin.setdefault(sym, {"asset": sym, "inflow": 0.0, "outflow": 0.0, "net": 0.0, "count": 0})
@@ -2709,6 +2847,95 @@ def create_app(
             "biggest": biggest,
             "insights": insights,
         }
+
+    # ── Big Transfers: recurring corridors (repeated from→to pairs) ──────
+    @app.get("/api/big-transfers/corridors")
+    @_limiter.limit("30/minute")
+    async def big_transfers_corridors(
+        request: Request,
+        window_sec: int = 86400,
+        chain: str | None = None,
+        min_count: int = 3,
+        limit: int = 25,
+        _user_id: int = Depends(_require_pro),
+    ):
+        """Persistent money corridors — the same (from → to) pair seen
+        repeatedly in the window. Turns 'lots of flow' into 'who keeps feeding
+        whom': OTC desks funneling into an exchange, recurring withdrawals,
+        wallet-to-wallet settlement routes. Pure aggregation over stored
+        transfers; each corridor carries a directional read from its labels.
+        """
+        from ..persistence.database import get_pool
+
+        try:
+            window_sec = max(3600, min(int(window_sec or 86400), 7 * 86400))
+        except (TypeError, ValueError):
+            window_sec = 86400
+        try:
+            min_count = max(2, min(int(min_count or 3), 50))
+        except (TypeError, ValueError):
+            min_count = 3
+        try:
+            limit = max(1, min(int(limit or 25), 100))
+        except (TypeError, ValueError):
+            limit = 25
+        chain = (chain or "").strip().lower() or None
+        since_sec = int(time.time()) - window_sec
+
+        # Pair labels/flow are constant for a given (from,to), so MAX() just
+        # picks the single value. top_asset = the asset driving the most USD.
+        where = "ts_sec >= $1 AND from_addr IS NOT NULL AND to_addr IS NOT NULL"
+        params: list = [since_sec]
+        if chain:
+            params.append(chain)
+            where += f" AND chain = ${len(params)}"
+        params.append(min_count)
+        sql = f"""
+            SELECT from_addr, to_addr,
+                   MAX(from_label) AS from_label,
+                   MAX(to_label)   AS to_label,
+                   MAX(flow_category) AS flow,
+                   COUNT(*)        AS cnt,
+                   SUM(amount_usd) AS total_usd,
+                   MIN(ts_sec)     AS first_ts,
+                   MAX(ts_sec)     AS last_ts,
+                   (array_agg(asset ORDER BY amount_usd DESC))[1] AS top_asset,
+                   (array_agg(chain ORDER BY amount_usd DESC))[1] AS chain
+            FROM big_transfers
+            WHERE {where}
+            GROUP BY from_addr, to_addr
+            HAVING COUNT(*) >= ${len(params)}
+            ORDER BY SUM(amount_usd) DESC
+            LIMIT {limit}
+        """
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+        # Directional read per corridor — tone drives UI colour, text explains.
+        _READ = {
+            "cex_inflow":   ("bull", "↗", "Borsaya düzenli besleme — alım gücü geliyor"),
+            "cex_outflow":  ("bear", "↘", "Borsadan düzenli çekiş — para çekiliyor"),
+            "cex_internal": ("neutral", "⇄", "Borsalar arası transfer — yeniden dengeleme"),
+            "mint":         ("bull", "✨", "Yeni stablecoin arzı — likidite girişi"),
+            "burn":         ("bear", "🔥", "Arz yakımı — likidite çekiliyor"),
+            "unknown":      ("neutral", "→", "Etiketsiz koridor — OTC / market maker şüphesi"),
+        }
+        corridors = []
+        for r in rows:
+            flow = r["flow"] or "unknown"
+            tone, arrow, read = _READ.get(flow, _READ["unknown"])
+            corridors.append({
+                "from_addr": r["from_addr"], "to_addr": r["to_addr"],
+                "from_label": r["from_label"], "to_label": r["to_label"],
+                "flow": flow, "tone": tone, "arrow": arrow, "read": read,
+                "count": int(r["cnt"]),
+                "total_usd": float(r["total_usd"] or 0),
+                "first_ts": int(r["first_ts"]), "last_ts": int(r["last_ts"]),
+                "asset": r["top_asset"], "chain": r["chain"],
+            })
+        return {"window_sec": window_sec, "min_count": min_count,
+                "chain": chain, "count": len(corridors), "corridors": corridors}
 
     # ── Big Transfers: real on-chain feed (shared, populated by trackers) ─
     @app.get("/api/big-transfers/feed")

@@ -36,6 +36,7 @@ class ExecutionEngine:
         self.portfolio = portfolio
         self.market = market_service
         self.paper_executor = PaperExecutor()
+        self.user_id: int | None = None
         self._hl_executor: HyperliquidExecutor | None = None
         self._binance_adapter = None   # per-user BinanceAdapter for live trading
         self._mode = TradingMode.PAPER
@@ -194,6 +195,7 @@ class ExecutionEngine:
 
         order = Order(
             internal_id=f"ord_{uuid.uuid4().hex[:8]}",
+            user_id=self.user_id,
             symbol=symbol,
             side=OrderSide(side),
             order_type=OrderType(order_type),
@@ -323,11 +325,17 @@ class ExecutionEngine:
 
         await self.bus.publish(
             events.ORDER_FILLED,
-            {"order": None, "realized_pnl": realized, "symbol": symbol},
+            {
+                "order": None,
+                "realized_pnl": realized,
+                "symbol": symbol,
+                "user_id": self.user_id,
+            },
         )
         await self.bus.publish(
             events.POSITION_CLOSED,
             {
+                "user_id":     self.user_id,
                 "symbol":      symbol,
                 "side":        side,
                 "entry_price": entry_price,

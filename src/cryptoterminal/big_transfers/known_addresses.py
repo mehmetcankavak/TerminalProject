@@ -332,9 +332,65 @@ _BTC_CEX_ADDRS = {
     "3LCGsSmfr24demGvriN4e3ft8wEcDuHFqh": ("OKX (BTC)", "cex", "okx"),
 }
 
+# TRON CEX wallets + USDT issuance authority. Same chain-agnostic lookup path:
+# the TronTransferTracker converts event addresses to base58 (T…) before
+# persist, and lookup()/this merge both lowercase, so base58 case-folding is
+# self-consistent (a T-address only ever compares against other T-addresses).
+#
+# Seed is intentionally minimal — only the most-documented wallets. Tron CEX
+# coverage then grows on its own as auto_labels promotes deposit addresses that
+# repeatedly funnel into these. Expand only from verified Tronscan labels;
+# mislabeling is worse than leaving a transfer 'unknown'.
+_TRON_CEX_ADDRS = {
+    # Tether TRON treasury — new USDT enters circulation from here (mint signal).
+    "TKHuVq1oKVruCGLvqVexFs6dawKv6fQgFs": ("Tether TRON Treasury", "mint", "tether"),
+    # ── Binance (TRON hot wallets, widely tagged) ─────────────────────────
+    "TWd4WrZ9wn84f5x1hZhL4DHvk738ns5jwb": ("Binance (TRON)",   "cex", "binance"),
+    "TJDENsfBJs4RFETt1X1W8wMDc8M5XnJhCe": ("Binance 2 (TRON)", "cex", "binance"),
+    "TMuA6YqfCeX8EhbfYEg5y7S4DqzSJireY9": ("Binance 3 (TRON)", "cex", "binance"),
+    # ── HTX / Huobi (CoinCarp-labeled, base58 checksums verified) ─────────
+    "TYh6mgoMNZTCsgpYHBz7gttEfrQmDMABub": ("HTX (TRON)",        "cex", "htx"),
+    "TF2fmSbg5HAD34KPUH7WtWCxxvgXHohzYM": ("HTX 2 (TRON)",      "cex", "htx"),
+    "THZovMcKoZaV9zzFTWteQYd2f3NEvnzxAM": ("HTX 3 (TRON)",      "cex", "htx"),
+    "TZ1SsapyhKNWaVLca6P2qgVzkHTdk6nkXa": ("HTX 4 (TRON)",      "cex", "htx"),
+    "TGn1uvntAVntT1pG8o7qoKkbViiYfeg6Gj": ("HTX Cold (TRON)",   "cex", "htx"),
+    "TH7vVF9RTMXM9x7ZnPnbNcEph734hpu8cf": ("HTX Cold 2 (TRON)", "cex", "htx"),
+    "TRSXRWudzfzY4jH7AaMowdMNUXDkHisbcd": ("HTX Cold 3 (TRON)", "cex", "htx"),
+    "TKgD8Qnx9Zw3DNvG6o83PkufnMbtEXis4T": ("HTX Cold 4 (TRON)", "cex", "htx"),
+    "TAuUCiH4JVNBZmDnEDZkXEUXDARdGpXTmX": ("HTX Cold 5 (TRON)", "cex", "htx"),
+    # ── Bybit (CoinCarp-labeled, base58 checksum verified) ────────────────
+    "TU4vEruvZwLLkSfV9bNw12EJTPvNr7Pvaa": ("Bybit (TRON)",      "cex", "bybit"),
+    # ── More Binance (TRON hot/cold, CoinCarp rich-list, checksums verified) ─
+    "TDqSquXBgUCLYvYC4XZgrprLK589dkhSCf": ("Binance Hot 7 (TRON)",  "cex", "binance"),
+    "TNPdqto8HiuMzoG7Vv9wyyYhWzCojLeHAF": ("Binance Cold 4 (TRON)", "cex", "binance"),
+    # ── Gate.io ───────────────────────────────────────────────────────────
+    "TBA6CypYJizwA9XdC7Ubgc5F1bxrQ7SqPt": ("Gate.io (TRON)",    "cex", "gate"),
+    # ── Upbit / Bitpanda / CoinSpot ───────────────────────────────────────
+    "TASUAUKXCqvwYjesEWv22pFjRsCeF4NKot": ("Upbit Hot (TRON)",  "cex", "upbit"),
+    "TWpqsYjAw7rFPmWeZcwKQanCS6Kk8f5dhT": ("Bitpanda (TRON)",   "cex", "bitpanda"),
+    "TBfJhtGydsNkGt3VVN1mwcXLec9RExMRav": ("CoinSpot (TRON)",   "cex", "coinspot"),
+    # ── Sourced from Tronscan public address tags (apilist.tronscanapi.com,
+    #    top USDT-TRC20 holders); checksums verified. ────────────────────────
+    "TLaGjwhvA8XQYSxFAcAXy7Dvuue9eGYitv": ("OKX Hot 8 (TRON)",     "cex", "okx"),
+    "TK1U4Hym23Jz9fP3p8oker4A8VQdoq88Ms": ("KuCoin 10 (TRON)",     "cex", "kucoin"),
+    "TJ7hhYhVhaxNx6BPyq7yFpqZrQULL3JSdb": ("Bitget 9 (TRON)",      "cex", "bitget"),
+    "TB37WWozkkenGVYWD7Do2N5WT2CedqDktJ": ("MEXC 2 (TRON)",        "cex", "mexc"),
+    "TG2CMGxnTPgQ6V58kiKd7wbyN8ewtAmY76": ("Kraken Hot (TRON)",    "cex", "kraken"),
+    "TXFBqBbqJommqZf7BV8NNYzePh97UmJodJ": ("Bitfinex (TRON)",      "cex", "bitfinex"),
+    "TTH75Z9rfRgzCLNDDYBaR2WjUvuSDRtSMg": ("Bybit Cold (TRON)",    "cex", "bybit"),
+    "TJ5usJLLwjwn7Pw3TPbdzreG7dvgKzfQ5y": ("Binance Hot 9 (TRON)", "cex", "binance"),
+    "TNXoiAJ3dct8Fjg4M9fkLFh9S2v9TXc32G": ("Binance Hot 4 (TRON)", "cex", "binance"),
+    "TQrY8tryqsYVCYS3MFbtffiPp2ccyn4STm": ("Binance 2x (TRON)",    "cex", "binance"),
+    "TCLgK89AnXbC9rewvhNb9UgXCc2qJJpBXh": ("Binance Hot 10 (TRON)","cex", "binance"),
+    "TAzsQ9Gx8eqFNFSKbeXrbi45CuVPHzA8wr": ("Binance Hot 5 (TRON)", "cex", "binance"),
+    "TJqwA7SoZnERE4zW5uDEiPkbz4B66h9TFj": ("Binance Hot 11 (TRON)","cex", "binance"),
+    "TK4ykR48cQQoyFcZ5N4xZCbsBaHcg6n3gJ": ("Binance Hot 8 (TRON)", "cex", "binance"),
+    "TYASr5UV6HEcXatwdFQfmLVUqQQQMUxHLS": ("Binance Hot 3 (TRON)", "cex", "binance"),
+}
+
 # Build merged lookup map. All keys lowercase.
 KNOWN_ADDRESSES: dict[str, tuple[str, str, str]] = {}
-for src in (_BURN_ADDRS, _MINT_ADDRS, _CEX_ADDRS, _BTC_CEX_ADDRS):
+for src in (_BURN_ADDRS, _MINT_ADDRS, _CEX_ADDRS, _BTC_CEX_ADDRS, _TRON_CEX_ADDRS):
     for k, v in src.items():
         KNOWN_ADDRESSES[k.lower()] = v
 
@@ -352,14 +408,17 @@ def lookup(addr: str | None) -> tuple[str | None, str | None, str | None]:
 def classify_flow(from_cat: str | None, to_cat: str | None) -> str:
     """Categorize a transfer by its labeled endpoints.
 
-    cex_inflow   — unknown → exchange   (about to sell / deposit)
-    cex_outflow  — exchange → unknown   (withdrawal / accumulation)
-    cex_internal — exchange → exchange  (rebalance, less actionable)
-    burn         — anywhere → burn address  (supply destroyed — check FIRST so
-                                             that "Circle → Null Address" is a
-                                             burn, not a mint-to-burn)
-    mint         — mint authority → anywhere (new supply)
-    unknown      — neither endpoint labeled
+    Exchange side has two trust levels:
+      "cex"         — curated hot wallet (high trust, both directions count)
+      "cex_deposit" — auto-discovered customer deposit address (inflow target
+                      only; sending OUT is not a real withdrawal)
+
+    cex_inflow   — anything → exchange side (deposit/hot)  (about to sell / deposit)
+    cex_outflow  — HOT wallet → unknown   (real withdrawal / accumulation)
+    cex_internal — exchange ↔ exchange    (rebalance / deposit sweep)
+    burn / mint  — supply destroyed / created
+    unknown      — neither endpoint labeled, OR deposit-addr → unknown
+                   (a deposit address sending out is NOT an exchange withdrawal)
     """
     # Burn dominates: even a mint authority sending to the null address is
     # destroying supply, not creating it.
@@ -367,12 +426,14 @@ def classify_flow(from_cat: str | None, to_cat: str | None) -> str:
         return "burn"
     if from_cat == "mint":
         return "mint"
-    f_cex = from_cat == "cex"
-    t_cex = to_cat == "cex"
-    if t_cex and not f_cex:
-        return "cex_inflow"
-    if f_cex and not t_cex:
-        return "cex_outflow"
-    if f_cex and t_cex:
-        return "cex_internal"
+    f_hot = from_cat == "cex"            # curated hot wallet
+    f_ex  = from_cat in ("cex", "cex_deposit")
+    t_ex  = to_cat   in ("cex", "cex_deposit")
+    if f_ex and t_ex:
+        return "cex_internal"           # both exchange-controlled (incl. sweeps)
+    if t_ex and not f_ex:
+        return "cex_inflow"             # → exchange side = deposit/inflow
+    if f_hot and not t_ex:
+        return "cex_outflow"            # ONLY a real hot wallet out = withdrawal
+    # deposit-addr → unknown, or neither labeled → not actionable as exchange flow
     return "unknown"

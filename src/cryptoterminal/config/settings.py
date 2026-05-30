@@ -100,8 +100,20 @@ class Settings(BaseSettings):
     wallet_arbitrum: str = ""    # Arbitrum One USDT/USDC
 
     # Crypto Payment — Plan Prices (USD)
-    plan_price_monthly: float = 29.0
-    plan_price_yearly: float = 249.0
+    plan_price_monthly: float = 59.99
+    plan_price_yearly: float = 479.99
+
+    # Crypto Payment — Block Explorer API Keys (free tier yeterli)
+    etherscan_api_key: str = ""
+    bscscan_api_key: str = ""
+    arbiscan_api_key: str = ""
+
+    # TronGrid API key (trongrid.io → free) — lifts the keyless rate limit on
+    # the TRON big-transfer tracker. Works without it, but intermittently.
+    trongrid_api_key: str = ""
+
+    # App environment — cookie Secure flag için
+    app_env: str = "development"  # "production" | "development"
 
     # Coinglass API  (coinglass.com → API → ücretsiz key al)
     coinglass_api_key: str = ""
@@ -135,6 +147,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""         # sniper için (kanal okuma)
     telegram_alert_bot_token: str = ""   # kullanıcılara alert göndermek için ayrı bot
     telegram_session: str = "data/tg_sniper"  # session file path (no .session suffix)
+    telegram_session_string: str = ""  # Telethon StringSession — MTProto real-time (cloud)
     telegram_channels: str = ""       # comma-separated: @channel or numeric id
     telegram_news_priority: str = "HIGH"  # default priority for TG messages
     # Lane overrides — comma-separated channel handles (without @). Boş bırakılırsa

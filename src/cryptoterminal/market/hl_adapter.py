@@ -42,6 +42,11 @@ class HyperliquidAdapter(ExchangeAdapter):
         self._rest_url = _BASE_REST_TESTNET if testnet else _BASE_REST
         self._info = None
         self._exchange_client = None
+        # Per-coin live L1 best bid/ask (fed by l2Book stream we spawn alongside trades)
+        self._best_bidask: dict[str, tuple[float, float]] = {}
+        # Per-coin REST context cache: dayNtlVlm / prevDayPx / markPx (refreshed every 30s)
+        self._ctx_cache: dict[str, dict] = {}
+        self._bg_tasks: list[asyncio.Task] = []
 
     def _ensure_rest(self) -> None:
         if self._info is not None:
@@ -63,11 +68,82 @@ class HyperliquidAdapter(ExchangeAdapter):
 
     async def connect(self) -> None:
         self._ensure_rest()
+        # Background poller fills dayNtlVlm / 24h change for all coins (one REST call covers all)
+        self._bg_tasks.append(asyncio.create_task(self._ctx_poller(), name="hl_ctx_poller"))
         logger.info("hl_adapter_connected", testnet=self.testnet)
 
     async def disconnect(self) -> None:
+        for t in self._bg_tasks:
+            t.cancel()
+        if self._bg_tasks:
+            await asyncio.gather(*self._bg_tasks, return_exceptions=True)
+        self._bg_tasks.clear()
         self._info = None
         self._exchange_client = None
+
+    async def _ctx_poller(self) -> None:
+        """Poll metaAndAssetCtxs every 30s — single call covers all perps.
+
+        Response: [meta, ctxs] where meta.universe[i] maps to ctxs[i] with
+        dayNtlVlm, prevDayPx, markPx, funding, openInterest. We index by coin.
+        """
+        import httpx  # type: ignore
+        url = f"{self._rest_url}/info"
+        backoff = 5
+        while True:
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    resp = await client.post(url, json={"type": "metaAndAssetCtxs"})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list) and len(data) >= 2:
+                        universe = (data[0] or {}).get("universe") or []
+                        ctxs = data[1] or []
+                        for i, asset in enumerate(universe):
+                            if i >= len(ctxs):
+                                break
+                            coin = asset.get("name") or ""
+                            if coin:
+                                self._ctx_cache[coin] = ctxs[i] or {}
+                    backoff = 5
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.warning("hl_ctx_poll_error", error=str(e))
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
+
+    async def _l1_book_loop(self, coin: str) -> None:
+        """Maintain a live best bid/ask cache via l2Book stream (real L1, not synthetic)."""
+        sub_msg = json.dumps({
+            "method": "subscribe",
+            "subscription": {"type": "l2Book", "coin": coin},
+        })
+        while True:
+            try:
+                async with websockets.connect(self._ws_url, ping_interval=20) as ws:
+                    await ws.send(sub_msg)
+                    async for raw in ws:
+                        try:
+                            data = json.loads(raw)
+                        except Exception:
+                            continue
+                        if data.get("channel") != "l2Book":
+                            continue
+                        levels = (data.get("data", {}) or {}).get("levels") or [[], []]
+                        if levels and levels[0] and levels[1]:
+                            try:
+                                self._best_bidask[coin] = (
+                                    float(levels[0][0]["px"]),
+                                    float(levels[1][0]["px"]),
+                                )
+                            except (KeyError, IndexError, ValueError, TypeError):
+                                pass
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                await asyncio.sleep(3)
 
     async def watch_ticker(self, symbol: str) -> AsyncIterator[Ticker]:
         coin = _hl_symbol(symbol)
@@ -75,6 +151,11 @@ class HyperliquidAdapter(ExchangeAdapter):
             "method": "subscribe",
             "subscription": {"type": "trades", "coin": coin},
         })
+        # Spawn parallel l2Book stream for real L1 bid/ask (once per coin)
+        if not any(t.get_name() == f"hl_l1_{coin}" for t in self._bg_tasks):
+            self._bg_tasks.append(asyncio.create_task(
+                self._l1_book_loop(coin), name=f"hl_l1_{coin}"
+            ))
 
         while True:
             try:
@@ -94,14 +175,30 @@ class HyperliquidAdapter(ExchangeAdapter):
                         price = float(last.get("px", 0))
                         if price <= 0:
                             continue
+                        # Real L1 from l2Book cache; zeros if not yet populated
+                        bid, ask = self._best_bidask.get(coin, (0.0, 0.0))
+                        spread = round(ask - bid, 6) if ask and bid else 0.0
+                        # 24h volume + change from REST ctx poller (30s cache)
+                        ctx = self._ctx_cache.get(coin, {})
+                        vol_24h = 0.0
+                        try:
+                            vol_24h = float(ctx.get("dayNtlVlm") or 0.0)
+                        except (TypeError, ValueError):
+                            pass
+                        prev_px = 0.0
+                        try:
+                            prev_px = float(ctx.get("prevDayPx") or 0.0)
+                        except (TypeError, ValueError):
+                            pass
+                        change_pct = ((price - prev_px) / prev_px * 100.0) if prev_px > 0 else 0.0
                         yield Ticker(
                             symbol=symbol,
                             last_price=price,
-                            bid=round(price * 0.9999, 4),
-                            ask=round(price * 1.0001, 4),
-                            spread=round(price * 0.0002, 4),
-                            volume_24h=0.0,
-                            change_24h_pct=0.0,
+                            bid=bid,
+                            ask=ask,
+                            spread=spread,
+                            volume_24h=vol_24h,
+                            change_24h_pct=change_pct,
                             high_24h=0.0,
                             low_24h=0.0,
                             timestamp=datetime.now(timezone.utc),

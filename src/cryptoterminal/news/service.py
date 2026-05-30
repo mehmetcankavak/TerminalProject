@@ -61,6 +61,10 @@ class NewsService:
         self._source_health: dict[str, dict[str, object]] = {}
         self.MAX_HISTORY = 1000
         self._tg_sniper = TelegramSniper(bus, settings)
+        # Real-time MTProto listener (sub-second) — shares the sniper's _publish
+        # + dedup, so it races the HTTP poller with zero double-posting.
+        from .telegram_mtproto import TelegramMTProtoListener
+        self._tg_mtproto = TelegramMTProtoListener(self._tg_sniper, settings)
         self._tw_stream = TwitterFilteredStream(bus, settings)
 
     def _ensure_health(self, source_key: str, sample_source: str | None = None) -> dict[str, object]:
@@ -227,6 +231,7 @@ class NewsService:
             self._tasks.append(task)
 
         await self._tg_sniper.start()
+        await self._tg_mtproto.start()
         await self._tw_stream.start()
 
         logger.info(
@@ -242,6 +247,7 @@ class NewsService:
         await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks.clear()
         await self._tg_sniper.stop()
+        await self._tg_mtproto.stop()
         await self._tw_stream.stop()
         for adapter in self._adapters:
             if hasattr(adapter, "close"):

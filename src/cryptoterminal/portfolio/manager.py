@@ -57,6 +57,15 @@ class PortfolioManager:
         if symbol in self._positions:
             self._positions[symbol].current_price = ticker.last_price
 
+    def _position_margin(self, price: float, quantity: float, leverage: int | None) -> float:
+        lev = max(int(leverage or 1), 1)
+        return (price * quantity) / lev
+
+    def _sync_margin_balance(self) -> None:
+        locked = sum(float(p.margin_used or 0.0) for p in self._positions.values())
+        self._balance.locked_usdt = locked
+        self._balance.available_usdt = max(0.0, self._balance.total_usdt - locked)
+
     def on_order_submitted(self, order: Order) -> None:
         self._open_orders[order.internal_id] = order
 
@@ -71,11 +80,13 @@ class PortfolioManager:
 
         symbol = order.symbol
         side = PositionSide.LONG if order.side.value == "buy" else PositionSide.SHORT
+        closed_existing_position = False
 
         if symbol in self._positions:
             existing = self._positions[symbol]
             if existing.side == side:
                 # Pozisyonu büyüt
+                added_margin = self._position_margin(fill.price, fill.quantity, order.leverage)
                 total_qty = existing.quantity + fill.quantity
                 avg_entry = (
                     existing.entry_price * existing.quantity + fill.price * fill.quantity
@@ -83,6 +94,7 @@ class PortfolioManager:
                 existing.quantity = total_qty
                 existing.entry_price = avg_entry
                 existing.current_price = fill.price
+                existing.margin_used = float(existing.margin_used or 0.0) + added_margin
                 asyncio.create_task(repo.save_open_position(symbol, existing))
             else:
                 # Ters pozisyon — kapat
@@ -91,6 +103,8 @@ class PortfolioManager:
                     existing.side, fill.fees
                 )
                 self.realized_pnl_today += realized
+                self._balance.total_usdt += realized
+                closed_existing_position = True
                 asyncio.create_task(repo.close_db_position(symbol, fill.price, realized))
                 del self._positions[symbol]
         else:
@@ -101,15 +115,15 @@ class PortfolioManager:
                 entry_price=fill.price,
                 current_price=fill.price,
                 leverage=order.leverage,
+                margin_used=self._position_margin(fill.price, fill.quantity, order.leverage),
             )
             self._positions[symbol] = new_pos
             asyncio.create_task(repo.save_open_position(symbol, new_pos))
 
-        # Bakiye güncelle (basit)
-        cost = fill.price * fill.quantity + fill.fees
-        self._balance.available_usdt = max(
-            0, self._balance.available_usdt - cost
-        )
+        # Paper mode: leverage'lı pozisyonda bakiyeden notional değil margin kilitlenir.
+        if not closed_existing_position:
+            self._balance.total_usdt -= fill.fees
+        self._sync_margin_balance()
         asyncio.create_task(self._persist_balance())
 
     def _check_daily_reset(self) -> None:
@@ -208,7 +222,7 @@ class PortfolioManager:
         total_realized = realized + pos.accumulated_funding
         self.realized_pnl_today += total_realized
         self._balance.total_usdt += realized  # funding zaten uygulandı, sadece trade PnL
-        self._balance.available_usdt += realized + pos.entry_price * pos.quantity
+        self._sync_margin_balance()
         asyncio.create_task(repo.close_db_position(symbol, exit_price, total_realized))
         asyncio.create_task(self._persist_balance())
         pct = (total_realized / (pos.entry_price * pos.quantity)) * 100 if pos.entry_price * pos.quantity else 0

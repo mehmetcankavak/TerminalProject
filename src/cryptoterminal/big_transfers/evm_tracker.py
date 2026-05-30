@@ -53,8 +53,16 @@ _ETH_TOKENS = {
     "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": ("WETH", 18),
 }
 
+# BTC-denominated ERC-20s → (symbol, decimals). Priced at the live BTC price.
+# WBTC is where BTC value moves *on Ethereum* (DEX, lending, bridges) — the
+# parallel of WETH for ETH. Without it, BTC exchange flow only reflects the
+# Bitcoin base layer and misses BTC liquidity living on Ethereum.
+_BTC_TOKENS = {
+    "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": ("WBTC", 8),
+}
+
 # All ERC-20 contracts we subscribe to.
-_ERC20_TOKENS = {**_STABLECOINS, **_ETH_TOKENS}
+_ERC20_TOKENS = {**_STABLECOINS, **_ETH_TOKENS, **_BTC_TOKENS}
 
 _DEFAULT_MIN_USD = 500_000.0
 # Native ETH single-tx transfers run smaller than aggregated stablecoin moves
@@ -108,11 +116,14 @@ class EvmTransferTracker:
         *,
         min_usd: float = _DEFAULT_MIN_USD,
         eth_price_fn: Callable[[], float | None] | None = None,
+        btc_price_fn: Callable[[], float | None] | None = None,
     ) -> None:
         self._on_transfer = on_transfer
         self._min_usd = min_usd
         self._eth_price_fn = eth_price_fn
+        self._btc_price_fn = btc_price_fn
         self._eth_price = 0.0  # cached, refreshed by _price_loop (non-blocking reads)
+        self._btc_price = 0.0  # cached, for valuing WBTC
         self._task: asyncio.Task | None = None
         self._price_task: asyncio.Task | None = None
         self._running = False
@@ -141,30 +152,36 @@ class EvmTransferTracker:
         self._price_task = None
 
     async def _price_loop(self) -> None:
-        """Keep a fresh ETH/USD price cached. Prefer the injected market price
-        (live in production); fall back to a public ticker so native ETH still
-        gets valued in local/dev where market_service may be empty."""
+        """Keep fresh ETH/USD and BTC/USD prices cached. Prefer the injected
+        market prices (live in production); fall back to a public ticker so
+        native ETH (and WBTC) still get valued in local/dev where
+        market_service may be empty."""
         while self._running:
+            await self._refresh_price("eth", self._eth_price_fn, "ETHUSDT")
+            await self._refresh_price("btc", self._btc_price_fn, "BTCUSDT")
+            await asyncio.sleep(30)
+
+    async def _refresh_price(self, which, fn, binance_symbol) -> None:
+        price = None
+        try:
+            if fn is not None:
+                price = fn()
+        except Exception:
             price = None
+        if not price:
             try:
-                if self._eth_price_fn is not None:
-                    price = self._eth_price_fn()
+                async with httpx.AsyncClient(timeout=6) as cl:
+                    r = await cl.get("https://api.binance.com/api/v3/ticker/price",
+                                     params={"symbol": binance_symbol})
+                    price = float((r.json() or {}).get("price") or 0)
             except Exception:
                 price = None
-            if not price:
-                try:
-                    async with httpx.AsyncClient(timeout=6) as cl:
-                        r = await cl.get("https://api.binance.com/api/v3/ticker/price",
-                                         params={"symbol": "ETHUSDT"})
-                        price = float((r.json() or {}).get("price") or 0)
-                except Exception:
-                    price = None
-            if price and price > 0:
-                first = self._eth_price == 0
-                self._eth_price = float(price)
-                if first:
-                    logger.info("evm_eth_price_ready", price=self._eth_price)
-            await asyncio.sleep(30)
+        if price and price > 0:
+            attr = f"_{which}_price"
+            first = getattr(self, attr) == 0
+            setattr(self, attr, float(price))
+            if first:
+                logger.info(f"evm_{which}_price_ready", price=float(price))
 
     async def _run(self) -> None:
         backoff = 2
@@ -337,11 +354,15 @@ class EvmTransferTracker:
                 return
             amount_native = raw_amount / (10 ** decimals)
             # Stablecoins ≈ $1 (peg assumed); ETH-denominated tokens (WETH) use
-            # the live ETH price.
+            # the live ETH price; BTC-denominated tokens (WBTC) use BTC price.
             if contract in _ETH_TOKENS:
                 if not self._eth_price:
                     return  # price not ready — can't value WETH yet
                 amount_usd = amount_native * self._eth_price
+            elif contract in _BTC_TOKENS:
+                if not self._btc_price:
+                    return  # price not ready — can't value WBTC yet
+                amount_usd = amount_native * self._btc_price
             else:
                 amount_usd = amount_native
             if amount_usd < self._min_usd:

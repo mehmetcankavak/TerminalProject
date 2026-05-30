@@ -3,7 +3,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
 
+import structlog
+
 from ..core.models import Balance, OrderBook, Position, Ticker
+
+logger = structlog.get_logger(__name__)
 
 
 class ExchangeAdapter(ABC):
@@ -64,6 +68,10 @@ class BinanceAdapter(ExchangeAdapter):
         self._exchange = None        # authenticated (order/balance)
         self._pub_exchange = None    # unauthenticated (ticker/orderbook)
         self._symbol_info: dict[str, dict] = {}
+        # Per-symbol live L1 best bid/ask cache, fed by bookTicker WS stream.
+        # watch_ticker reads from here instead of synthesizing fake spreads.
+        self._best_bidask: dict[str, tuple[float, float]] = {}
+        self._bookticker_tasks: dict[str, "asyncio.Task"] = {}
 
     async def connect(self) -> None:
         import ccxt.pro as ccxtpro  # type: ignore
@@ -94,7 +102,28 @@ class BinanceAdapter(ExchangeAdapter):
             # market data on mainnet so the terminal shows real, liquid prices.
             self._exchange.set_sandbox_mode(True)
 
+        # Load symbol precision (stepSize/tickSize/minNotional) so we can round
+        # order quantities correctly per market — fixes SHIB/PEPE rejections.
+        try:
+            markets = await self._pub_exchange.load_markets()
+            for ccxt_sym, m in (markets or {}).items():
+                key = ccxt_sym.replace("/", "").split(":")[0]
+                self._symbol_info[key] = {
+                    "amount_precision": (m.get("precision") or {}).get("amount"),
+                    "price_precision":  (m.get("precision") or {}).get("price"),
+                    "min_amount":       ((m.get("limits") or {}).get("amount") or {}).get("min"),
+                    "min_cost":         ((m.get("limits") or {}).get("cost") or {}).get("min"),
+                }
+        except Exception as e:
+            logger.warning("binance_load_markets_failed", error=str(e))
+
     async def disconnect(self) -> None:
+        import asyncio
+        for task in self._bookticker_tasks.values():
+            task.cancel()
+        if self._bookticker_tasks:
+            await asyncio.gather(*self._bookticker_tasks.values(), return_exceptions=True)
+        self._bookticker_tasks.clear()
         if self._pub_exchange:
             await self._pub_exchange.close()
             self._pub_exchange = None
@@ -102,9 +131,40 @@ class BinanceAdapter(ExchangeAdapter):
             await self._exchange.close()
             self._exchange = None
 
+    async def _bookticker_loop(self, symbol: str) -> None:
+        """Subscribe to Binance bookTicker WS stream — real L1 best bid/ask.
+
+        ccxt.pro's watch_order_book(depth=1) hits the same <symbol>@bookTicker
+        channel (push-on-change, ~10ms latency) and gives true L1 prices instead
+        of the bd/ask fields that <symbol>@ticker sometimes drops for futures.
+        """
+        import asyncio
+        ccxt_symbol = self._to_ccxt(symbol)
+        backoff = 1
+        while True:
+            try:
+                while True:
+                    ob = await self._pub_exchange.watch_order_book(ccxt_symbol, 1)
+                    bids = ob.get("bids") or []
+                    asks = ob.get("asks") or []
+                    if bids and asks:
+                        self._best_bidask[symbol] = (float(bids[0][0]), float(asks[0][0]))
+                        backoff = 1
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 30)
+
     async def watch_ticker(self, symbol: str):
         # ccxt.pro symbol formatı: BTC/USDT — public instance kullan (auth yok)
+        import asyncio
         ccxt_symbol = self._to_ccxt(symbol)
+        # Start parallel bookTicker stream once per symbol for real bid/ask
+        if symbol not in self._bookticker_tasks:
+            self._bookticker_tasks[symbol] = asyncio.create_task(
+                self._bookticker_loop(symbol), name=f"bookticker_{symbol}"
+            )
         while True:
             raw = await self._pub_exchange.watch_ticker(ccxt_symbol)
             from datetime import datetime, timezone
@@ -114,11 +174,12 @@ class BinanceAdapter(ExchangeAdapter):
             last = raw.get("last") or 0.0
             bid = raw.get("bid") or 0.0
             ask = raw.get("ask") or 0.0
-            # Futures stream'de bid/ask gelmeyebilir, last_price'tan tahmin et
-            if not bid and last:
-                bid = round(last * 0.9999, 2)
-            if not ask and last:
-                ask = round(last * 1.0001, 2)
+            # Prefer real L1 from bookTicker stream; fall back to ticker stream
+            # fields. Never synthesize — leaving zeros is more honest than fake
+            # 0.01% spreads that mislead risk/execution layers.
+            cached = self._best_bidask.get(symbol)
+            if cached:
+                bid, ask = cached
             spread = round(ask - bid, 4) if ask and bid else 0.0
 
             yield Ticker(
@@ -244,8 +305,21 @@ class BinanceAdapter(ExchangeAdapter):
         if price <= 0:
             return 0.0
         qty = amount_usd / price
-        # Basit rounding — gerçek precision market'tan alınmalı
-        return round(qty, 6)
+        info = self._symbol_info.get(symbol) or {}
+        # ccxt precision.amount can be either decimal places (int) or step size (float<1).
+        prec = info.get("amount_precision")
+        if isinstance(prec, int):
+            qty = round(qty, prec)
+        elif isinstance(prec, float) and prec > 0:
+            # Snap down to nearest step (e.g. SHIB step=1.0, BTC step=0.001)
+            qty = (int(qty / prec)) * prec
+        else:
+            qty = round(qty, 6)
+        # Floor at min lot — exchange would reject below this anyway
+        min_amt = info.get("min_amount")
+        if isinstance(min_amt, (int, float)) and min_amt > 0 and qty < min_amt:
+            qty = float(min_amt)
+        return qty
 
     async def _get_last_price(self, symbol: str) -> float:
         ccxt_symbol = self._to_ccxt(symbol)

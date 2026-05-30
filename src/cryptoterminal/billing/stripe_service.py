@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import structlog
 
 from ..config.settings import get_settings
@@ -112,10 +114,7 @@ async def create_portal_session(stripe_customer_id: str) -> str:
     return session.url
 
 
-async def get_subscription_status(stripe_customer_id: str | None) -> str:
-    if not stripe_customer_id:
-        return "free"
-
+def _get_subscription_status_sync(stripe_customer_id: str) -> str:
     stripe = _get_stripe()
     settings = get_settings()
 
@@ -124,11 +123,28 @@ async def get_subscription_status(stripe_customer_id: str | None) -> str:
 
     try:
         subscriptions = stripe.Subscription.list(
-            customer=stripe_customer_id, status="active", limit=1
+            customer=stripe_customer_id,
+            status="active",
+            limit=1,
+            timeout=3,
         )
         if subscriptions.data:
             return "pro"
         return "free"
     except Exception as e:
         logger.error("stripe_status_check_failed", error=str(e))
+        return "free"
+
+
+async def get_subscription_status(stripe_customer_id: str | None) -> str:
+    if not stripe_customer_id:
+        return "free"
+
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_get_subscription_status_sync, stripe_customer_id),
+            timeout=4,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("stripe_status_check_timeout", customer_id=stripe_customer_id)
         return "free"
