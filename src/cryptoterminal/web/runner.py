@@ -159,6 +159,13 @@ async def _async_full_init(bootstrap_app: FastAPI, static_dir: str | None) -> No
                 setattr(bootstrap_app.state, k, v)
             _print("[full-init] OK: full app routes installed")
 
+            # Run full app's startup event handlers (big transfers, Bybit, etc.)
+            for handler in full_app.router.on_startup:
+                try:
+                    await handler()
+                except Exception as exc:
+                    _print(f"[full-init] startup handler failed: {exc}")
+
             # Background services — each isolated, can't crash main process
             def _safe_task(coro, name: str):
                 async def _wrapper():
