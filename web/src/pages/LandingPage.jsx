@@ -536,6 +536,280 @@ function LSMini() {
   )
 }
 
+// ── New mini visualizations (vol / vest / alt / pf / mkt / cal / spot / term) ─
+
+function VolMini() {
+  const SYMS = ['BTC','ETH','SOL','BNB','XRP']
+  const [rows, setRows] = useState(() => SYMS.map(s => ({ s, vol: parseFloat(rnd(800,4000,0)), chg: parseFloat(rnd(-6,14,2)) })))
+  useEffect(() => {
+    const id = setInterval(() => setRows(r => r.map(x => ({ ...x, vol: parseFloat(rnd(800,4000,0)), chg: parseFloat(rnd(-6,14,2)) }))), 2200)
+    return () => clearInterval(id)
+  }, [])
+  const maxV = Math.max(...rows.map(r => r.vol))
+  const total = rows.reduce((a,r) => a+r.vol,0)
+  return (
+    <div className="bm-vol">
+      <div className="bm-vol-head">
+        <div className="bm-live-badge"><span className="bm-pulse-dot green"/>VOLUME MONITOR</div>
+        <span className="bm-vol-total">${(total/1000).toFixed(1)}B total</span>
+      </div>
+      <div className="bm-vol-rows">
+        {rows.map(r => (
+          <div key={r.s} className="bm-vol-row">
+            <span className="bm-vol-sym">{r.s}</span>
+            <div className="bm-vol-bar-wrap"><div className="bm-vol-bar" style={{ width:`${(r.vol/maxV)*100}%`, background:r.chg>=0?'#00e87a':'#f23645' }}/></div>
+            <span className="bm-vol-num">${(r.vol/1000).toFixed(1)}B</span>
+            <span className={`bm-vol-chg ${r.chg>=0?'pos':'neg'}`}>{r.chg>=0?'+':''}{r.chg}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const UNLOCK_DATA = [
+  { sym:'ARB', amt:'1.1B', val:980, days:2 },
+  { sym:'SUI', amt:'520M', val:740, days:5 },
+  { sym:'JUP', amt:'300M', val:420, days:8 },
+  { sym:'WLD', amt:'90M',  val:185, days:12 },
+  { sym:'APT', amt:'150M', val:310, days:19 },
+]
+function VestMini() {
+  const [items, setItems] = useState(UNLOCK_DATA)
+  useEffect(() => {
+    const id = setInterval(() => setItems(prev => prev.map(u => ({ ...u, val: parseFloat(rnd(u.val*0.85, u.val*1.15, 0)) }))), 3000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <div className="bm-vest">
+      <div className="bm-vest-head">
+        <div className="bm-live-badge"><span className="bm-pulse-dot orange"/>UPCOMING UNLOCKS</div>
+      </div>
+      <div className="bm-vest-rows">
+        {items.map(u => (
+          <div key={u.sym} className="bm-vest-row">
+            <span className="bm-vest-sym">{u.sym}</span>
+            <span className="bm-vest-amt">{u.amt} tokens</span>
+            <span className="bm-vest-val">${u.val}M</span>
+            <div className="bm-vest-countdown">in {u.days}d</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const ALERT_SEED = [
+  { sym:'BTC', type:'PRICE',   cond:'> $70,000',    ex:'Binance' },
+  { sym:'ETH', type:'VOLUME',  cond:'Spike +40%',   ex:'OKX'     },
+  { sym:'SOL', type:'FUNDING', cond:'> 0.10%',      ex:'Bybit'   },
+  { sym:'BNB', type:'WHALE',   cond:'$5M+ transfer',ex:'On-Chain'},
+  { sym:'ARB', type:'PRICE',   cond:'< $0.90',      ex:'Binance' },
+]
+function AltMini() {
+  const [alerts, setAlerts] = useState(() => ALERT_SEED.map(a => ({ ...a, hit: false })))
+  useEffect(() => {
+    const id = setInterval(() => setAlerts(prev => prev.map(a => ({ ...a, hit: Math.random() > 0.6 }))), 1800)
+    return () => clearInterval(id)
+  }, [])
+  const triggered = alerts.filter(a => a.hit).length
+  return (
+    <div className="bm-alt">
+      <div className="bm-alt-head">
+        <div className="bm-live-badge"><span className="bm-pulse-dot yellow"/>CUSTOM ALERTS</div>
+        <span className="bm-alt-count" style={{ color: triggered>0 ? '#f5a623':'rgba(255,255,255,.35)' }}>{triggered} triggered</span>
+      </div>
+      <div className="bm-alt-rows">
+        {alerts.map((a,i) => (
+          <div key={i} className={`bm-alt-row ${a.hit?'hit':''}`}>
+            <span className={`bm-alt-dot ${a.hit?'hit':''}`}/>
+            <span className="bm-alt-sym">{a.sym}</span>
+            <span className="bm-alt-type">{a.type}</span>
+            <span className="bm-alt-cond">{a.cond}</span>
+            <span className={`bm-alt-badge ${a.hit?'hit':''}`}>{a.hit?'FIRED':'ACTIVE'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PfMini() {
+  const BASE = [
+    { s:'BTC', amt:0.42,  base:67500, color:'#f59e0b', pct:44 },
+    { s:'ETH', amt:3.8,   base:3200,  color:'#3b82f6', pct:28 },
+    { s:'SOL', amt:25,    base:145,   color:'#a855f7', pct:18 },
+    { s:'BNB', amt:8,     base:420,   color:'#00e87a', pct:10 },
+  ]
+  const [prices, setPrices] = useState(() => BASE.map(b => b.base))
+  useEffect(() => {
+    const id = setInterval(() => setPrices(prev => prev.map((p, i) => p * (1 + (Math.random()-.5)*.003))), 1200)
+    return () => clearInterval(id)
+  }, [])
+  const total = BASE.reduce((a,b,i) => a + b.amt * prices[i], 0)
+  const dailyPnl = parseFloat(rnd(-1.2, 3.5, 2))
+  return (
+    <div className="bm-pf">
+      <div className="bm-pf-head">
+        <div className="bm-live-badge"><span className="bm-pulse-dot green"/>PORTFOLIO</div>
+        <span className={`bm-pf-daily ${dailyPnl>=0?'pos':'neg'}`}>{dailyPnl>=0?'+':''}{dailyPnl}% today</span>
+      </div>
+      <div className="bm-pf-total">${total.toLocaleString('en',{maximumFractionDigits:0})}</div>
+      <div className="bm-pf-rows">
+        {BASE.map((b,i) => (
+          <div key={b.s} className="bm-pf-row">
+            <div className="bm-pf-dot" style={{ background:b.color }}/>
+            <span className="bm-pf-sym">{b.s}</span>
+            <div className="bm-pf-bar-wrap"><div className="bm-pf-bar" style={{ width:`${b.pct}%`, background:b.color }}/></div>
+            <span className="bm-pf-val">${(b.amt*prices[i]/1000).toFixed(1)}K</span>
+            <span className="bm-pf-pct">{b.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MktMini() {
+  const [m, setM] = useState({ mcap:2.34, btcDom:54.2, fg:72, vol:89.4, alts:1.07 })
+  useEffect(() => {
+    const id = setInterval(() => setM(prev => ({
+      ...prev,
+      btcDom: Math.min(Math.max(parseFloat((prev.btcDom + (Math.random()-.5)*.15).toFixed(1)),45),65),
+      fg:     Math.min(Math.max(Math.round(prev.fg + (Math.random()-.5)*2),10),90),
+      vol:    parseFloat((prev.vol + (Math.random()-.5)*.8).toFixed(1)),
+    })), 2000)
+    return () => clearInterval(id)
+  }, [])
+  const fgColor = m.fg>65?'#00e87a':m.fg>45?'#f5a623':'#f23645'
+  const fgLabel = m.fg>75?'EXTREME GREED':m.fg>60?'GREED':m.fg>40?'NEUTRAL':m.fg>25?'FEAR':'EXTREME FEAR'
+  return (
+    <div className="bm-mkt">
+      <div className="bm-mkt-cards">
+        {[
+          { l:'Total Mkt Cap', v:`$${m.mcap}T`, color:'rgba(255,255,255,.88)' },
+          { l:'BTC Dominance',  v:`${m.btcDom}%`, color:'#f59e0b' },
+          { l:'24h Volume',     v:`$${m.vol}B`,  color:'rgba(255,255,255,.88)' },
+          { l:'Alt Mkt Cap',    v:`$${m.alts}T`,  color:'#a855f7' },
+        ].map(c => (
+          <div key={c.l} className="bm-mkt-card">
+            <span className="bm-mkt-card-lbl">{c.l}</span>
+            <span className="bm-mkt-card-val" style={{ color:c.color }}>{c.v}</span>
+          </div>
+        ))}
+      </div>
+      <div className="bm-mkt-fg">
+        <div className="bm-mkt-fg-top">
+          <span className="bm-mkt-fg-lbl">Fear & Greed Index</span>
+          <span className="bm-mkt-fg-num" style={{ color:fgColor }}>{m.fg}</span>
+        </div>
+        <div className="bm-mkt-fg-track">
+          <div className="bm-mkt-fg-fill" style={{ width:`${m.fg}%`, background:fgColor }}/>
+        </div>
+        <span className="bm-mkt-fg-tag" style={{ color:fgColor }}>{fgLabel}</span>
+      </div>
+    </div>
+  )
+}
+
+const CAL_EVENTS = [
+  { label:'US CPI Data',      impact:'HIGH', time:'2h 14m', type:'MACRO' },
+  { label:'Fed Rate Decision', impact:'HIGH', time:'3d 7h',  type:'FED'   },
+  { label:'ETH Dencun v2',    impact:'MED',  time:'5d 2h',  type:'CRYPTO'},
+  { label:'US GDP Q2',        impact:'MED',  time:'6d 11h', type:'MACRO' },
+  { label:'BTC Options Exp',  impact:'LOW',  time:'8d 0h',  type:'CRYPTO'},
+]
+function CalMini() {
+  const impactColor = { HIGH:'#f23645', MED:'#f5a623', LOW:'rgba(255,255,255,.4)' }
+  return (
+    <div className="bm-cal">
+      <div className="bm-cal-head">
+        <div className="bm-live-badge"><span className="bm-pulse-dot blue"/>ECONOMIC CALENDAR</div>
+      </div>
+      <div className="bm-cal-rows">
+        {CAL_EVENTS.map((ev,i) => (
+          <div key={i} className="bm-cal-row">
+            <span className="bm-cal-impact" style={{ color:impactColor[ev.impact], borderColor:impactColor[ev.impact] }}>{ev.impact}</span>
+            <span className="bm-cal-label">{ev.label}</span>
+            <span className="bm-cal-type">{ev.type}</span>
+            <span className="bm-cal-time">in {ev.time}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SpotMini() {
+  const BASE = [
+    { s:'BTC',  p:67480, color:'#f59e0b' },
+    { s:'ETH',  p:3198,  color:'#3b82f6' },
+    { s:'SOL',  p:144.8, color:'#a855f7' },
+    { s:'BNB',  p:418,   color:'#f97316' },
+    { s:'XRP',  p:0.578, color:'#06b6d4' },
+    { s:'DOGE', p:0.128, color:'#eab308' },
+  ]
+  const [prices, setPrices] = useState(() => BASE.map(b => ({ ...b, dir:'up', chg:parseFloat(rnd(-5,8,2)) })))
+  useEffect(() => {
+    const id = setInterval(() => setPrices(prev => prev.map(p => {
+      const np = p.p * (1 + (Math.random()-.5)*.0025)
+      return { ...p, p:np, dir:np>p.p?'up':'down' }
+    })), 900)
+    return () => clearInterval(id)
+  }, [])
+  const fmt = (p, s) => s==='XRP'||s==='DOGE' ? `$${p.toFixed(4)}` : p>=1000 ? `$${p.toLocaleString('en',{maximumFractionDigits:0})}` : `$${p.toFixed(2)}`
+  return (
+    <div className="bm-spot">
+      <div className="bm-spot-hdr"><span>SYMBOL</span><span>PRICE</span><span>24H</span></div>
+      <div className="bm-spot-rows">
+        {prices.map(p => (
+          <div key={p.s} className={`bm-spot-row ${p.dir}`}>
+            <div className="bm-spot-sym-wrap">
+              <div className="bm-spot-dot" style={{ background:p.color }}/>
+              <span className="bm-spot-sym">{p.s}</span>
+            </div>
+            <span className={`bm-spot-price ${p.dir}`}>{fmt(p.p, p.s)}</span>
+            <span className={`bm-spot-chg ${p.chg>=0?'pos':'neg'}`}>{p.chg>=0?'+':''}{p.chg}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const TERM_CMDS = [
+  { cmd:'set alert BTC > 70000',         out:'Alert created: BTC/USDT > $70,000' },
+  { cmd:'top traders --limit 5',         out:'Fetching Hyperliquid leaderboard...' },
+  { cmd:'fund BTC --compare binance okx', out:'BNB: +0.083%  OKX: +0.076%  Δ0.007%' },
+  { cmd:'whale --min 10M --chain eth',   out:'Monitoring ETH for $10M+ transfers' },
+  { cmd:'ls BTC --exchange bybit',       out:'Long: 58.2%  Short: 41.8%  HEAVY LONG' },
+]
+function TermMini() {
+  const [lines, setLines] = useState([])
+  const [cur, setCur] = useState(0)
+  useEffect(() => {
+    if (cur >= TERM_CMDS.length) {
+      const id = setTimeout(() => { setLines([]); setCur(0) }, 2500)
+      return () => clearTimeout(id)
+    }
+    const id = setTimeout(() => { setLines(prev => [...prev, TERM_CMDS[cur]]); setCur(c => c+1) }, cur===0?500:1300)
+    return () => clearTimeout(id)
+  }, [cur])
+  return (
+    <div className="bm-term">
+      {lines.map((l,i) => (
+        <div key={i} className="bm-term-block">
+          <div className="bm-term-cmd"><span className="bm-term-ps">&gt; </span>{l.cmd}</div>
+          <div className="bm-term-out">{l.out}</div>
+        </div>
+      ))}
+      {cur < TERM_CMDS.length && (
+        <div className="bm-term-cmd"><span className="bm-term-ps">&gt; </span><span className="bm-term-cur">_</span></div>
+      )}
+    </div>
+  )
+}
+
 // ── Feature Showcase ─────────────────────────────────────────────────────────
 const SHOWCASE = [
   {
@@ -568,6 +842,54 @@ const SHOWCASE = [
     desc:'Track real-time long/short positioning across BTC, ETH and SOL. Know what the crowd is doing before it moves.',
     stats:[{ v:'3 pairs', l:'BTC ETH SOL' }, { v:'Live', l:'sentiment updates' }, { v:'4 exch', l:'aggregated' }],
   },
+  {
+    id:'vol',   title:'Volume Monitor', tagline:'Spike detection across markets',
+    color:'#a855f7', toolId:'volume-monitor',
+    desc:'Track 24h trading volume and detect abnormal spikes across BTC, ETH, SOL and more. Unusual volume = opportunity.',
+    stats:[{ v:'Top 20', l:'pairs tracked' }, { v:'Live', l:'spike detection' }, { v:'4 exch', l:'aggregated' }],
+  },
+  {
+    id:'vest',  title:'Token Unlock', tagline:'Upcoming vesting schedules',
+    color:'#f97316', toolId:'token-unlock',
+    desc:'Track upcoming token unlock events that could move markets. Know when large supplies hit circulation before they do.',
+    stats:[{ v:'100+', l:'projects tracked' }, { v:'14 day', l:'lookahead' }, { v:'$2B+', l:'avg monthly unlock' }],
+  },
+  {
+    id:'alt',   title:'Custom Alerts', tagline:'Set price, volume & event triggers',
+    color:'#eab308', toolId:'custom-alerts',
+    desc:'Build your own alert conditions — price levels, funding spikes, whale moves, liquidation cascades. Never miss a signal.',
+    stats:[{ v:'Unlimited', l:'alerts' }, { v:'<1s', l:'trigger speed' }, { v:'6 types', l:'alert conditions' }],
+  },
+  {
+    id:'pf',    title:'Portfolio', tagline:'Track your holdings live',
+    color:'#00e87a', toolId:'portfolio',
+    desc:'Connect your wallets and exchange accounts to track balances, PnL and asset allocation in real-time, all in one view.',
+    stats:[{ v:'Multi-chain', l:'wallet tracking' }, { v:'Live', l:'PnL updates' }, { v:'All exch', l:'supported' }],
+  },
+  {
+    id:'mkt',   title:'Global Metrics', tagline:'Macro crypto market overview',
+    color:'#8b5cf6', toolId:'global-metrics',
+    desc:'Total market cap, BTC dominance, Fear & Greed Index and 24h volume — the full macro picture at a glance.',
+    stats:[{ v:'Real-time', l:'market cap' }, { v:'Fear&Greed', l:'index included' }, { v:'BTC Dom', l:'tracked live' }],
+  },
+  {
+    id:'cal',   title:'Economic Calendar', tagline:'CPI, Fed, crypto events',
+    color:'#94a3b8', toolId:'economic-calendar',
+    desc:'Never get caught off-guard by macro events. US CPI, Fed meetings, token unlocks and major protocol upgrades all in one feed.',
+    stats:[{ v:'50+', l:'events/month' }, { v:'3 impact', l:'severity levels' }, { v:'Crypto+Macro', l:'combined' }],
+  },
+  {
+    id:'spot',  title:'Spot Markets', tagline:'Live prices across 200+ pairs',
+    color:'#f59e0b', toolId:'spot-markets',
+    desc:'Real-time spot prices, 24h changes and volume across the top 200+ trading pairs from Binance, OKX and Bybit.',
+    stats:[{ v:'200+', l:'pairs' }, { v:'Live', l:'price feed' }, { v:'3 exch', l:'aggregated' }],
+  },
+  {
+    id:'term',  title:'Terminal', tagline:'Command-line power interface',
+    color:'#00e87a', toolId:'terminal',
+    desc:'A full-featured command-line terminal for power users. Set alerts, query data, manage positions and run reports — all via commands.',
+    stats:[{ v:'40+', l:'commands' }, { v:'Instant', l:'execution' }, { v:'Scriptable', l:'workflows' }],
+  },
 ]
 
 function FeatureShowcase() {
@@ -596,8 +918,19 @@ function FeatureShowcase() {
   const f = SHOWCASE[active]
 
   const MINI_MAP = {
-    liq: <LiqMini />, whale: <WhaleMini />, fund: <FundMini />,
-    smart: <SmartMini />, ls: <LSMini />,
+    liq:   <LiqMini />,
+    whale: <WhaleMini />,
+    fund:  <FundMini />,
+    smart: <SmartMini />,
+    ls:    <LSMini />,
+    vol:   <VolMini />,
+    vest:  <VestMini />,
+    alt:   <AltMini />,
+    pf:    <PfMini />,
+    mkt:   <MktMini />,
+    cal:   <CalMini />,
+    spot:  <SpotMini />,
+    term:  <TermMini />,
   }
 
   return (
