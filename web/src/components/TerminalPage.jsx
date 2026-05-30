@@ -318,6 +318,7 @@ export default function TerminalPage() {
         fetchStatus, fetchQuickAlerts, lastTickRef,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [addLog, alertNews, alertAlarm, sendNotif, fetchQuickAlerts]), wsSymbols, {
+        token,
         onStatusChange: ({ connected: c, retries, gaveUp }) => {
             setConnected(c)
             setWsRetries(retries ?? 0)

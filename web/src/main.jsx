@@ -1,10 +1,23 @@
 import { Component } from 'react'
 import ReactDOM from 'react-dom/client'
+import { isNative, setStatusBarDark } from './capacitor'
+setStatusBarDark()
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
 import { LangProvider } from './context/LangContext'
+
+if (isNative) {
+  try {
+    navigator.serviceWorker?.getRegistrations?.()
+      .then(registrations => registrations.forEach(reg => reg.unregister()))
+      .catch(() => {})
+    window.caches?.keys?.()
+      .then(keys => keys.forEach(key => window.caches.delete(key)))
+      .catch(() => {})
+  } catch {}
+}
 
 class ErrorBoundary extends Component {
   constructor(props) {

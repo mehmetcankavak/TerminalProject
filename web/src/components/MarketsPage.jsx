@@ -340,7 +340,23 @@ function CoinDetailModal({ coin, onClose }) {
               </div>
             )}
           </div>
-          <button onClick={onClose} className="stx-modal-close">&times;</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              className="stx-modal-alert-btn"
+              title="Fiyat Alarmı Kur"
+              onClick={() => {
+                try { sessionStorage.setItem('ca_prefill_coin', sym) } catch {}
+                window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'custom-alerts' } }))
+                onClose()
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 01-3.46 0"/>
+              </svg>
+            </button>
+            <button onClick={onClose} className="stx-modal-close">&times;</button>
+          </div>
         </div>
 
         {/* Chart */}
@@ -599,6 +615,14 @@ export default function MarketsPage() {
 
   return (
     <div className="cmcx-page">
+
+      {/* ── Page header ── */}
+      <div className="cmcx-page-header">
+        <div>
+          <div className="cmcx-page-title">Spot Markets</div>
+          <div className="cmcx-page-subtitle">Top coins by market cap · live prices</div>
+        </div>
+      </div>
 
       {/* ── Global Stats ── */}
       <GlobalStatsBar global={globalData} fearGreed={fearGreed} />

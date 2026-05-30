@@ -10,8 +10,8 @@ import { useWebSocket } from '../../hooks/useWebSocket'
 // One row per (chain, tx_hash, asset). Backend persists; we poll + listen WS.
 
 const THRESHOLDS    = [500_000, 1_000_000, 5_000_000, 10_000_000]
-const CHAIN_FILTERS = ['ALL', 'BTC', 'ETH']
-const ASSET_FILTERS = ['ALL', 'BTC', 'USDT', 'USDC']
+const CHAIN_FILTERS = ['ALL', 'BTC', 'ETH', 'TRON']
+const ASSET_FILTERS = ['ALL', 'BTC', 'ETH', 'USDT', 'USDC']
 
 // Flow filter — actionability ranked by signal quality
 const FLOW_FILTERS = [
@@ -31,9 +31,30 @@ const FLOW_META = {
   unknown:      { label: '',         tone: '#666',    bg: 'transparent',           arrow: '→' },
 }
 
+const STABLE_SYMS = new Set(['USDT', 'USDC', 'DAI', 'FDUSD', 'PYUSD', 'USDP', 'TUSD', 'BUSD'])
+const BULL = { tone: '#00d992', bg: 'rgba(0,217,146,0.12)' }   // yeşil
+const BEAR = { tone: '#f43f5e', bg: 'rgba(244,63,94,0.12)' }   // kırmızı
+
+// Asset-aware flow styling. INFLOW/OUTFLOW label stays factual (para gerçekten
+// borsaya girdi/çıktı); only the COLOUR reflects bullish/bearish meaning, which
+// flips between coins and stablecoins:
+//   coin   (BTC/ETH): INFLOW = satış baskısı (kırmızı) · OUTFLOW = biriktirme (yeşil)
+//   stable (USDT/…):  INFLOW = alım gücü     (yeşil)   · OUTFLOW = güç çekiliyor (kırmızı)
+function flowMeta(flowCat, asset) {
+  const base = FLOW_META[flowCat] || FLOW_META.unknown
+  if (flowCat === 'cex_inflow' || flowCat === 'cex_outflow') {
+    const stable = STABLE_SYMS.has((asset || '').toUpperCase())
+    const bullish = flowCat === 'cex_inflow' ? stable : !stable
+    return { ...base, ...(bullish ? BULL : BEAR) }
+  }
+  return base
+}
+
 const ASSET_COLOR = {
   BTC:  '#f7931a',
+  WBTC: '#f7931a',  // BTC on Ethereum — same brand colour
   ETH:  '#627eea',
+  WETH: '#627eea',  // wrapped ETH — same brand colour
   USDT: '#26a17b',
   USDC: '#2775ca',
 }
@@ -62,6 +83,7 @@ function shortAddr(a) {
 function chainBadge(chain) {
   if (chain === 'btc') return { label: 'BTC', color: '#f7931a' }
   if (chain === 'eth') return { label: 'ETH', color: '#627eea' }
+  if (chain === 'tron') return { label: 'TRON', color: '#eb0029' }
   return { label: chain.toUpperCase(), color: '#888' }
 }
 
@@ -69,7 +91,7 @@ function chainBadge(chain) {
 function TransferRow({ t }) {
   const cb         = chainBadge(t.chain)
   const assetColor = ASSET_COLOR[t.asset] || '#fff'
-  const flow       = FLOW_META[t.flow_category] || FLOW_META.unknown
+  const flow       = flowMeta(t.flow_category, t.asset)
   const fromText   = t.from_label || shortAddr(t.from)
   const toText     = t.to_label   || shortAddr(t.to)
   const fromBold   = !!t.from_label
@@ -167,7 +189,9 @@ function computeSentiment(aggregates) {
 
 function SentimentGauge({ aggregates, onOpen }) {
   const s = computeSentiment(aggregates)
-  if (!s) {
+  // Need both the raw totals (s) and the backend verdict (sentiment) before we
+  // can draw anything — otherwise we'd flash a wrong number.
+  if (!s || !aggregates?.sentiment) {
     return (
       <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
         <div style={{ fontSize: 10, color: '#555', fontWeight: 700, letterSpacing: 0.5 }}>
@@ -176,19 +200,24 @@ function SentimentGauge({ aggregates, onOpen }) {
       </div>
     )
   }
-  // Prefer the backend's coin/stablecoin-aware score (single source of truth);
-  // fall back to the local all-asset estimate only if the API didn't send it.
+  // Backend's coin/stablecoin-aware model is the SINGLE source of truth for
+  // the verdict — the frontend never recomputes it (avoids two divergent
+  // formulas). If it hasn't arrived yet we wait rather than show a guess.
   const bk = aggregates?.sentiment
-  const score = bk ? bk.score : s.score
-  const verdict = bk ? bk.verdict : s.verdict
+  const score = bk.score
+  const verdict = bk.verdict
   const tone = verdict === 'BULLISH' ? '#00d992'
              : verdict === 'BEARISH' ? '#f43f5e'
              :                          '#aaa'
   // Map [-1, +1] → [0%, 100%] for marker position
   const pct = Math.max(0, Math.min(100, (score + 1) * 50))
-  const net = s.outflow - s.inflow
-  const netStr = (net >= 0 ? '+' : '') + fmtUSD(Math.abs(net))
-  const mintNet = s.mint - s.burn
+  // Asset-aware netflow — coin ve stablecoin TERS yönde okunur:
+  //   coin:   borsadan çıkış (+) = biriktirme (bullish/yeşil)
+  //   stable: borsaya giriş   (+) = alım gücü  (bullish/yeşil)
+  const coinNet   = aggregates?.coin   ? (aggregates.coin.outflow  - aggregates.coin.inflow)   : 0
+  const stableNet = aggregates?.stable ? (aggregates.stable.inflow - aggregates.stable.outflow) : 0
+  const hasCoin   = aggregates?.coin   && (aggregates.coin.inflow   + aggregates.coin.outflow)   > 0
+  const hasStable = aggregates?.stable && (aggregates.stable.inflow + aggregates.stable.outflow) > 0
   return (
     <div
       onClick={onOpen ? () => { haptic('light'); onOpen() } : undefined}
@@ -257,26 +286,30 @@ function SentimentGauge({ aggregates, onOpen }) {
         <span>BULLISH</span>
       </div>
 
-      {/* One-line summary */}
-      <div style={{
-        fontSize: 11, color: '#fff', fontFamily: 'var(--mono)',
-        opacity: 0.85, lineHeight: 1.4,
-      }}>
-        <span style={{ color: net >= 0 ? '#00d992' : '#f43f5e' }}>{netStr}</span>
-        <span style={{ color: '#888' }}> net {net >= 0 ? 'outflow' : 'inflow'} · </span>
-        {mintNet > 0 && (
-          <>
-            <span style={{ color: '#3b82f6' }}>+{fmtUSD(mintNet)}</span>
-            <span style={{ color: '#888' }}> mint</span>
-          </>
-        )}
-        {mintNet < 0 && (
-          <>
-            <span style={{ color: '#a855f7' }}>{fmtUSD(Math.abs(mintNet))}</span>
-            <span style={{ color: '#888' }}> burn</span>
-          </>
-        )}
-        {mintNet === 0 && <span style={{ color: '#666' }}>no mint/burn</span>}
+      {/* Asset-aware summary — iki satır: üstte coin/stable, altta mint/burn */}
+      <div style={{ fontSize: 11, fontFamily: 'var(--mono)', opacity: 0.9, lineHeight: 1.7 }}>
+        {/* Satır 1 — coin & stable yan yana */}
+        <div>
+          <span style={{ color: '#888' }}>Coin </span>
+          {hasCoin
+            ? <span style={{ color: coinNet >= 0 ? '#00d992' : '#f43f5e' }}>
+                {coinNet >= 0 ? '+' : '−'}{fmtUSD(Math.abs(coinNet))} {coinNet >= 0 ? 'çıkış' : 'giriş'}
+              </span>
+            : <span style={{ color: '#666' }}>—</span>}
+          <span style={{ color: '#888' }}>{'  ·  '}Stable </span>
+          {hasStable
+            ? <span style={{ color: stableNet >= 0 ? '#00d992' : '#f43f5e' }}>
+                {stableNet >= 0 ? '+' : '−'}{fmtUSD(Math.abs(stableNet))} {stableNet >= 0 ? 'giriş' : 'çıkış'}
+              </span>
+            : <span style={{ color: '#666' }}>—</span>}
+        </div>
+        {/* Satır 2 — mint & burn yan yana */}
+        <div>
+          <span style={{ color: '#888' }}>Mint </span>
+          <span style={{ color: s.mint > 0 ? '#3b82f6' : '#666' }}>{s.mint > 0 ? '+' + fmtUSD(s.mint) : '—'}</span>
+          <span style={{ color: '#888' }}>{'  ·  '}Burn </span>
+          <span style={{ color: s.burn > 0 ? '#a855f7' : '#666' }}>{s.burn > 0 ? '−' + fmtUSD(s.burn) : '—'}</span>
+        </div>
       </div>
     </div>
   )
@@ -289,7 +322,9 @@ function SentimentGauge({ aggregates, onOpen }) {
 function FlowInsightsSheet({ open, onClose, token }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [tab, setTab] = useState('flow') // 'flow' | 'breakdown'
+  const [tab, setTab] = useState('flow') // 'flow' | 'breakdown' | 'corridors'
+  const [corridors, setCorridors] = useState(null)
+  const [corrLoading, setCorrLoading] = useState(false)
 
   useEffect(() => {
     if (!open || !token) return
@@ -303,6 +338,20 @@ function FlowInsightsSheet({ open, onClose, token }) {
       .then(d => { if (alive) { setData(d); setLoading(false) } })
     return () => { alive = false }
   }, [open, token])
+
+  // Corridors are lazy-loaded the first time the tab is opened.
+  useEffect(() => {
+    if (!open || !token || tab !== 'corridors' || corridors !== null) return
+    let alive = true
+    setCorrLoading(true)
+    fetch(`${API_BASE}/api/big-transfers/corridors?window_sec=86400&min_count=3`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null)
+      .then(d => { if (alive) { setCorridors(d?.corridors || []); setCorrLoading(false) } })
+    return () => { alive = false }
+  }, [open, token, tab, corridors])
 
   if (!open) return null
 
@@ -325,7 +374,9 @@ function FlowInsightsSheet({ open, onClose, token }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>Flow Analizi</div>
           <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
-            {tab === 'flow' ? 'Son 24 saat · para nereye aktı' : 'Sentiment skoru neden bu seviyede'}
+            {tab === 'flow' ? 'Son 24 saat · para nereye aktı'
+              : tab === 'corridors' ? 'Tekrar eden rotalar · kim kimi besliyor'
+              : 'Sentiment skoru neden bu seviyede'}
           </div>
         </div>
         {s && (
@@ -337,7 +388,7 @@ function FlowInsightsSheet({ open, onClose, token }) {
 
       {/* Tab switcher */}
       <div style={{ display: 'flex', padding: '8px 16px 0', gap: 6, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'var(--bg-1)' }}>
-        {[{ id: 'flow', label: 'AKSİYON (FLOW)' }, { id: 'breakdown', label: 'SENTIMENT KIRILIMI' }].map(t => (
+        {[{ id: 'flow', label: 'AKSİYON' }, { id: 'corridors', label: 'KORİDORLAR' }, { id: 'breakdown', label: 'KIRILIM' }].map(t => (
           <button key={t.id} onClick={() => { haptic('light'); setTab(t.id) }}
             style={{
               flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
@@ -487,6 +538,53 @@ function FlowInsightsSheet({ open, onClose, token }) {
             )}
           </>
         )}
+
+        {!loading && tab === 'corridors' && (
+          <>
+            {corrLoading && <div style={{ color: '#666', fontSize: 12, textAlign: 'center', padding: 30 }}>Yükleniyor…</div>}
+            {!corrLoading && (!corridors || corridors.length === 0) && (
+              <div style={{ color: '#666', fontSize: 12, textAlign: 'center', padding: 30, lineHeight: 1.5 }}>
+                Bu pencerede tekrar eden koridor yok.<br />
+                <span style={{ fontSize: 10, color: '#555' }}>Aynı adres çifti 3+ kez transfer yapınca burada belirir.</span>
+              </div>
+            )}
+            {!corrLoading && corridors?.length > 0 && (
+              <>
+                <div style={{ fontSize: 9, color: '#555', lineHeight: 1.5, marginBottom: 12 }}>
+                  Son 24 saatte aynı (gönderen → alıcı) çiftinde tekrarlayan transferler. En çok hacim üstte.
+                </div>
+                {corridors.map((c, i) => {
+                  const tone = toneColor(c.tone)
+                  const frm = c.from_label || shortAddr(c.from_addr)
+                  const dst = c.to_label || shortAddr(c.to_addr)
+                  return (
+                    <div key={i} style={{ display: 'flex', gap: 10, padding: '11px 0', borderBottom: i < corridors.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                      <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: tone, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
+                          <span style={{ fontSize: 12, color: '#fff', fontWeight: 700, fontFamily: c.from_label ? 'inherit' : 'var(--mono)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {frm} <span style={{ color: tone, fontWeight: 900 }}>{c.arrow}</span> {dst}
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 900, fontFamily: 'var(--mono)', color: tone, flexShrink: 0 }}>{fmtUSD(c.total_usd)}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: 4 }}>{c.count}× transfer</span>
+                          {c.asset && <span style={{ fontSize: 10, color: ASSET_COLOR[c.asset] || '#999', fontWeight: 700 }}>{c.asset}</span>}
+                          {c.chain && <span style={{ fontSize: 9, color: chainBadge(c.chain).color, fontWeight: 700 }}>{chainBadge(c.chain).label}</span>}
+                          <span style={{ fontSize: 9, color: '#555' }}>son {timeAgo(c.last_ts)} önce</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#bbb', lineHeight: 1.4 }}>{c.read}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div style={{ marginTop: 16, fontSize: 9, color: '#555', lineHeight: 1.5 }}>
+                  Etiketsiz koridorlar genelde OTC masaları veya market maker rotalarıdır — yönü kesin değildir, ama tekrarı yapısal bir ilişkiye işaret eder.
+                </div>
+              </>
+            )}
+          </>
+        )}
       </div>
     </div>
   )
@@ -546,49 +644,60 @@ function SubGauge({ label, value, hint, weight }) {
 }
 
 // ─── 24h Flow Summary (4-card dashboard) ─────────────────────────────────────
-function FlowSummary({ aggregates, activeFilter, onSelect }) {
-  const cells = [
-    { id: 'cex_inflow',  label: 'INFLOW',  ...FLOW_META.cex_inflow  },
-    { id: 'cex_outflow', label: 'OUTFLOW', ...FLOW_META.cex_outflow },
-    { id: 'mint',        label: 'MINT',    ...FLOW_META.mint        },
-    { id: 'burn',        label: 'BURN',    ...FLOW_META.burn        },
+// Horizontally-scrolling dashboard cards — inflow/outflow split per asset class
+// so each card carries ONE correct colour (coin & stablecoin read oppositely):
+//   COIN IN  = satış baskısı (kırmızı) · COIN OUT  = biriktirme (yeşil)
+//   STABLE IN = alım gücü     (yeşil)  · STABLE OUT = güç çıkışı (kırmızı)
+//   MINT (mavi) · BURN (mor) = stablecoin arzı
+// Clicking a card filters the feed to that asset-class + direction.
+function FlowSummary({ aggregates, flowFilter, assetClass, setFlowFilter, setAssetClass }) {
+  const coin   = aggregates?.coin   || { inflow: 0, outflow: 0 }
+  const stable = aggregates?.stable || { inflow: 0, outflow: 0 }
+  const mint = aggregates?.mint || { count: 0, sum_usd: 0 }
+  const burn = aggregates?.burn || { count: 0, sum_usd: 0 }
+  const GREEN = '#00d992', RED = '#f43f5e'
+  const gBg = 'rgba(0,217,146,0.12)', rBg = 'rgba(244,63,94,0.12)'
+
+  const cards = [
+    { label: 'COIN IN',   val: coin.inflow,    color: RED,   bg: rBg, sub: 'satış',     ac: 'coin',   ff: 'cex_inflow'  },
+    { label: 'COIN OUT',  val: coin.outflow,   color: GREEN, bg: gBg, sub: 'biriktirme', ac: 'coin',   ff: 'cex_outflow' },
+    { label: 'STABLE IN', val: stable.inflow,  color: GREEN, bg: gBg, sub: 'alım gücü',  ac: 'stable', ff: 'cex_inflow'  },
+    { label: 'STABLE OUT',val: stable.outflow, color: RED,   bg: rBg, sub: 'çıkış',      ac: 'stable', ff: 'cex_outflow' },
+    { label: 'MINT', val: mint.sum_usd, color: FLOW_META.mint.tone, bg: FLOW_META.mint.bg, sub: `${mint.count} tx`, ac: null, ff: 'mint' },
+    { label: 'BURN', val: burn.sum_usd, color: FLOW_META.burn.tone, bg: FLOW_META.burn.bg, sub: `${burn.count} tx`, ac: null, ff: 'burn' },
   ]
+
+  const isActive = (c) => c.ac != null
+    ? (assetClass === c.ac && flowFilter === c.ff)
+    : (flowFilter === c.ff)
+
+  const apply = (c) => {
+    if (isActive(c)) { setAssetClass('ALL'); setFlowFilter('CEX_FLOW') }
+    else { setAssetClass(c.ac || 'ALL'); setFlowFilter(c.ff) }
+  }
+
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-      gap: 6, padding: '10px 16px 12px',
+    <div className="no-scrollbar" style={{
+      display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+      padding: '10px 16px 12px',
       borderBottom: '1px solid rgba(255,255,255,0.04)',
     }}>
-      {cells.map(c => {
-        const v = aggregates?.[c.id] || { count: 0, sum_usd: 0 }
-        const active = activeFilter === c.id
+      {cards.map(c => {
+        const active = isActive(c)
         return (
-          <button key={c.id}
-            onClick={() => { haptic('light'); onSelect(active ? 'ALL' : c.id) }}
+          <button key={c.label}
+            onClick={() => { haptic('light'); apply(c) }}
             style={{
+              flex: '0 0 auto', minWidth: 84,
               background: active ? c.bg : 'rgba(255,255,255,0.03)',
-              border: `1px solid ${active ? c.tone + '60' : 'rgba(255,255,255,0.06)'}`,
-              borderRadius: 10, padding: '8px 6px', cursor: 'pointer',
+              border: `1px solid ${active ? c.color + '60' : 'rgba(255,255,255,0.06)'}`,
+              borderRadius: 10, padding: '8px 10px', cursor: 'pointer',
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
               transition: 'background 0.15s, border 0.15s',
             }}>
-            <div style={{
-              fontSize: 9, fontWeight: 800, letterSpacing: 0.5,
-              color: c.tone, lineHeight: 1,
-            }}>
-              {c.label}
-            </div>
-            <div style={{
-              fontSize: 12, fontWeight: 800, fontFamily: 'var(--mono)',
-              color: '#fff', lineHeight: 1.1, marginTop: 4,
-            }}>
-              {fmtUSD(v.sum_usd)}
-            </div>
-            <div style={{
-              fontSize: 9, color: '#888', fontFamily: 'var(--mono)', lineHeight: 1,
-            }}>
-              {v.count} tx
-            </div>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: c.color, lineHeight: 1, whiteSpace: 'nowrap' }}>{c.label}</div>
+            <div style={{ fontSize: 12, fontWeight: 800, fontFamily: 'var(--mono)', color: '#fff', lineHeight: 1.1, marginTop: 4, whiteSpace: 'nowrap' }}>{fmtUSD(c.val)}</div>
+            <div style={{ fontSize: 9, color: c.color, fontFamily: 'var(--mono)', lineHeight: 1, whiteSpace: 'nowrap', opacity: 0.85 }}>{c.sub}</div>
           </button>
         )
       })}
@@ -625,6 +734,7 @@ export default function BigTransfersScreen() {
   const [chainFilter, setChainFilter] = useState('ALL')
   const [assetFilter, setAssetFilter] = useState('ALL')
   const [flowFilter,  setFlowFilter]  = useState('CEX_FLOW')  // default: hide unknown→unknown noise
+  const [assetClass,  setAssetClass]  = useState('ALL')       // 'ALL' | 'coin' | 'stable'
   const [threshold,   setThreshold]   = useState(500_000)
   const [insightsOpen, setInsightsOpen] = useState(false)
   const seenRef = useRef(new Set())
@@ -696,7 +806,13 @@ export default function BigTransfersScreen() {
         })
         if (!alive || !r.ok) return
         const data = await r.json()
-        if (data?.flows) setAggregates(data.flows)
+        // Keep flow buckets at top level (computeSentiment + count reducer read
+        // aggregates.cex_inflow etc.) and attach the asset-aware extras so the
+        // cards/gauge can read aggregates.coin / .stable / .sentiment.
+        if (data?.flows) setAggregates({
+          ...data.flows,
+          coin: data.coin, stable: data.stable, sentiment: data.sentiment,
+        })
       } catch {}
     }
     pullAgg()
@@ -725,7 +841,17 @@ export default function BigTransfersScreen() {
 
   const filtered = transfers
     .filter(t => chainFilter === 'ALL' || t.chain === chainFilter.toLowerCase())
-    .filter(t => assetFilter === 'ALL' || t.asset === assetFilter)
+    .filter(t => {
+      if (assetFilter === 'ALL') return true
+      // Fold wrapped assets so the BTC/ETH coin filters also catch WBTC/WETH.
+      const a = t.asset === 'WETH' ? 'ETH' : t.asset === 'WBTC' ? 'BTC' : t.asset
+      return a === assetFilter
+    })
+    .filter(t => {
+      if (assetClass === 'ALL') return true
+      const stable = STABLE_SYMS.has((t.asset || '').toUpperCase())
+      return assetClass === 'stable' ? stable : !stable
+    })
     .filter(t => {
       if (flowFilter === 'ALL') return true
       if (flowFilter === 'CEX_FLOW') {
@@ -749,7 +875,7 @@ export default function BigTransfersScreen() {
                 background: connected ? '#00d992' : '#555',
                 boxShadow: connected ? '0 0 6px #00d992' : 'none',
               }} />
-              {connected ? 'On-chain · BTC · ETH · Canlı' : 'Bağlanıyor…'}
+              {connected ? 'On-chain · BTC · ETH · TRON · Canlı' : 'Bağlanıyor…'}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -778,7 +904,7 @@ export default function BigTransfersScreen() {
         </div>
 
         {/* Flow filter — most actionable knob */}
-        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 4, marginBottom: 4 }}>
+        <div className="no-scrollbar" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 4, marginBottom: 4 }}>
           {FLOW_FILTERS.map(f => (
             <button key={f.id}
               onClick={() => { haptic('light'); setFlowFilter(f.id) }}
@@ -793,7 +919,7 @@ export default function BigTransfersScreen() {
         </div>
 
         {/* Chain + asset filters */}
-        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 2 }}>
+        <div className="no-scrollbar" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 2 }}>
           {CHAIN_FILTERS.map(c => (
             <button key={c}
               onClick={() => { haptic('light'); setChainFilter(c) }}
@@ -824,8 +950,13 @@ export default function BigTransfersScreen() {
       <SentimentGauge aggregates={aggregates} onOpen={() => setInsightsOpen(true)} />
       <FlowInsightsSheet open={insightsOpen} onClose={() => setInsightsOpen(false)} token={token} />
 
-      {/* 24h flow summary — tap a card to filter feed by that flow */}
-      <FlowSummary aggregates={aggregates} activeFilter={flowFilter} onSelect={setFlowFilter} />
+      {/* 24h flow summary — tap a card to filter feed by that flow.
+          Only mount once aggregates exist so the first paint already carries
+          real values (iOS WebView defers repainting until a touch otherwise). */}
+      {aggregates?.coin && (
+        <FlowSummary aggregates={aggregates} flowFilter={flowFilter} assetClass={assetClass}
+          setFlowFilter={setFlowFilter} setAssetClass={setAssetClass} />
+      )}
 
       {/* Column labels */}
       <div style={{ display: 'flex', padding: '7px 16px', fontSize: 10, fontWeight: 700, color: '#666', letterSpacing: 0.5 }}>

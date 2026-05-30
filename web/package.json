@@ -9,12 +9,25 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/local-notifications": "^8.0.2",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/push-notifications": "^8.0.3",
+    "@capacitor/status-bar": "^8.0.2",
+    "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
     "@react-oauth/google": "^0.13.5",
-    "lightweight-charts": "^5.1.0",
+    "@tanstack/react-query": "^5.100.7",
+    "@walletconnect/ethereum-provider": "^2.23.9",
+    "@web3modal/wagmi": "^5.1.11",
+    "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.13.1"
+    "react-router-dom": "^7.13.1",
+    "viem": "^2.48.7",
+    "wagmi": "^3.6.9"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
