@@ -302,8 +302,6 @@ function TerminalApp() {
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 function AppRouter() {
-  const [isMobile] = useState(() => isNative || window.innerWidth <= 768)
-  if (isMobile) return <MobileApp />
   return <TerminalApp />
 }
 
