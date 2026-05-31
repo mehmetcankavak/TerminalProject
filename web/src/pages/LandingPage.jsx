@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LangContext'
 
@@ -155,6 +156,123 @@ function TiltCard({ children, className, style }) {
   return (
     <div ref={ref} className={className} style={style} onMouseMove={onMove} onMouseLeave={onLeave}>
       {children}
+    </div>
+  )
+}
+
+// ── CardStack ────────────────────────────────────────────────────────────────
+function wrapIdx(n, len) { return len <= 0 ? 0 : ((n % len) + len) % len }
+function signedOff(i, active, len) {
+  const raw = i - active
+  const alt = raw > 0 ? raw - len : raw + len
+  return Math.abs(alt) < Math.abs(raw) ? alt : raw
+}
+
+function CardStack({ items, autoAdvance = true, intervalMs = 3500 }) {
+  const len = items.length
+  const [active, setActive] = useState(0)
+  const [hovering, setHovering] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const dragStart = useRef(null)
+
+  useEffect(() => {
+    if (!autoAdvance || hovering || dragging) return
+    const id = setInterval(() => setActive(a => wrapIdx(a + 1, len)), intervalMs)
+    return () => clearInterval(id)
+  }, [autoAdvance, hovering, dragging, len, intervalMs])
+
+  const cardW = 420
+  const cardH = 300
+  const maxOff = 3
+  const overlap = 0.52
+  const spacing = Math.round(cardW * (1 - overlap))
+  const stepDeg = 14
+  const depthPx = 110
+
+  return (
+    <div
+      className="cs-root"
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      <div className="cs-stage" style={{ height: cardH + 100 }}>
+        <AnimatePresence initial={false}>
+          {items.map((item, i) => {
+            const off = signedOff(i, active, len)
+            const abs = Math.abs(off)
+            if (abs > maxOff) return null
+            const isActive = off === 0
+            const x = off * spacing
+            const y = abs * 8
+            const rotateZ = off * stepDeg
+            const rotateX = isActive ? 0 : 10
+            const scale = isActive ? 1.04 : 0.92 - abs * 0.02
+            const lift = isActive ? -24 : 0
+            const zIndex = 100 - abs
+
+            return (
+              <motion.div
+                key={item.id}
+                className={`cs-card ${isActive ? 'cs-active' : ''}`}
+                style={{
+                  width: cardW, height: cardH, zIndex,
+                  '--cc': item.color, '--cd': item.dim,
+                  cursor: isActive ? 'grab' : 'pointer',
+                }}
+                animate={{ x, y: y + lift, rotateZ, rotateX, scale, opacity: 1 }}
+                initial={{ opacity: 0, y: y + 60, x, rotateZ, rotateX, scale }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                onClick={() => !isActive && setActive(i)}
+                onMouseDown={isActive ? (e) => { dragStart.current = e.clientX; setDragging(true) } : undefined}
+                onMouseUp={isActive ? (e) => {
+                  if (dragStart.current !== null) {
+                    const dx = e.clientX - dragStart.current
+                    if (dx > 60) setActive(a => wrapIdx(a - 1, len))
+                    else if (dx < -60) setActive(a => wrapIdx(a + 1, len))
+                  }
+                  dragStart.current = null; setDragging(false)
+                } : undefined}
+              >
+                {/* accent top bar */}
+                <div className="cs-bar" style={{ background: item.color }} />
+                {/* corner number */}
+                <span className="cs-num">{String(i + 1).padStart(2, '0')}</span>
+                {/* header: icon + meta */}
+                <div className="cs-head">
+                  <div className="cs-icon-wrap" style={{ background: item.dim }}>
+                    <ToolIcon id={item.id} color={item.color} />
+                  </div>
+                  <div className="cs-meta">
+                    <div className="cs-name">{item.name}</div>
+                    <div className="cs-tags">
+                      <span className="cs-tag" style={{ color: item.color, borderColor: item.color }}>{item.tag}</span>
+                      {item.pro && <span className="cs-pro">PRO</span>}
+                    </div>
+                  </div>
+                </div>
+                {/* mini preview */}
+                <div className="cs-preview">
+                  {isActive ? item.mini : <div className="cs-preview-blur" />}
+                </div>
+                {/* bottom glow */}
+                <div className="cs-glow" style={{ background: `radial-gradient(ellipse at 50% 110%, ${item.color}30, transparent 70%)` }} />
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+
+      {/* dots */}
+      <div className="cs-dots">
+        {items.map((it, idx) => (
+          <button
+            key={it.id}
+            className={`cs-dot ${idx === active ? 'cs-dot-on' : ''}`}
+            style={idx === active ? { background: items[active].color } : {}}
+            onClick={() => setActive(idx)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -1006,6 +1124,23 @@ function TermMini() {
   )
 }
 
+// ── Stack items (tools + minis) ───────────────────────────────────────────────
+const STACK_ITEMS = [
+  { id:'liquidations-stream', tag:'LIQ',   pro:true,  color:'#f23645', dim:'rgba(242,54,69,0.14)',   name:'Liquidation Stream', mini:<LiqMini /> },
+  { id:'funding-rate',        tag:'FUND',  pro:true,  color:'#3b82f6', dim:'rgba(59,130,246,0.14)',  name:'Funding Rates',      mini:<FundMini /> },
+  { id:'big-transfers',       tag:'WHALE', pro:true,  color:'#f59e0b', dim:'rgba(245,158,11,0.14)',  name:'Whale Alerts',       mini:<WhaleMini /> },
+  { id:'smart-money',         tag:'SM',    pro:true,  color:'#a855f7', dim:'rgba(168,85,247,0.14)',  name:'Smart Money',        mini:<SmartMini /> },
+  { id:'long-short-ratio',    tag:'L/S',   pro:true,  color:'#00e87a', dim:'rgba(0,232,122,0.14)',   name:'Long / Short Ratio', mini:<LSMini /> },
+  { id:'volume-monitor',      tag:'VOL',   pro:true,  color:'#8b5cf6', dim:'rgba(139,92,246,0.14)',  name:'Volume Monitor',     mini:<VolMini /> },
+  { id:'token-unlock',        tag:'VEST',  pro:true,  color:'#f97316', dim:'rgba(249,115,22,0.14)',  name:'Token Unlock',       mini:<VestMini /> },
+  { id:'custom-alerts',       tag:'ALT',   pro:true,  color:'#eab308', dim:'rgba(234,179,8,0.14)',   name:'Custom Alerts',      mini:<AltMini /> },
+  { id:'portfolio',           tag:'PF',    pro:true,  color:'#00e87a', dim:'rgba(0,232,122,0.14)',   name:'Portfolio',          mini:<PfMini /> },
+  { id:'global-metrics',      tag:'MKT',   pro:false, color:'#8b5cf6', dim:'rgba(139,92,246,0.14)',  name:'Global Metrics',     mini:<MktMini /> },
+  { id:'economic-calendar',   tag:'CAL',   pro:false, color:'#94a3b8', dim:'rgba(148,163,184,0.14)', name:'Economic Calendar',  mini:<CalMini /> },
+  { id:'spot-markets',        tag:'SPOT',  pro:false, color:'#f59e0b', dim:'rgba(245,158,11,0.14)',  name:'Spot Markets',       mini:<SpotMini /> },
+  { id:'terminal',            tag:'TERM',  pro:true,  color:'#00e87a', dim:'rgba(0,232,122,0.14)',   name:'Trade Terminal',     mini:<TermMini /> },
+]
+
 // ── Feature Showcase ─────────────────────────────────────────────────────────
 const SHOWCASE = [
   {
@@ -1353,44 +1488,7 @@ export default function LandingPage() {
             <h2 className="ld3-h2">13 tools. <span className="tc2-title-em">One terminal.</span></h2>
             <p className="ld3-hsub">No switching tabs. No missed signals. Everything in one place.</p>
           </div>
-          <div className="tc2-grid">
-            {TOOLS.map((tool, i) => (
-              <TiltCard
-                key={tool.id}
-                className="tc2-card"
-                style={{
-                  '--tc-color': tool.color,
-                  '--tc-dim': tool.dim,
-                  animationDelay: `${i * 55}ms`,
-                }}
-              >
-                {/* accent top bar */}
-                <div className="tc2-accent-bar" />
-                {/* index number */}
-                <span className="tc2-idx">{String(i + 1).padStart(2, '0')}</span>
-                {/* icon */}
-                <div className="tc2-icon-wrap">
-                  <ToolIcon id={tool.id} color={tool.color} />
-                </div>
-                {/* tag + pro row */}
-                <div className="tc2-meta-row">
-                  <span className="tc2-tag">{tool.tag}</span>
-                  {tool.pro && (
-                    <span className="tc2-pro">
-                      <span className="tc2-pro-shine" />
-                      PRO
-                    </span>
-                  )}
-                </div>
-                {/* name */}
-                <div className="tc2-name">{t(`label_${tool.id}`)}</div>
-                {/* desc */}
-                <div className="tc2-desc">{t(`desc_${tool.id}`)}</div>
-                {/* hover glow */}
-                <div className="tc2-glow" />
-              </TiltCard>
-            ))}
-          </div>
+          <CardStack items={STACK_ITEMS} autoAdvance intervalMs={3500} />
         </div>
       </section>
 

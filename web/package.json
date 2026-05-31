@@ -21,6 +21,7 @@
     "@tanstack/react-query": "^5.100.7",
     "@walletconnect/ethereum-provider": "^2.23.9",
     "@web3modal/wagmi": "^5.1.11",
+    "framer-motion": "^12.40.0",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
