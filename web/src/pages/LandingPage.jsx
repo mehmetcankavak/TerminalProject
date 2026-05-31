@@ -1340,7 +1340,6 @@ export default function LandingPage() {
       <section id="features" className="ld3-section fl-section">
         <div className="ld3-inner">
           <div className="ld3-section-hd">
-            <div className="tc2-hd-tag">LIVE PREVIEW</div>
             <h2 className="ld3-h2">{t('tools_title')}</h2>
             <p className="ld3-hsub">{t('tools_sub')}</p>
           </div>
@@ -1352,7 +1351,6 @@ export default function LandingPage() {
       <section className="ld3-section ld3-section-alt tc2-section">
         <div className="ld3-inner">
           <div className="ld3-section-hd">
-            <div className="tc2-hd-tag">ALL TOOLS</div>
             <h2 className="ld3-h2">13 tools. <span className="tc2-title-em">One terminal.</span></h2>
             <p className="ld3-hsub">No switching tabs. No missed signals. Everything in one place.</p>
           </div>
