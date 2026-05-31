@@ -1253,13 +1253,12 @@ export default function LandingPage() {
   ]
 
   return (
-    <div ref={pageRef} className="ld3-page" onMouseMove={onMove}>
+    <div ref={pageRef} className="ld3-page">
       {/* Background */}
       <div className="ld3-bg-grid" />
       <div className="ld3-bg-orb ld3-orb-1" />
       <div className="ld3-bg-orb ld3-orb-2" />
       <div className="ld3-bg-orb ld3-orb-3" />
-      <div className="ld3-spotlight" />
 
       {/* ── Nav ── */}
       <nav className="ld3-nav">
