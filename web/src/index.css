@@ -21452,18 +21452,50 @@ body {
   .ld3-tools { grid-template-columns:repeat(2,1fr); }
 }
 @media (max-width:768px) {
-  .ld3-nav { top:12px; width:calc(100% - 32px); }
+  .ld3-nav { top:10px; width:calc(100% - 24px); padding:8px 12px 8px 16px; }
   .ld3-nav-links { display:none; }
-  .ld3-hero { grid-template-columns:1fr; padding:60px 20px 40px; gap:40px; }
+  .ld3-hero { grid-template-columns:1fr; padding:50px 20px 36px; gap:32px; }
   .ld3-hero-r { display:none; }
-  .ld3-inner { padding:0 20px; }
+  .ld3-hero-h1 { font-size:clamp(28px, 8vw, 48px); line-height:1.18; }
+  .ld3-hero-sub { font-size:15px; }
+  .ld3-hero-stats { gap:20px; }
+  .ld3-inner { padding:0 16px; }
+  .ld3-section { padding:64px 0; }
+  .ld3-section-hd { margin-bottom:36px; }
+  .ld3-h2 { font-size:clamp(24px, 6vw, 40px); }
+  .ld3-hsub { font-size:14px; }
   .ld3-bento { grid-template-columns:1fr; grid-template-rows:auto; }
   .ld3-b-large,.ld3-b-med { grid-column:auto; grid-row:auto; }
   .ld3-tools { grid-template-columns:1fr 1fr; }
-  .ld3-price-grid { grid-template-columns:1fr; max-width:420px; }
-  .ld3-footer-top { flex-direction:column; gap:32px; }
-  .ld3-footer-cols { flex-wrap:wrap; gap:24px; justify-content:flex-start; }
-  .ld3-cta { padding:60px 20px; }
+  .ld3-price-grid { grid-template-columns:1fr; max-width:420px; margin:0 auto; }
+  .ld3-footer-top { flex-direction:column; gap:28px; }
+  .ld3-footer-cols { flex-wrap:wrap; gap:20px; justify-content:flex-start; }
+  .ld3-cta { padding:52px 20px; }
+  /* CardStack mobile */
+  .cs-stage { overflow: visible; }
+  .cs-dots { gap:5px; margin-top:20px; }
+  /* Feature Showcase mobile */
+  .fl-section { padding:48px 0; }
+}
+@media (max-width:520px) {
+  .ld3-hero { padding:44px 16px 28px; }
+  .ld3-hero-h1 { font-size:clamp(24px, 7.5vw, 36px); }
+  .ld3-hero-btns { flex-direction:column; gap:10px; }
+  .ld3-hero-btns > * { width:100%; text-align:center; justify-content:center; }
+  .ld3-nav-logo { font-size:15px; }
+  .ld3-inner { padding:0 14px; }
+  .ld3-section { padding:48px 0; }
+  .ld3-section-hd { margin-bottom:28px; }
+  /* CardStack: make cards fit the screen */
+  .cs-card { border-radius:12px !important; }
+  .cs-head { padding:10px 12px 6px; gap:10px; }
+  .cs-icon-wrap { width:32px; height:32px; border-radius:8px; }
+  .cs-name { font-size:13px; }
+  .cs-preview { padding:0 8px 8px; }
+  .cs-preview > * { transform:scale(0.82); transform-origin:top left; width:122%; }
+  .cs-dots { margin-top:16px; }
+  /* Feature showcase: hide sidebar labels on tiny screens */
+  .fl-tab-tagline { display:none; }
 }
 @media (prefers-reduced-motion:reduce) {
   .ld3-bg-orb,.ld3-hero-dot,.ld3-nav,.ld3-hero,.ld3-mq-track,.ld3-tline,.ld3-tcur { animation:none !important; }

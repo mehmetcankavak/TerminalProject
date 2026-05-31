@@ -175,19 +175,21 @@ function CardStack({ items, autoAdvance = true, intervalMs = 3500 }) {
   const [dragging, setDragging] = useState(false)
   const dragStart = useRef(null)
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 520
+  const cardW = isMobile ? Math.min(window.innerWidth - 40, 340) : 420
+  const cardH = isMobile ? 270 : 300
+
   useEffect(() => {
     if (!autoAdvance || hovering || dragging) return
     const id = setInterval(() => setActive(a => wrapIdx(a + 1, len)), intervalMs)
     return () => clearInterval(id)
   }, [autoAdvance, hovering, dragging, len, intervalMs])
 
-  const cardW = 420
-  const cardH = 300
-  const maxOff = 3
-  const overlap = 0.52
+  const maxOff = isMobile ? 2 : 3
+  const overlap = isMobile ? 0.62 : 0.52
   const spacing = Math.round(cardW * (1 - overlap))
-  const stepDeg = 14
-  const depthPx = 110
+  const stepDeg = isMobile ? 10 : 14
+  const depthPx = isMobile ? 60 : 110
 
   return (
     <div
@@ -229,6 +231,15 @@ function CardStack({ items, autoAdvance = true, intervalMs = 3500 }) {
                     const dx = e.clientX - dragStart.current
                     if (dx > 60) setActive(a => wrapIdx(a - 1, len))
                     else if (dx < -60) setActive(a => wrapIdx(a + 1, len))
+                  }
+                  dragStart.current = null; setDragging(false)
+                } : undefined}
+                onTouchStart={isActive ? (e) => { dragStart.current = e.touches[0].clientX; setDragging(true) } : undefined}
+                onTouchEnd={isActive ? (e) => {
+                  if (dragStart.current !== null) {
+                    const dx = e.changedTouches[0].clientX - dragStart.current
+                    if (dx > 50) setActive(a => wrapIdx(a - 1, len))
+                    else if (dx < -50) setActive(a => wrapIdx(a + 1, len))
                   }
                   dragStart.current = null; setDragging(false)
                 } : undefined}
