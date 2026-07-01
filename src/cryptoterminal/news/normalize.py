@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import re
 
 from ..core.enums import NewsPriority
-from ..core.models import MentionedAsset, NormalizedNews
+from ..core.models import MentionedAsset
 from .assets_registry import AssetRecord, get_registry
 from .entity_extractor import RawMatch, extract_entities
 from .theme_extractor import extract_themes, theme_impacted_assets

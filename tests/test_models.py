@@ -1,9 +1,7 @@
-from datetime import datetime
 
-import pytest
 
-from cryptoterminal.core.enums import OrderSide, OrderType, PositionSide
-from cryptoterminal.core.models import Order, Position, Ticker
+from cryptoterminal.core.enums import PositionSide
+from cryptoterminal.core.models import Position, Ticker
 from cryptoterminal.utils.formatting import fmt_pct, fmt_price, fmt_volume, normalize_symbol
 
 

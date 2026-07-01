@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
 from cryptoterminal.config.settings import Settings
 from cryptoterminal.core.enums import OrderSide, OrderType
@@ -271,7 +270,6 @@ def test_stale_data_fresh_ok():
 
 def test_spread_ok():
     from cryptoterminal.core.models import Ticker
-    from datetime import timezone
     ticker = Ticker(
         symbol="BTCUSDT",
         last_price=50000.0,

@@ -12,7 +12,7 @@ import traceback
 # Lazy: only import what's needed for the web server to bind to PORT first
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 
 def _print(msg: str) -> None:
@@ -21,7 +21,23 @@ def _print(msg: str) -> None:
 
 def _build_bootstrap_app(static_dir: str | None) -> FastAPI:
     """Minimal app that binds the port instantly so health checks pass."""
+    from fastapi.middleware.cors import CORSMiddleware
     app = FastAPI()
+    # CORS must be on bootstrap_app — full_app's middleware is never copied over
+    # (only routes are transplanted). Read env directly; settings not yet loaded.
+    _cors = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+    if not _cors:
+        _cors = ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001"]
+    for _cap in ("capacitor://localhost", "ionic://localhost"):
+        if _cap not in _cors:
+            _cors.append(_cap)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["Authorization", "Content-Type"],
+        allow_credentials=True,
+    )
 
     @app.get("/healthz")
     async def healthz():
@@ -59,7 +75,6 @@ async def _async_full_init(bootstrap_app: FastAPI, static_dir: str | None) -> No
     _print("[full-init] starting heavy imports...")
 
     try:
-        import structlog
         from ..config.settings import get_settings
         from ..core.event_bus import EventBus
         from ..persistence.database import init_db

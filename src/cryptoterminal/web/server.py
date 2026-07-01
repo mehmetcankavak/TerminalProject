@@ -15,13 +15,12 @@ import httpx
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from fastapi import Request
 from ..core import event_bus as events
 from ..core.event_bus import EventBus
 from ..news.tradfi_support import build_tradfi_support_matrix
@@ -885,7 +884,6 @@ def create_app(
 
     async def _broadcast_order_filled(payload: dict) -> None:
         order = payload.get("order")
-        fill = payload.get("fill")
         symbol = payload.get("symbol") or (order.symbol if order else None)
         user_id = payload.get("user_id") or getattr(order, "user_id", None)
         msg: dict = {"type": "order_filled"}
@@ -2016,9 +2014,9 @@ def create_app(
                 try:
                     count = await check_expired_plans()
                     if count:
-                        _log.info("expired_plans_downgraded", count=count)
+                        logger.info("expired_plans_downgraded", count=count)
                 except Exception as e:
-                    _log.warning("plan_expiry_check_error", error=str(e))
+                    logger.warning("plan_expiry_check_error", error=str(e))
                 await asyncio.sleep(3600)
         asyncio.create_task(_plan_expiry_loop())
 
@@ -2572,7 +2570,6 @@ def create_app(
         outflow = flows["cex_outflow"]["sum_usd"]
         mint    = flows["mint"]["sum_usd"]
         burn    = flows["burn"]["sum_usd"]
-        exch = (outflow - inflow) / (outflow + inflow) if (outflow + inflow) > 0 else 0.0
         liq  = (mint - burn) / (mint + burn) if (mint + burn) > 0 else 0.0
         has_liq = (mint + burn) > 0
         # Score is computed below, after coin/stablecoin flows are separated.
@@ -3392,6 +3389,7 @@ def create_app(
     @app.get("/api/liq-stats")
     async def get_liq_stats():
         import httpx
+        from ..config.settings import get_settings
 
         # Redis cache (30s) → fallback in-memory
         try:
@@ -5168,6 +5166,7 @@ def create_app(
     @_limiter.limit("120/minute")
     async def get_etf_data(request: Request, type: str = "BTC"):
       try:
+        from ..config.settings import get_settings
         cache_key = f"ct:etf_data_{type}"
         try:
             cached = await cache_get(cache_key)
@@ -6762,7 +6761,6 @@ def create_app(
         if not cmd_text:
             return {"ok": False, "error": "empty command"}
 
-        user_executor        = _user_executors.get(user_id)
         user_binance_adapter = _user_binance_adapters.get(user_id)
 
         results: list[dict] = []

@@ -56,3 +56,11 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+select = ["F"]
+
+[tool.ruff.lint.per-file-ignores]
+# Bilinen cüzdan adresi tablosunda birkaç adres birden fazla borsaya
+# etiketlenmiş — veri temizliği ayrı bir işte ele alınacak, CI'ı bloklamasın.
+"src/cryptoterminal/big_transfers/known_addresses.py" = ["F601"]

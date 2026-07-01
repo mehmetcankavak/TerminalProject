@@ -5,12 +5,11 @@ from typing import TYPE_CHECKING
 import structlog
 
 from ..config.settings import Settings
-from ..core.enums import TradingMode
 from ..core.event_bus import EventBus
 from ..market.service import MarketDataService
 from ..news.service import NewsService
 from ..utils.formatting import fmt_price, fmt_usd
-from ..utils.time import format_timestamp, utcnow
+from ..utils.time import format_timestamp
 from .aliases import AliasManager
 from .parser import (
     ParsedCommand,
@@ -237,7 +236,7 @@ class CommandHandlers:
             cmd.log_message("No news available yet.", "system")
             return
 
-        from ..utils.time import latency_display, format_timestamp
+        from ..utils.time import latency_display
 
         for news in items:
             color = {"HIGH": "red", "MED": "yellow", "LOW": "white"}[news.priority.value]
@@ -330,25 +329,6 @@ class CommandHandlers:
 
     async def cmd_help(self, parsed: ParsedCommand, cmd: "CommandPanel") -> None:
         cmd.log_message(HELP_TEXT, "info")
-
-    async def cmd_mode(self, parsed: ParsedCommand, cmd: "CommandPanel") -> None:
-        if not parsed.args:
-            cmd.log_error("Usage: mode paper|live")
-            return
-        mode_str = parsed.args[0].upper()
-        if mode_str == "PAPER":
-            self.app.set_mode(TradingMode.PAPER)
-            cmd.log_message("✓ Switched to PAPER trading mode", "success")
-        elif mode_str == "LIVE":
-            cmd.log_message(
-                "[yellow]⚠ LIVE mode: real money at risk. Type 'mode live confirm' to proceed.[/yellow]",
-                "warning",
-            )
-            if len(parsed.args) > 1 and parsed.args[1] == "confirm":
-                self.app.set_mode(TradingMode.LIVE)
-                cmd.log_message("✓ Switched to LIVE trading mode", "success")
-        else:
-            cmd.log_error(f"Unknown mode: {mode_str}")
 
     # ── Aliases ──────────────────────────────────────────────────
 
@@ -1148,8 +1128,8 @@ class CommandHandlers:
         mode = getattr(settings, "trading_mode", "paper")
         if mode.lower() != "hyperliquid":
             cmd.log_message(
-                f"[yellow]Mode: PAPER[/yellow] — Hyperliquid aktif değil\n"
-                f"[dim].env'de TRADING_MODE=hyperliquid yaparak live moda geç[/dim]",
+                "[yellow]Mode: PAPER[/yellow] — Hyperliquid aktif değil\n"
+                "[dim].env'de TRADING_MODE=hyperliquid yaparak live moda geç[/dim]",
                 "warning",
             )
             return
@@ -1284,7 +1264,7 @@ class CommandHandlers:
         if sl_price:
             cmd.log_message(f"  Stop-Loss      : ${fmt_price(sl_price)}  (mesafe: ${abs(price - sl_price):,.2f})", "info")
         else:
-            cmd.log_message(f"  SL varsayım    : %2 fiyat hareketi (sl= ile belirtin)", "system")
+            cmd.log_message("  SL varsayım    : %2 fiyat hareketi (sl= ile belirtin)", "system")
         cmd.log_message(f"  Pozisyon boyutu: {quantity:.6f} {symbol.replace('USDT','')}", "success")
         cmd.log_message(f"  Notional       : ${notional:,.2f}", "success")
         cmd.log_message("─" * 48, "system")

@@ -69,6 +69,7 @@ class BinanceAdapter(ExchangeAdapter):
         self.api_secret = api_secret
         self.testnet = testnet
         self._exchange = None
+        self._pub_exchange = None
         self._symbol_info: dict[str, dict] = {}
         self._best_bidask: dict[str, tuple[float, float]] = {}
         self._bookticker_tasks: dict[str, asyncio.Task] = {}
@@ -90,9 +91,14 @@ class BinanceAdapter(ExchangeAdapter):
             )
             if self.testnet:
                 self._exchange.set_sandbox_mode(True)
+            # Symbol precision/limits always come from mainnet, even in testnet
+            # mode — testnet market metadata is unreliable/incomplete.
+            self._pub_exchange = ccxtpro.binance(
+                {"options": options, "enableRateLimit": True}
+            )
             # Try loading markets for precision data — non-fatal if geo-blocked
             try:
-                markets = await self._exchange.load_markets()
+                markets = await self._pub_exchange.load_markets()
                 for ccxt_sym, m in (markets or {}).items():
                     key = ccxt_sym.replace("/", "").split(":")[0]
                     self._symbol_info[key] = {
@@ -119,6 +125,12 @@ class BinanceAdapter(ExchangeAdapter):
             except Exception:
                 pass
             self._exchange = None
+        if self._pub_exchange:
+            try:
+                await self._pub_exchange.close()
+            except Exception:
+                pass
+            self._pub_exchange = None
 
     async def _raw_ws_stream(self, stream: str):
         """Open a Binance futures WebSocket stream, yield parsed JSON messages."""

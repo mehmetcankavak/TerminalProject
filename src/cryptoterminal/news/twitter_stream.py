@@ -35,7 +35,6 @@ from ..core.models import NormalizedNews
 from .dedup import get_shared_deduplicator
 from .normalize import determine_event_type
 from .source_meta import infer_source_meta
-from ..core.enums import NewsPriority
 from .normalize import determine_priority, extract_symbols
 
 logger = structlog.get_logger(__name__)

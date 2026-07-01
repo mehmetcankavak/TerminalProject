@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from .assets_registry import AssetRecord, AssetsRegistry, get_registry
+from .assets_registry import AssetsRegistry, get_registry
 
 # ---------------------------------------------------------------------------
 # False-positive stopwords — common English words that happen to be valid
