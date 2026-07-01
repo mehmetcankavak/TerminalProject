@@ -7,7 +7,6 @@ from typing import Any
 import structlog
 
 from ..core.models import NormalizedNews, Order, Position
-from ..core.enums import PositionSide
 from .database import get_pool
 
 logger = structlog.get_logger(__name__)

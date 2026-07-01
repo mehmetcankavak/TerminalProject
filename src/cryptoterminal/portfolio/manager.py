@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import math
 from datetime import datetime, timezone
-from typing import Optional
 
 import structlog
 

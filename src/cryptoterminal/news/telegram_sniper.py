@@ -26,7 +26,6 @@ import html
 import re
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
-from typing import Optional
 
 import structlog
 

@@ -26,10 +26,9 @@ from ..core.models import NormalizedNews
 from ..utils.time import latency_ms
 from .adapter import NewsAdapter, RawNewsItem
 from .binance_ann import BinanceAnnouncementAdapter
-from .cryptopanic import CryptoPanicAdapter
 from .dedup import get_shared_deduplicator
 from .exchange_listings import ExchangeListingAdapter
-from .normalize import determine_event_type, determine_priority, extract_symbols, extract_tags, resolve_entities
+from .normalize import determine_event_type, determine_priority, extract_tags, resolve_entities
 from .rss import RSSAdapter
 from .source_meta import infer_source_meta
 from .telegram_sniper import TelegramSniper

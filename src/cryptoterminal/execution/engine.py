@@ -504,7 +504,6 @@ class ExecutionEngine:
             )
 
     async def _paper_fill(self, order: Order, current_price: float) -> None:
-        from ..core.models import Fill
 
         fill = await self.paper_executor.execute(order, current_price)
         if fill:

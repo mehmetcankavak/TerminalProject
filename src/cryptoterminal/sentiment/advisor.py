@@ -8,7 +8,6 @@ Kart hiçbir zaman "AL/SAT" demez, finansal tavsiye sınırını aşmaz. Söyled
 """
 from __future__ import annotations
 
-from typing import Any
 
 
 # ───────────────────────────────────────────────────────────── setup detection
@@ -23,7 +22,6 @@ def _detect_setup(c: dict, master: float, momentum: dict, agree: int, diverge: i
     fd   = (c.get("funding") or {}).get("score") or 0       # contrarian: + = oversold
     lq   = (c.get("liquidations") or {}).get("score") or 0  # contrarian: + = long flush
     vol  = (c.get("volume") or {}).get("score") or 0
-    etf  = (c.get("etf") or {}).get("score") or 0
 
     mom_label = (momentum or {}).get("label") if (momentum or {}).get("available") else None
 

@@ -14,7 +14,6 @@ spread queries don't have to handle BTCUSDT vs BTC-USDT-SWAP vs BTC-USD.
 from __future__ import annotations
 
 import asyncio
-import re
 import time
 from typing import Awaitable, Callable
 
