@@ -18,6 +18,51 @@ Haber bazlı kripto trading terminali. Web uygulaması, iOS native app ve Python
 
 ---
 
+## Mimari — AWS DevOps Altyapısı
+
+Railway'deki production'a ek olarak, CI/CD ve Infrastructure as Code pratiklerini
+göstermek amacıyla paralel bir AWS ortamı kuruldu (`terraform/` dizini): **http://51.20.93.124**
+Bu ortam ayrı, sıfırdan bir RDS/ElastiCache kullanır — Railway'deki kullanıcı verisiyle
+paylaşımlı değildir.
+
+```mermaid
+flowchart TB
+    subgraph GH["GitHub"]
+        Push["git push (main)"] --> CI["GitHub Actions: test + ruff"]
+        CI --> Build["Docker build"]
+    end
+
+    subgraph AWS["AWS (eu-north-1)"]
+        Build -->|"OIDC - anahtarsiz kimlik dogrulama"| ECR["ECR\ncryptoterminal:latest"]
+        Build --> Deploy["SSM Run Command\n(deploy job)"]
+
+        Deploy -->|"docker compose pull/up"| EC2["EC2 t3.micro\nnginx + app container"]
+        ECR --> EC2
+
+        EC2 --> RDS[("RDS PostgreSQL\nprivate subnet")]
+        EC2 --> Redis[("ElastiCache Redis\nprivate subnet")]
+        EC2 -->|awslogs driver| Logs["CloudWatch Logs\n/cryptoterminal/app"]
+
+        RDS --> Alarms["CloudWatch Alarms\n(CPU, disk, status-check,\napp error rate)"]
+        EC2 --> Alarms
+        Logs --> Alarms
+        Alarms --> SNS["SNS"] --> Mail["E-posta bildirimi"]
+    end
+
+    User(("Kullanıcı")) -->|HTTP :80| EC2
+
+    TF["Terraform\n(terraform/*.tf)"] -.->|"import + apply\n(state = gerçeklik)"| AWS
+```
+
+**Akış:** `main`'e her push → test/lint → Docker image ECR'a push → GitHub Actions,
+OIDC ile aldığı geçici AWS rolüyle SSM üzerinden EC2'ye "image'ı çek ve yeniden başlat"
+komutunu gönderir. Hiçbir SSH key'i veya AWS access key'i GitHub'da secret olarak
+saklanmaz. Tüm altyapı (`network.tf`, `compute.tf`, `database.tf`, `iam.tf`,
+`monitoring.tf`) Terraform ile kod olarak tanımlıdır ve `terraform plan` sıfır fark
+gösterir.
+
+---
+
 ## Özellikler
 
 - Gerçek zamanlı kripto fiyatları ve grafikler (lightweight-charts)
