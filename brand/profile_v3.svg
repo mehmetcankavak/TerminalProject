@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="bg" cx="40%" cy="35%" r="80%">
+      <stop offset="0%" stop-color="#0d2318"/>
+      <stop offset="100%" stop-color="#050d08"/>
+    </radialGradient>
+    <radialGradient id="glowC" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#00d992" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#00d992" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ig" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1effa0"/>
+      <stop offset="100%" stop-color="#00c47a"/>
+    </linearGradient>
+    <filter id="glo" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="400" height="400" rx="88" fill="url(#bg)"/>
+  <rect width="400" height="400" rx="88" fill="url(#glowC)"/>
+  <!-- Subtle border -->
+  <rect x="2" y="2" width="396" height="396" rx="86" fill="none" stroke="#00d992" stroke-width="1" stroke-opacity="0.25"/>
+
+  <!--
+    Icon: two chevrons >< crossing to form the logo
+    Left  ">" — short arms, tip points RIGHT  at ~x=205
+    Right "<" — long arms,  tip points LEFT   at ~x=195
+    They overlap/cross in the middle ~x=200
+
+    Bar thickness (stroke-width) = 42
+    stroke-linejoin="miter" stroke-linecap="butt"
+  -->
+
+  <!-- Left chevron ">": tip on the right, arms spread left -->
+  <polyline
+    points="108,118  202,200  108,282"
+    fill="none"
+    stroke="url(#ig)"
+    stroke-width="42"
+    stroke-linejoin="miter"
+    stroke-linecap="square"
+    filter="url(#glo)"
+  />
+
+  <!-- Right chevron "<": tip on the left, arms spread right -->
+  <polyline
+    points="292,118  198,200  292,282"
+    fill="none"
+    stroke="url(#ig)"
+    stroke-width="42"
+    stroke-linejoin="miter"
+    stroke-linecap="square"
+    filter="url(#glo)"
+  />
+</svg>

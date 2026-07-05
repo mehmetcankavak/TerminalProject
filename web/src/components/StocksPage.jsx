@@ -709,7 +709,23 @@ function StocksDetailModal({ asset, onClose }) {
               </div>
             )}
           </div>
-          <button onClick={onClose} className="stx-modal-close">&times;</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              className="stx-modal-alert-btn"
+              title="Fiyat Alarmı Kur"
+              onClick={() => {
+                try { sessionStorage.setItem('ca_prefill_coin', targetTicker) } catch {}
+                window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'custom-alerts' } }))
+                onClose()
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 01-3.46 0"/>
+              </svg>
+            </button>
+            <button onClick={onClose} className="stx-modal-close">&times;</button>
+          </div>
         </div>
 
         {/* Range selector */}
@@ -946,94 +962,82 @@ export default function StocksPage() {
   }
 
   return (
-    <div className="stocks-page" style={{padding: '24px', width: '100%', height: '100%', overflowY: 'auto'}}>
-      <div className="cmc-header" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'32px'}}>
+    <div className="stx2-page">
+
+      {/* Header */}
+      <div className="stx2-page-header">
         <div>
-          <h2 style={{fontSize:'20px', color:'var(--text-0)', marginBottom:'6px', fontWeight:'600', fontFamily:'var(--font-mono)', letterSpacing:'0.04em', textTransform:'uppercase'}}>Top Assets by Market Cap</h2>
-          <div style={{display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap', marginTop:'6px'}}>
-            <span style={{color:'var(--text-3)', fontSize:'10px', fontFamily:'var(--font-mono)', letterSpacing:'0.08em'}}>All assets including</span>
-            <span className="cmc-cat-pill cmc-pill-stock">public companies</span>
-            <span className="cmc-cat-pill cmc-pill-metal">precious metals</span>
-            <span className="cmc-cat-pill cmc-pill-crypto">cryptocurrencies</span>
-            <span className="cmc-cat-pill cmc-pill-etf">ETFs</span>
+          <div className="stx2-page-title">Top Assets by Market Cap</div>
+          <div className="stx2-page-subtitle">
+            <span className="stx2-pill stx2-pill-stock">Stocks</span>
+            <span className="stx2-pill stx2-pill-crypto">Crypto</span>
+            <span className="stx2-pill stx2-pill-metal">Metals</span>
+            <span className="stx2-pill stx2-pill-etf">ETFs</span>
           </div>
         </div>
-        <input
-          className="stocks-search"
-          style={{background: 'var(--bg-1)', border: '1px solid var(--border-1)', padding: '10px 14px', borderRadius: '8px', color: 'var(--text-0)', width: '280px', fontFamily:'var(--font-mono)', fontSize:'12px'}}
-          placeholder="Search assets..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="stx2-search-wrap">
+          <span className="stx2-search-icon">⌕</span>
+          <input className="stx2-search" placeholder="Search assets…" value={query} onChange={e => setQuery(e.target.value)} />
+          {query && <button className="stx2-search-clr" onClick={() => setQuery('')}>×</button>}
+        </div>
       </div>
 
-      <div className="cmc-table-container" style={{background: 'var(--bg-1)', borderRadius: '10px', border: '1px solid var(--border-1)', overflow: 'hidden', width: '100%'}}>
-        {debugError && <div style={{padding:'20px', color:'red', textAlign:'center'}}>{debugError}</div>}
+      {/* Table */}
+      <div className="stx2-table-wrap">
+        {debugError && <div className="stx2-error">{debugError}</div>}
         {loading && rankingData.length === 0 ? (
-          <div style={{padding:'40px', textAlign:'center', color:'#8b9eb7'}}>Yükleniyor...</div>
+          <div className="stx2-loading">Loading…</div>
         ) : (
-          <table style={{width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily:'var(--font-mono)'}}>
+          <table className="stx2-table">
             <thead>
-              <tr style={{borderBottom: '1px solid var(--border-1)'}}>
+              <tr>
                 {[
-                  { key: 'rank',       label: 'Rank' },
+                  { key: 'rank',       label: '#' },
                   { key: 'name',       label: 'Name' },
                   { key: 'market_cap', label: 'Market Cap' },
                   { key: 'price',      label: 'Price' },
-                  { key: 'today',      label: 'Today' },
+                  { key: 'today',      label: '24h' },
                   { key: 'country',    label: 'Country' },
                 ].map(col => (
-                  <th
-                    key={col.key}
-                    onClick={() => handleSort(col.key)}
-                    style={{
-                      padding: '12px 20px', fontWeight: '500', fontFamily:'var(--font-mono)',
-                      fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.08em',
-                      cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
-                      color: sortKey === col.key ? 'var(--text-1)' : 'var(--text-3)',
-                    }}
-                  >
+                  <th key={col.key} className={`stx2-th${col.key === 'rank' ? ' stx2-th-rank' : ''}`}
+                    onClick={() => handleSort(col.key)} style={{ color: sortKey === col.key ? '#fff' : undefined }}>
                     {col.label}
-                    <span style={{marginLeft:'4px', opacity: sortKey === col.key ? 1 : 0.35, fontSize:'9px'}}>
-                      {sortKey !== col.key ? '↕' : sortDir > 0 ? '↑' : '↓'}
-                    </span>
+                    <span className="stx2-sort-icon">{sortKey !== col.key ? '↕' : sortDir > 0 ? '↑' : '↓'}</span>
                   </th>
                 ))}
-                <th style={{padding: '12px 20px', color: 'var(--text-3)', fontWeight: '500', fontFamily:'var(--font-mono)', fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.08em', textAlign:'center'}}>Action</th>
+                <th className="stx2-th stx2-th-action">Action</th>
               </tr>
             </thead>
             <tbody>
-              {currentRows.map((r) => {
+              {currentRows.map(r => {
                 let tradeSymbol = ASSET_TO_TERMINAL_MAP[r.code]
-                if (!tradeSymbol && STOCK_UNIVERSE.find(x => x.ticker === r.code)) {
-                  tradeSymbol = r.code + 'USDT'
-                }
+                if (!tradeSymbol && STOCK_UNIVERSE.find(x => x.ticker === r.code)) tradeSymbol = r.code + 'USDT'
                 const category = getAssetCategory(r.code, r.name)
+                const isUp   = r.today_dir === 'up'
+                const isDown = r.today_dir === 'down'
                 return (
-                  <tr
-                    key={`${r.rank}-${r.code}`}
-                    className={`cmc-row cmc-cat-${category}`}
-                    style={{cursor: 'pointer', transition: 'background 0.1s'}}
-                    onClick={() => openModal(r, tradeSymbol, category)}
-                  >
-                    <td style={{padding: '12px 20px', color: 'var(--text-3)', fontFamily:'var(--font-mono)', fontSize:'12px'}}>{r.rank}</td>
-                    <td style={{padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px'}}>
+                  <tr key={`${r.rank}-${r.code}`} className={`stx2-row stx2-cat-${category}`}
+                    onClick={() => openModal(r, tradeSymbol, category)}>
+                    <td className="stx2-td stx2-td-rank">{r.rank}</td>
+                    <td className="stx2-td stx2-td-name">
                       <StockLogo ticker={r.code} cmcIcon={r.icon} size={28} />
-                      <div>
-                        <div style={{color: 'var(--text-0)', fontWeight: '500', fontSize: '13px', fontFamily:'var(--font-mono)'}}>{r.name}</div>
-                        <div style={{color: 'var(--text-3)', fontSize: '10px', fontFamily:'var(--font-mono)', letterSpacing:'0.06em'}}>{r.code}</div>
+                      <div className="stx2-name-block">
+                        <span className="stx2-name">{r.name}</span>
+                        <span className="stx2-code">{r.code}</span>
                       </div>
                     </td>
-                    <td style={{padding: '12px 20px', color: 'var(--text-1)', fontFamily:'var(--font-mono)', fontSize:'12px'}}>{r.market_cap}</td>
-                    <td style={{padding: '12px 20px', color: 'var(--text-0)', fontFamily:'var(--font-mono)', fontSize:'12px'}}>{r.price}</td>
-                    <td style={{padding: '12px 20px', color: r.today_dir === 'up' ? 'var(--accent)' : r.today_dir === 'down' ? 'var(--danger)' : 'var(--text-3)', fontFamily:'var(--font-mono)', fontSize:'12px', fontWeight:'500'}}>
-                      {r.today_dir === 'up' ? '+' : ''}{r.today}
+                    <td className="stx2-td stx2-td-num">{r.market_cap}</td>
+                    <td className="stx2-td stx2-td-price">{r.price}</td>
+                    <td className="stx2-td">
+                      <span className={`stx2-chg-badge${isUp ? ' up' : isDown ? ' dn' : ''}`}>
+                        {isUp ? '+' : ''}{r.today}
+                      </span>
                     </td>
-                    <td style={{padding: '12px 20px', color: 'var(--text-3)', whiteSpace: 'pre-line', fontFamily:'var(--font-mono)', fontSize:'11px'}}>{r.country}</td>
-                    <td style={{padding: '12px 20px', textAlign:'center'}}>
-                      {tradeSymbol ? (
-                        <button className="mk-trade-btn" onClick={(e) => quickTrade(tradeSymbol, e)}>Trade</button>
-                      ) : null}
+                    <td className="stx2-td stx2-td-country">{r.country}</td>
+                    <td className="stx2-td stx2-td-action">
+                      {tradeSymbol
+                        ? <button className="mk-trade-btn" onClick={e => quickTrade(tradeSymbol, e)}>Trade</button>
+                        : null}
                     </td>
                   </tr>
                 )
@@ -1043,18 +1047,19 @@ export default function StocksPage() {
         )}
       </div>
 
+      {/* Pagination */}
       {totalPages > 1 && !loading && (
-        <div className="cmc-pagination">
-          <button className="cmc-pag-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>‹</button>
-          {Array.from({length: totalPages}).map((_, i) => {
+        <div className="stx2-pagination">
+          <button className="stx2-pag-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>‹</button>
+          {Array.from({ length: totalPages }).map((_, i) => {
             const p = i + 1
             if (totalPages > 7 && Math.abs(p - currentPage) > 2 && p !== 1 && p !== totalPages) {
-              if (p === 2 || p === totalPages - 1) return <span key={p} className="cmc-pag-dot">…</span>
+              if (p === 2 || p === totalPages - 1) return <span key={p} className="stx2-pag-dot">…</span>
               return null
             }
-            return <button key={p} className={`cmc-pag-btn${currentPage === p ? ' active' : ''}`} onClick={() => setCurrentPage(p)}>{p}</button>
+            return <button key={p} className={`stx2-pag-btn${currentPage === p ? ' active' : ''}`} onClick={() => setCurrentPage(p)}>{p}</button>
           })}
-          <button className="cmc-pag-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>›</button>
+          <button className="stx2-pag-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>›</button>
         </div>
       )}
 

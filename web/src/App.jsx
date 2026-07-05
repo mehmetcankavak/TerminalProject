@@ -18,12 +18,14 @@ import TerminalPage from './components/TerminalPage'
 import PortfolioPage from './components/PortfolioPage'
 import ScrollTicker from './components/ScrollTicker'
 import MarketsPage from './components/MarketsPage'
-import ETFPage from './components/ETFPage'
+import MobileStocksPage from './components/MobileStocksPage'
 import StocksPage from './components/StocksPage'
 import GlobalMetrics from './components/GlobalMetrics'
 import FundingRate from './components/FundingRate'
 import LiquidationsStream from './components/LiquidationsStream'
 import VolumeMonitor from './components/VolumeMonitor'
+import MarketCompass from './components/MarketCompass'
+import ETFPage from './components/ETFPage'
 import EconomicCalendar from './components/EconomicCalendar'
 import LongShortRatio from './components/LongShortRatio'
 import BigTransfers from './components/BigTransfers'
@@ -40,11 +42,13 @@ import AdminPage from './pages/AdminPage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
 import NotFoundPage from './pages/NotFoundPage'
+import OnboardingModal from './components/OnboardingModal'
 
 // Pro-only pages
 const PRO_PAGES = new Set([
   'terminal',
   'etf',
+  'market-compass',
   'long-short-ratio',
   'funding-rate',
   'liquidations-stream',
@@ -199,6 +203,8 @@ function TerminalApp() {
         return <ProGate><EB><LiquidationsStream /></EB></ProGate>
       case 'volume-monitor':
         return <ProGate><EB><VolumeMonitor /></EB></ProGate>
+      case 'market-compass':
+        return <ProGate><EB><MarketCompass /></EB></ProGate>
       case 'long-short-ratio':
         return <ProGate><EB><LongShortRatio /></EB></ProGate>
       case 'custom-alerts':
@@ -229,9 +235,10 @@ function TerminalApp() {
     'terminal':             { title: 'Trading Terminal',      sub: 'News + Trade Execution' },
     'system-alerts':        { title: 'System Alerts',         sub: 'Manage Notifications' },
     'spot-markets':         { title: 'Markets',               sub: 'Hyperliquid Perps' },
-    'etf':                  { title: 'ETF Data',              sub: 'Inflows & Volumes' },
+    'etf':                  { title: 'ETF Data',              sub: 'BTC & ETH ETFs · Yahoo Finance' },
     'stocks':               { title: 'Stocks',                sub: 'US Equities · TradFi' },
     'global-metrics':       { title: 'Global Metrics',        sub: 'Market Overview' },
+    'market-compass':       { title: 'Market Compass',         sub: '7-Signal Composite Direction' },
     'long-short-ratio':     { title: 'Long Short Ratio',      sub: 'BTC Analysis' },
     'funding-rate':         { title: 'Funding Rate',          sub: 'Perpetual Futures' },
     'liquidations-stream':  { title: 'Liquidations Stream',   sub: 'Real-time' },
@@ -263,6 +270,8 @@ function TerminalApp() {
           </div>
         </div>
       )}
+
+      <OnboardingModal />
 
       <div className="main-content">
         {showUpgradedBanner && (
@@ -296,8 +305,6 @@ function TerminalApp() {
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 function AppRouter() {
-  const [isMobile] = useState(() => isNative || window.innerWidth <= 768)
-  if (isMobile) return <MobileApp />
   return <TerminalApp />
 }
 

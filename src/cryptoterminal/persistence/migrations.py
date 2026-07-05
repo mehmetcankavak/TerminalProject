@@ -283,8 +283,147 @@ _INDEXES = [
 ]
 
 
+_DEVICE_TOKENS = [
+    """
+    CREATE TABLE IF NOT EXISTS device_tokens (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token       TEXT    NOT NULL,
+        platform    TEXT    NOT NULL DEFAULT 'ios',
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, token)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id)",
+]
+
+# Global big-transfer feed populated by on-chain trackers (mempool.space for BTC,
+# PublicNode WSS for EVM). One row per (chain, tx_hash) — shared across all users.
+# Each user applies their own threshold filter at query time.
+_BIG_TRANSFERS_GLOBAL = [
+    """
+    CREATE TABLE IF NOT EXISTS big_transfers (
+        id            BIGSERIAL PRIMARY KEY,
+        chain         TEXT NOT NULL,         -- 'btc' | 'eth' | 'tron' | ...
+        asset         TEXT NOT NULL,         -- 'BTC' | 'USDT' | 'USDC' | 'ETH' ...
+        tx_hash       TEXT NOT NULL,
+        amount_native DOUBLE PRECISION NOT NULL,
+        amount_usd    DOUBLE PRECISION NOT NULL,
+        from_addr     TEXT,
+        to_addr       TEXT,
+        block_height  BIGINT,
+        ts_sec        BIGINT NOT NULL,
+        link          TEXT,
+        from_label    TEXT,                  -- 'Binance hot' / 'Coinbase' (future enrichment)
+        to_label      TEXT,
+        raw_json      TEXT,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(chain, tx_hash, asset)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_big_transfers_ts ON big_transfers(ts_sec DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_big_transfers_chain_ts ON big_transfers(chain, ts_sec DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_big_transfers_amount ON big_transfers(amount_usd DESC, ts_sec DESC)",
+    # Flow category populated by tracker enrichment (cex_inflow/outflow/internal/mint/burn/unknown)
+    "ALTER TABLE big_transfers ADD COLUMN IF NOT EXISTS flow_category TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_big_transfers_flow ON big_transfers(flow_category, ts_sec DESC)",
+    # Heuristic auto-label hints — addresses that keep transacting with known
+    # CEX wallets. When hits >= 5 AND volume >= $5M, lookup returns
+    # "<Entity> Deposit (auto)" so the address starts surfacing as exchange-side.
+    """
+    CREATE TABLE IF NOT EXISTS address_label_hints (
+        address          TEXT PRIMARY KEY,
+        hinted_entity    TEXT NOT NULL,
+        hits             INTEGER NOT NULL DEFAULT 0,
+        total_volume_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+        first_seen       BIGINT NOT NULL,
+        last_seen        BIGINT NOT NULL,
+        promoted_at      TIMESTAMPTZ
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_addr_hints_entity ON address_label_hints(hinted_entity, hits DESC)",
+    # Funding rates — populated by backend tracker every 60s from 5 exchanges.
+    # One row per (exchange, symbol) — UPSERT keeps only latest snapshot.
+    """
+    CREATE TABLE IF NOT EXISTS funding_rates (
+        exchange          TEXT NOT NULL,
+        symbol            TEXT NOT NULL,
+        rate              DOUBLE PRECISION NOT NULL,
+        next_funding_ms   BIGINT,
+        interval_hours    INTEGER NOT NULL DEFAULT 8,
+        fetched_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (exchange, symbol)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_funding_symbol ON funding_rates(symbol)",
+    # Corridor alert dedup — one row per fired (chain:from:to) corridor so the
+    # background scanner doesn't re-notify the same persistent route every tick.
+    # Re-fires only after a cooldown, or if the corridor's volume re-doubles.
+    """
+    CREATE TABLE IF NOT EXISTS corridor_alerts (
+        corridor_key   TEXT PRIMARY KEY,
+        last_total_usd DOUBLE PRECISION NOT NULL,
+        last_count     INTEGER NOT NULL,
+        last_alert_ts  BIGINT NOT NULL
+    )
+    """,
+]
+
+# Real Hyperliquid userFills events for every smart money wallet being tracked.
+# Single row per (address, oid) — same fill goes to all followers via fan-out.
+_SMART_MONEY_FILLS = [
+    """
+    CREATE TABLE IF NOT EXISTS smart_money_fills (
+        id          BIGSERIAL PRIMARY KEY,
+        address     TEXT NOT NULL,
+        coin        TEXT NOT NULL,
+        side        TEXT NOT NULL,                  -- 'buy' | 'sell'
+        size_usd    DOUBLE PRECISION NOT NULL,
+        px          DOUBLE PRECISION NOT NULL,
+        sz          DOUBLE PRECISION NOT NULL,
+        ts_ms       BIGINT NOT NULL,
+        oid         TEXT NOT NULL,
+        dir         TEXT,                            -- 'Open Long' | 'Close Long' | 'Open Short' | 'Close Short'
+        closed_pnl  DOUBLE PRECISION,
+        raw_json    TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(address, oid)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_smfills_addr_ts ON smart_money_fills(address, ts_ms DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_smfills_ts ON smart_money_fills(ts_ms DESC)",
+]
+
+
+# Compass history — one row per compute_compass() snapshot. Used to derive
+# momentum (current vs ~3d ago) and percentile thresholds (current vs 30d).
+_COMPASS_HISTORY = [
+    """
+    CREATE TABLE IF NOT EXISTS compass_history (
+        ts_sec       BIGINT PRIMARY KEY,
+        master       DOUBLE PRECISION NOT NULL,
+        smart_money  DOUBLE PRECISION,
+        big_transfers DOUBLE PRECISION,
+        funding      DOUBLE PRECISION,
+        liquidations DOUBLE PRECISION,
+        volume       DOUBLE PRECISION,
+        etf          DOUBLE PRECISION,
+        global_score DOUBLE PRECISION
+    )
+    """,
+    # setup_key: hangi advisor setup'ı o anda tetiklendi. Backtest için kritik —
+    # bu olmadan "EARLY_ACCUMULATION 3 gün önce tetiklenmişti" sorusunu sonradan
+    # cevaplayamayız. ADD COLUMN IF NOT EXISTS PG 9.6+.
+    "ALTER TABLE compass_history ADD COLUMN IF NOT EXISTS setup_key TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_compass_ts ON compass_history(ts_sec DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_compass_setup ON compass_history(setup_key, ts_sec DESC)",
+]
+
+
 async def run_migrations(conn: asyncpg.Connection) -> None:
     for sql in [*_TRADING_TABLES, *_AUTH_TABLES, *_LIQ_TABLES, *_NOTIFICATION_TABLES,
                 *_OAUTH_COLUMNS, *_CRYPTO_BILLING, *_BIG_TRANSFERS, *_PORTFOLIO_STATE_TABLE,
-                *_CONDITIONAL_ALERTS, *_INDEXES]:
+                *_CONDITIONAL_ALERTS, *_DEVICE_TOKENS, *_SMART_MONEY_FILLS,
+                *_BIG_TRANSFERS_GLOBAL, *_COMPASS_HISTORY, *_INDEXES]:
         await conn.execute(sql)

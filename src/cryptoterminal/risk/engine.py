@@ -69,6 +69,43 @@ class RiskEngine:
             logger.info("risk_daily_reset", date=str(today), balance=current_bal)
             self._persist_state()
 
+    def sync_account_balance(self, current_balance: float) -> None:
+        """Canlı borsa bakiyesini risk state'e yansıt.
+
+        Eski state hâlâ paper default 10k ile duruyorsa ve bugün PnL yoksa,
+        günlük limitin tabanı da gerçek equity'ye çekilir. Gün içi PnL oluşmuşsa
+        starting balance korunur; sadece current_balance güncellenir.
+        """
+        try:
+            balance = float(current_balance)
+        except (TypeError, ValueError):
+            return
+        if balance <= 0:
+            return
+
+        s = self.state
+        paper_default = float(getattr(self.settings, "paper_starting_balance", 10_000.0) or 10_000.0)
+        should_rebase = (
+            abs(float(s.starting_balance_today or 0.0) - paper_default) < 1e-9
+            and abs(float(s.current_balance or 0.0) - paper_default) < 1e-9
+            and abs(float(s.realized_pnl_today or 0.0)) < 1e-9
+            and abs(float(s.unrealized_pnl_today or 0.0)) < 1e-9
+        )
+        if not should_rebase and abs(float(s.current_balance or 0.0) - balance) < 0.01:
+            return
+
+        s.current_balance = balance
+        if should_rebase:
+            s.starting_balance_today = balance
+
+        self._persist_state()
+        logger.info(
+            "risk_balance_synced",
+            current_balance=balance,
+            starting_balance_today=s.starting_balance_today,
+            rebased=should_rebase,
+        )
+
     async def check_order(self, order: Order) -> RiskCheckResult:
         self._check_daily_reset()
         checks: dict[str, str] = {}
@@ -118,7 +155,13 @@ class RiskEngine:
         if not approved:
             await self.bus.publish(
                 events.RISK_BLOCKED,
-                {"order_id": order.internal_id, "reason": reject_reason, "checks": checks},
+                {
+                    "order_id": order.internal_id,
+                    "order": order,
+                    "user_id": getattr(order, "user_id", None),
+                    "reason": reject_reason,
+                    "checks": checks,
+                },
             )
 
         # DB'ye kaydet

@@ -97,6 +97,7 @@ class NormalizedNews(BaseModel):
 
 class Order(BaseModel):
     internal_id: str
+    user_id: Optional[int] = None
     exchange_id: Optional[str] = None
     symbol: str
     side: OrderSide

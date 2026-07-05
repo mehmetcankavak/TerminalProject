@@ -52,9 +52,9 @@ export const translations = {
 
     // ── Hero ─────────────────────────────────────────────────
     hero_eyebrow:     'LIVE — MARKETS OPEN',
-    hero_line1:       'MONITOR THE CRYPTO MARKET',
-    hero_accent:      'WITH PRO EYES.',
-    hero_sub:         'Liquidations, funding rates, whale transfers, token unlocks, price alerts — all in one platform. Real-time WebSocket data, professional trader tools.',
+    hero_line1:       'See Every Move',
+    hero_accent:      'Before It Happens.',
+    hero_sub:         'Real-time liquidations, whale alerts, smart money tracking and funding rates — one professional terminal for every market edge.',
     hero_start_free:  'Get Started Free',
     hero_open:        'Open Terminal',
     hero_go_dashboard:'Go to Dashboard',
@@ -249,9 +249,9 @@ export const translations = {
 
     // ── Hero ─────────────────────────────────────────────────
     hero_eyebrow:     'CANLI — PİYASALAR AÇIK',
-    hero_line1:       'KRİPTO PİYASASINI',
-    hero_accent:      'PRO GÖZÜYLE İZLE.',
-    hero_sub:         'Likidasyonlar, fonlama oranları, balina transferleri, token unlock, fiyat alarmları — hepsi tek platformda. Gerçek zamanlı WebSocket verisi, profesyonel trader araçları.',
+    hero_line1:       'Her Hareketi Gör',
+    hero_accent:      'Olmadan Önce.',
+    hero_sub:         'Gerçek zamanlı likidasyonlar, balina alarmları, smart money takibi ve fonlama oranları — her fırsatta önde olmak için tek terminal.',
     hero_start_free:  'Ücretsiz Başla',
     hero_open:        'Terminali Aç',
     hero_go_dashboard:'Dashboard\'a Git',

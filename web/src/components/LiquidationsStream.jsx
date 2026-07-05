@@ -1,53 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { API_BASE } from '../config'
+import FeatureSpotlight from './FeatureSpotlight'
 
-/* ─────────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────────── */
+// Honest data architecture:
+//   • Global 24H total + per-coin breakdown → CMC public liquidation API (no key, real numbers, 3min refresh)
+//   • Live ticker → backend WS broadcast from OKX + Bybit perp streams (only CEXes still publishing
+//     public liquidation events as of 2026). Anything below $10K filtered.
+
 function fmtM(v) {
-  if (!v || v === 0) return '$0'
+  if (!v) return '$0'
   if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B'
   if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M'
   if (v >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K'
   return '$' + v.toFixed(0)
-}
-
-/* ─────────────────────────────────────────────
-   STAT CARD
-───────────────────────────────────────────── */
-function StatCard({ label, total, long, short }) {
-  const longPct  = total > 0 ? (long  / total) * 100 : 50
-  const shortPct = total > 0 ? (short / total) * 100 : 50
-  return (
-    <div className="ldash-card">
-      <div className="ldash-card-hdr"><span className="ldash-card-label">{label}</span></div>
-      <div className="ldash-card-total">{fmtM(total)}</div>
-      <div className="ldash-card-ratio-bar">
-        <div style={{ width: longPct  + '%', background: '#22ab94', height: '100%', borderRadius: '3px 0 0 3px', transition: 'width .5s' }} />
-        <div style={{ width: shortPct + '%', background: '#f23645', height: '100%', borderRadius: '0 3px 3px 0', transition: 'width .5s' }} />
-      </div>
-      <div className="ldash-card-rows">
-        <div className="ldash-card-row">
-          <span className="ldash-card-row-lbl">Long</span>
-          <span className="ldash-card-row-val ldash-long">{fmtM(long)}</span>
-        </div>
-        <div className="ldash-card-row">
-          <span className="ldash-card-row-lbl">Short</span>
-          <span className="ldash-card-row-val ldash-short">{fmtM(short)}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────
-   EXCHANGE TABLE
-───────────────────────────────────────────── */
-const EXCHANGE_META = {
-  binance:     { label: 'Binance',     icon: '/logos/binance.png' },
-  okx:         { label: 'OKX',         icon: '/logos/okx.png' },
-  bybit:       { label: 'Bybit',       icon: '/logos/bybit.png' },
-  hyperliquid: { label: 'Hyperliquid', icon: 'https://icons.llamao.fi/icons/protocols/hyperliquid' },
 }
 
 const PERIODS = [
@@ -57,218 +22,236 @@ const PERIODS = [
   { key: 'h24', label: '24H' },
 ]
 
-function ExchangeLiquidationsTable({ exchangeMap, wsExchangeMap, stats }) {
-  const [period, setPeriod] = useState('h24')
-
-  const base = {}
-  for (const [ex, meta] of Object.entries(EXCHANGE_META)) {
-    const api = exchangeMap?.[ex]   || { long: 0, short: 0 }
-    const ws  = wsExchangeMap?.[ex] || { long: 0, short: 0 }
-    base[ex] = { ...meta, long: api.long + ws.long, short: api.short + ws.short }
+// Contrarian reading: long liq = longs flushed = BULLISH; short liq = shorts squeezed = BEARISH
+// score = (long - short) / total, range -1..+1
+function LiqSentiment({ stats, h1Pressure }) {
+  if (!stats?.h24) {
+    return (
+      <div className="liq-sentiment-wrap liq-sentiment-loading">
+        <div className="liq-section-hdr">SENTIMENT · LOADING…</div>
+      </div>
+    )
   }
+  const longL  = stats.h24.long  || 0
+  const shortL = stats.h24.short || 0
+  const total  = longL + shortL
+  const score  = total > 0 ? (longL - shortL) / total : 0
+  const verdict = score >  0.3 ? 'BULLISH' : score < -0.3 ? 'BEARISH' : 'NEUTRAL'
+  const tone    = verdict === 'BULLISH' ? '#00e87a' : verdict === 'BEARISH' ? '#f43f5e' : '#aaa'
+  const pct     = Math.max(0, Math.min(100, (score + 1) * 50))
+  const dominant = longL > shortL * 1.5 ? 'LONG WIPED'
+                 : shortL > longL * 1.5 ? 'SHORT SQUEEZE'
+                 :                        'BALANCED'
 
-  const base24Total = Object.values(base).reduce((s, r) => s + r.long + r.short, 0)
-  const periodStats = stats?.[period]
-  const periodTotal = periodStats ? (periodStats.long || 0) + (periodStats.short || 0) : base24Total
-  const scale = base24Total > 0 ? periodTotal / base24Total : 1
-
-  const rows = Object.entries(base).map(([ex, d]) => ({
-    ex, ...d,
-    long:  d.long  * scale,
-    short: d.short * scale,
-  }))
-
-  const allLong  = rows.reduce((s, r) => s + r.long,  0)
-  const allShort = rows.reduce((s, r) => s + r.short, 0)
-  const allTotal = allLong + allShort
-  const allIsLong = allLong >= allShort
   return (
-    <div className="ldash-ex-table-wrap">
-      <div className="ldash-ex-head">
-        <span className="ldash-ex-title">BORSA LİKİDASYONLARI</span>
-        <div className="ldash-ex-periods">
-          {PERIODS.map(p => (
-            <button
-              key={p.key}
-              className={`ldash-ex-period ${period === p.key ? 'active' : ''}`}
-              onClick={() => setPeriod(p.key)}
-            >
-              {p.label}
-            </button>
-          ))}
+    <div className="liq-sentiment-wrap">
+      <div className="liq-sentiment-top">
+        <div className="liq-section-hdr">SENTIMENT · LIQUIDATION · 24H</div>
+        <div className="liq-sentiment-verdict" style={{ color: tone }}>
+          <span className="liq-sentiment-score">{score >= 0 ? '+' : ''}{score.toFixed(2)}</span>
+          <span className="liq-sentiment-label">{verdict}</span>
         </div>
       </div>
 
-      <div className="ldash-ex-total-card">
-        <div className="ldash-ex-total-top">
-          <div className="ldash-ex-total-name">
-            ALL EXCHANGES
-            <span className={`ldash-ex-side ${allIsLong ? 'is-long' : 'is-short'}`}>
-              {allIsLong ? 'LONG' : 'SHORT'}
-            </span>
+      <div className="liq-gauge-wrap">
+        <div className="liq-gauge-track">
+          <div className="liq-gauge-gradient" />
+          <div className="liq-gauge-center-line" />
+          <div className="liq-gauge-dot" style={{ left: pct + '%', background: tone, boxShadow: `0 0 10px ${tone}99` }} />
+        </div>
+        <div className="liq-gauge-labels">
+          <span>BEARISH</span>
+          <span>NEUTRAL</span>
+          <span>BULLISH</span>
+        </div>
+      </div>
+
+      <div className="liq-sub-cards">
+        <div className="liq-sub-card" style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.15)' }}>
+          <div className="liq-sub-card-title" style={{ color: '#f43f5e' }}>LONG LIQ</div>
+          <div className="liq-sub-card-value">{fmtM(longL)}</div>
+          <div className="liq-sub-card-note">longs flushed</div>
+        </div>
+        <div className="liq-sub-card" style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)' }}>
+          <div className="liq-sub-card-title" style={{ color: '#00e87a' }}>SHORT LIQ</div>
+          <div className="liq-sub-card-value">{fmtM(shortL)}</div>
+          <div className="liq-sub-card-note">shorts squeezed</div>
+        </div>
+        <div className="liq-sub-card" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="liq-sub-card-title" style={{ color: '#aaa' }}>DOMINANT</div>
+          <div className="liq-sub-card-value" style={{ color: tone, fontSize: 13 }}>{dominant}</div>
+          <div className="liq-sub-card-note">
+            {longL > 0 && shortL > 0
+              ? (longL > shortL ? (longL / shortL).toFixed(1) + 'x long' : (shortL / longL).toFixed(1) + 'x short')
+              : '—'}
           </div>
-          <div className="ldash-ex-total-value">{fmtM(allTotal)}</div>
         </div>
-        <div className="ldash-ex-ratio-bar">
-          <span className="ldash-ex-ratio-long"  style={{ width: allTotal > 0 ? (allLong  / allTotal * 100) + '%' : '50%' }} />
-          <span className="ldash-ex-ratio-short" style={{ width: allTotal > 0 ? (allShort / allTotal * 100) + '%' : '50%' }} />
+        <div className="liq-sub-card" style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)' }}>
+          <div className="liq-sub-card-title" style={{ color: '#fbbf24' }}>1H PRESSURE</div>
+          <div className="liq-sub-card-value">{fmtM(h1Pressure)}</div>
+          <div className="liq-sub-card-note">last hour pace</div>
         </div>
-      </div>
-
-      <div className="ldash-ex-list">
-        {rows.map(row => {
-          const total    = row.long + row.short
-          const isLong   = row.long >= row.short
-          const longPct  = total > 0 ? (row.long  / total * 100) : 50
-          const shortPct = total > 0 ? (row.short / total * 100) : 50
-          return (
-            <div key={row.ex} className="ldash-ex-row">
-              <div className="ldash-ex-name">
-                {row.icon && <img src={row.icon} alt={row.label} className="ldash-ex-logo" />}
-                {row.label}
-              </div>
-              <div className="ldash-ex-ratio-bar">
-                <span className="ldash-ex-ratio-long"  style={{ width: longPct  + '%' }} />
-                <span className="ldash-ex-ratio-short" style={{ width: shortPct + '%' }} />
-              </div>
-              <div className="ldash-ex-value">{fmtM(total)}</div>
-              <div className={`ldash-ex-side ${isLong ? 'is-long' : 'is-short'}`}>
-                {isLong ? 'Long' : 'Short'}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="ldash-ex-legend">
-        <span><span className="ldash-ex-dot long" />Long</span>
-        <span><span className="ldash-ex-dot short" />Short</span>
       </div>
     </div>
   )
 }
 
-/* ─────────────────────────────────────────────
-   STATS PANEL (API fetch)
-───────────────────────────────────────────── */
-function LiquidationStatsPanel({ onStatsUpdate, onExchangesUpdate }) {
-  const [stats,  setStats]  = useState(null)
-  const LABELS = [
-    { key: 'h1',  label: '1h Rekt'  },
-    { key: 'h4',  label: '4h Rekt'  },
-    { key: 'h12', label: '12h Rekt' },
-    { key: 'h24', label: '24h Rekt' },
-  ]
+function PeriodCard({ label, total, long, short, active, onClick }) {
+  const longPct = total > 0 ? (long / total) * 100 : 50
+  return (
+    <button className={`liq-period-card ${active ? 'active' : ''}`} onClick={onClick}>
+      <div className="liq-period-label">{label}</div>
+      <div className="liq-period-total">{fmtM(total)}</div>
+      <div className="liq-period-bar-track">
+        <div className="liq-period-bar-fill" style={{ width: longPct + '%' }} />
+      </div>
+      <div className="liq-period-bar-labels">
+        <span style={{ color: '#00e87a' }}>L {Math.round(longPct)}%</span>
+        <span style={{ color: '#f43f5e' }}>S {Math.round(100 - longPct)}%</span>
+      </div>
+    </button>
+  )
+}
+
+function HotCoinRow({ rank, coin, long, short }) {
+  const total   = long + short
+  const longPct = total > 0 ? (long / total) * 100 : 50
+  return (
+    <div className="liq-hot-row">
+      <div className="liq-hot-rank">#{rank}</div>
+      <div className="liq-hot-coin">{coin}</div>
+      <div className="liq-hot-bar-col">
+        <div className="liq-hot-bar-track">
+          <div className="liq-hot-bar-fill" style={{ width: longPct + '%' }} />
+        </div>
+        <div className="liq-hot-bar-subs">
+          <span style={{ color: '#00e87a' }}>Long {fmtM(long)}</span>
+          <span style={{ color: '#f43f5e' }}>Short {fmtM(short)}</span>
+        </div>
+      </div>
+      <div className="liq-hot-total">{fmtM(total)}</div>
+    </div>
+  )
+}
+
+function CardSkeleton() {
+  return (
+    <div className="liq-period-card">
+      <div style={{ height: 13, width: 24, borderRadius: 4, background: 'rgba(255,255,255,0.06)', marginBottom: 8 }} />
+      <div style={{ height: 16, width: 52, borderRadius: 4, background: 'rgba(255,255,255,0.08)', marginBottom: 9 }} />
+      <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.05)' }} />
+    </div>
+  )
+}
+
+export default function LiquidationsStream() {
+  const [stats,        setStats]        = useState(null)
+  const [coinMap,      setCoinMap]      = useState({})
+  const [activePeriod, setActivePeriod] = useState('h24')
+
   const fetchStats = useCallback(async () => {
     try {
       const res  = await fetch(`${API_BASE}/api/liq-stats`)
       const data = await res.json()
-      if (data.error) return
-      setStats(data.stats)
-      if (onStatsUpdate)                       onStatsUpdate(data.stats)
-      if (onExchangesUpdate && data.exchanges) onExchangesUpdate(data.exchanges)
-    } catch (err) {
-      console.warn('[Liquidations] fetch stats error', err)
-    }
-  }, [onStatsUpdate, onExchangesUpdate])
+      if (data?.stats) setStats(data.stats)
+      if (data?.coins) setCoinMap(data.coins)
+    } catch {}
+  }, [])
 
   useEffect(() => {
     fetchStats()
-    const t = setInterval(fetchStats, 3 * 60_000)
-    return () => clearInterval(t)
+    const id = setInterval(fetchStats, 3 * 60_000)
+    return () => clearInterval(id)
   }, [fetchStats])
 
-  const cards = stats
-    ? LABELS.map(({ key, label }) => ({
-        label,
-        total: (stats[key]?.long || 0) + (stats[key]?.short || 0),
-        long:   stats[key]?.long  || 0,
-        short:  stats[key]?.short || 0,
-      }))
-    : LABELS.map(({ label }) => ({ label, total: 0, long: 0, short: 0 }))
+  const topCoins = Object.entries(coinMap)
+    .map(([coin, v]) => ({ coin, long: v.long || 0, short: v.short || 0, total: (v.long || 0) + (v.short || 0) }))
+    .filter(x => x.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 20)
+
+  const periodCards = PERIODS.map(({ key, label }) => ({
+    key, label,
+    total: (stats?.[key]?.long || 0) + (stats?.[key]?.short || 0),
+    long:   stats?.[key]?.long  || 0,
+    short:  stats?.[key]?.short || 0,
+  }))
+
+  const total24 = (stats?.h24?.long || 0) + (stats?.h24?.short || 0)
+  const long24  = stats?.h24?.long  || 0
+  const short24 = stats?.h24?.short || 0
 
   return (
-    <div className="ldash-cards-grid">
-      {cards.map(s => <StatCard key={s.label} {...s} />)}
-    </div>
-  )
-}
+    <div className="liq-page">
 
-/* ─────────────────────────────────────────────
-   MAIN
-───────────────────────────────────────────── */
-export default function LiquidationsStream() {
-  const [live,           setLive]           = useState(false)
-  const [apiExchangeMap, setApiExchangeMap] = useState({})
-  const [wsExchangeMap,  setWsExchangeMap]  = useState({ binance: { long: 0, short: 0 } })
-  const [stats,          setStats]          = useState(null)
+      <FeatureSpotlight
+        featureKey="liquidations"
+        title="Likidasyonlar Akışı"
+        description="Binance, OKX ve Bybit'ten anlık long/short likidasyon verilerini takip edin. Büyük likidasyon dalgaları kısa vadeli trend dönüşlerini işaret edebilir."
+      />
 
-  const wsExchangeRef = useRef({ binance: { long: 0, short: 0 } })
-  const wsRef         = useRef(null)
-  const timerRef      = useRef(null)
-
-  const addLiq = useCallback((liq) => {
-    const exMap = wsExchangeRef.current
-    if (!exMap.binance) exMap.binance = { long: 0, short: 0 }
-    exMap.binance[liq.side] += liq.usdValue
-    setWsExchangeMap({ ...exMap })
-  }, [])
-
-  const connect = useCallback(() => {
-    clearTimeout(timerRef.current)
-    if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close() }
-    const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr')
-    wsRef.current = ws
-    ws.onopen  = () => setLive(true)
-    ws.onerror = () => setLive(false)
-    ws.onclose = () => {
-      setLive(false)
-      timerRef.current = setTimeout(connect, 3000)
-    }
-    ws.onmessage = (e) => {
-      try {
-        const o = JSON.parse(e.data).o
-        if (!o) return
-        const side     = o.S === 'SELL' ? 'long' : 'short'
-        const price    = parseFloat(o.ap)
-        const baseQty  = parseFloat(o.z)
-        const usdValue = price * baseQty
-        if (!price || !baseQty || usdValue < 100) return
-        addLiq({ side, usdValue })
-      } catch (err) { console.warn('[Liquidations] WS parse error', err) }
-    }
-  }, [addLiq])
-
-  useEffect(() => {
-    connect()
-    return () => {
-      clearTimeout(timerRef.current)
-      if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close() }
-    }
-  }, [connect])
-
-  return (
-    <div className="ldash-page">
-      <div className="ldash-layout">
-        <div className="ldash-stats-wrap" style={{ marginBottom: 16 }}>
-          <div className="ldash-section-hdr" style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="ldash-section-title">Total Liquidations</span>
-            <span className={`ldash-live-badge ${live ? 'ldash-live-on' : ''}`}>
-              <span className="ldash-live-dot" />{live ? 'LIVE' : 'BAĞLANIYOR'}
-            </span>
+      {/* Header */}
+      <div className="liq-page-header">
+        <div>
+          <div className="liq-page-title">Liquidation Stream</div>
+          <div className="liq-page-subtitle">
+            <span className="liq-page-source">CMC public liquidation data · refreshes every 3 min</span>
           </div>
-          <LiquidationStatsPanel
-            onStatsUpdate={setStats}
-            onExchangesUpdate={setApiExchangeMap}
-          />
         </div>
+        {total24 > 0 && (
+          <div className="liq-page-24h">
+            <div className="liq-page-24h-label">24H GLOBAL</div>
+            <div className="liq-page-24h-total">{fmtM(total24)}</div>
+            <div className="liq-page-24h-subs">
+              <span style={{ color: '#00e87a' }}>Long {fmtM(long24)}</span>
+              <span style={{ color: '#f43f5e' }}>Short {fmtM(short24)}</span>
+            </div>
+          </div>
+        )}
+      </div>
 
-        <div className="ldash-bottom-row">
-          <ExchangeLiquidationsTable
-            exchangeMap={apiExchangeMap}
-            wsExchangeMap={wsExchangeMap}
-            stats={stats}
-          />
+      {/* Sentiment gauge */}
+      <LiqSentiment stats={stats} h1Pressure={(stats?.h1?.long || 0) + (stats?.h1?.short || 0)} />
+
+      {/* Period cards */}
+      <div className="liq-section">
+        <div className="liq-section-hdr liq-section-hdr-row">
+          <span>PERIOD SUMMARY · GLOBAL</span>
+        </div>
+        <div className="liq-period-row">
+          {stats === null
+            ? PERIODS.map(p => <CardSkeleton key={p.key} />)
+            : periodCards.map(c => (
+                <PeriodCard
+                  key={c.key}
+                  label={c.label}
+                  total={c.total}
+                  long={c.long}
+                  short={c.short}
+                  active={activePeriod === c.key}
+                  onClick={() => setActivePeriod(c.key)}
+                />
+              ))
+          }
+        </div>
+      </div>
+
+      {/* Most liquidated — full width expanded */}
+      <div className="liq-section liq-section-expanded">
+        <div className="liq-section-hdr liq-section-hdr-row">
+          <span>MOST LIQUIDATED · 24H</span>
+          <span className="liq-section-count">{topCoins.length} coins</span>
+        </div>
+        <div className="liq-panel">
+          {topCoins.length === 0 ? (
+            <div className="liq-empty">Loading data…</div>
+          ) : (
+            <div className="liq-hot-grid">
+              {topCoins.map((c, i) => (
+                <HotCoinRow key={c.coin} rank={i + 1} coin={c.coin} long={c.long} short={c.short} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

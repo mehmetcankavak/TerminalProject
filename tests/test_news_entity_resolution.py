@@ -13,11 +13,8 @@ Covers:
 """
 from __future__ import annotations
 
-import pytest
 
 from cryptoterminal.news.normalize import resolve_entities
-from cryptoterminal.news.entity_extractor import extract_entities
-from cryptoterminal.news.theme_extractor import extract_themes
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +313,6 @@ class TestFalsePositives:
 
 class TestExplicitFormats:
     def test_eth_btc_pair(self):
-        syms = _symbols("ETH/BTC ratio at yearly lows")
         assert "ETH" in _asset_ids("ETH/BTC ratio at yearly lows")
 
     def test_multiple_assets(self):

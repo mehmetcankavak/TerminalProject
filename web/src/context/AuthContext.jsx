@@ -1,31 +1,17 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { API_BASE } from '../config'
+const TOKEN_KEY = 'nt_token'
 const REFRESH_KEY = 'nt_refresh'
 
 const AuthContext = createContext(null)
 
-// Access token artık sadece memory'de — XSS ile localStorage'dan çalınamaz
-// Sayfa yenilendiğinde refresh token ile yeni access token alınır
-
-async function refreshAccessToken(refreshToken) {
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  })
-  if (!res.ok) return null
-  const tokens = await res.json()
-  localStorage.setItem(REFRESH_KEY, tokens.refresh_token)
-  return tokens.access_token
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)  // memory-only, localStorage'da saklanmaz
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY))
   const [plan, setPlan] = useState('free')
   const [isAdmin, setIsAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const refreshTimerRef = useRef(null)
 
   const fetchMe = useCallback(async (accessToken) => {
     if (!accessToken) return null
@@ -41,63 +27,54 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Access token'ı expire'dan önce otomatik yenile (her 12 dakikada — 15dk expire varsayımı)
-  const scheduleRefresh = useCallback((accessToken) => {
-    clearTimeout(refreshTimerRef.current)
-    refreshTimerRef.current = setTimeout(async () => {
-      const rt = localStorage.getItem(REFRESH_KEY)
-      if (!rt) return
-      try {
-        const newToken = await refreshAccessToken(rt)
-        if (newToken) {
-          setToken(newToken)
-          scheduleRefresh(newToken)
-        } else {
-          // Refresh başarısız — oturumu kapat
-          localStorage.removeItem(REFRESH_KEY)
-          setToken(null)
-          setUser(null)
-          setPlan('free')
-          setIsAdmin(false)
-          window.dispatchEvent(new CustomEvent('tt-session-expired'))
-        }
-      } catch {
-        // Network hatası — bir sonraki cycle'da tekrar dener
-      }
-    }, 12 * 60 * 1000)
-  }, [])
-
-  // Sayfa yüklendiğinde: refresh token ile access token al
   useEffect(() => {
     const init = async () => {
-      // Eski localStorage access token'ı temizle (migration)
-      localStorage.removeItem('nt_token')
-
-      const refreshToken = localStorage.getItem(REFRESH_KEY)
-      if (refreshToken) {
-        try {
-          const accessToken = await refreshAccessToken(refreshToken)
-          if (accessToken) {
-            setToken(accessToken)
-            const userData = await fetchMe(accessToken)
-            if (userData) {
-              setUser(userData)
-              setPlan(userData.plan || 'free')
-              setIsAdmin(userData.is_admin || false)
+      const storedToken = localStorage.getItem(TOKEN_KEY)
+      if (storedToken) {
+        const userData = await fetchMe(storedToken)
+        if (userData) {
+          setUser(userData)
+          setPlan(userData.plan || 'free')
+          setIsAdmin(userData.is_admin || false)
+          setToken(storedToken)
+        } else {
+          // Try refresh
+          const refreshToken = localStorage.getItem(REFRESH_KEY)
+          if (refreshToken) {
+            try {
+              const res = await fetch(`${API_BASE}/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: refreshToken }),
+              })
+              if (res.ok) {
+                const tokens = await res.json()
+                localStorage.setItem(TOKEN_KEY, tokens.access_token)
+                localStorage.setItem(REFRESH_KEY, tokens.refresh_token)
+                setToken(tokens.access_token)
+                const userData2 = await fetchMe(tokens.access_token)
+                if (userData2) {
+                  setUser(userData2)
+                  setPlan(userData2.plan || 'free')
+                  setIsAdmin(userData2.is_admin || false)
+                }
+              } else {
+                localStorage.removeItem(TOKEN_KEY)
+                localStorage.removeItem(REFRESH_KEY)
+              }
+            } catch {
+              localStorage.removeItem(TOKEN_KEY)
+              localStorage.removeItem(REFRESH_KEY)
             }
-            scheduleRefresh(accessToken)
           } else {
-            localStorage.removeItem(REFRESH_KEY)
+            localStorage.removeItem(TOKEN_KEY)
           }
-        } catch {
-          localStorage.removeItem(REFRESH_KEY)
         }
       }
       setIsLoading(false)
     }
     init()
-    return () => clearTimeout(refreshTimerRef.current)
-  }, [fetchMe, scheduleRefresh])
+  }, [fetchMe])
 
   const login = useCallback(async (email, password) => {
     const res = await fetch(`${API_BASE}/auth/login`, {
@@ -108,9 +85,9 @@ export function AuthProvider({ children }) {
     const data = await res.json()
     if (!res.ok) throw new Error(data.detail || 'Login failed')
 
+    localStorage.setItem(TOKEN_KEY, data.access_token)
     localStorage.setItem(REFRESH_KEY, data.refresh_token)
     setToken(data.access_token)
-    scheduleRefresh(data.access_token)
 
     const userData = await fetchMe(data.access_token)
     if (userData) {
@@ -119,7 +96,7 @@ export function AuthProvider({ children }) {
       setIsAdmin(userData.is_admin || false)
     }
     return data
-  }, [fetchMe, scheduleRefresh])
+  }, [fetchMe])
 
   const register = useCallback(async (email, password) => {
     const res = await fetch(`${API_BASE}/auth/register`, {
@@ -130,9 +107,9 @@ export function AuthProvider({ children }) {
     const data = await res.json()
     if (!res.ok) throw new Error(data.detail || 'Registration failed')
 
+    localStorage.setItem(TOKEN_KEY, data.access_token)
     localStorage.setItem(REFRESH_KEY, data.refresh_token)
     setToken(data.access_token)
-    scheduleRefresh(data.access_token)
 
     const userData = await fetchMe(data.access_token)
     if (userData) {
@@ -141,20 +118,20 @@ export function AuthProvider({ children }) {
       setIsAdmin(userData.is_admin || false)
     }
     return data
-  }, [fetchMe, scheduleRefresh])
+  }, [fetchMe])
 
-  const googleLogin = useCallback(async (credential) => {
+  const googleLogin = useCallback(async (idToken) => {
     const res = await fetch(`${API_BASE}/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential }),
+      body: JSON.stringify({ credential: idToken }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.detail || 'Google login failed')
 
+    localStorage.setItem(TOKEN_KEY, data.access_token)
     localStorage.setItem(REFRESH_KEY, data.refresh_token)
     setToken(data.access_token)
-    scheduleRefresh(data.access_token)
 
     const userData = await fetchMe(data.access_token)
     if (userData) {
@@ -163,10 +140,10 @@ export function AuthProvider({ children }) {
       setIsAdmin(userData.is_admin || false)
     }
     return data
-  }, [fetchMe, scheduleRefresh])
+  }, [fetchMe])
 
   const logout = useCallback(() => {
-    clearTimeout(refreshTimerRef.current)
+    localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(REFRESH_KEY)
     setToken(null)
     setUser(null)

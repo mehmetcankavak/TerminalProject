@@ -1,164 +1,73 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { API_BASE } from '../config'
 
-/* ── Config ──────────────────────────────────────────────────────── */
 const REFRESH_MS = 30_000
 
-// All coins verified 8/8 exchange coverage (data from all 8 exchanges)
-// kPEPE→PEPE alias handles HyperLiquid's naming
 const COINS = [
-  'BTC',   'ETH',   'SOL',   'XRP',   'BNB',   'DOGE',  'ADA',   'AVAX',  'HYPE',  'SUI',
-  'DOT',   'LINK',  'TON',   'TRX',   'NEAR',  'APT',   'LTC',   'BCH',   'UNI',   'ARB',
-  'OP',    'ATOM',  'POL',   'INJ',   'TIA',   'SEI',   'JUP',   'PYTH',  'WIF',   'PEPE',
-  'RNDR',  'IMX',   'LDO',   'STX',   'ORDI',  'WLD',   'PENDLE','GMX',   'DYDX',  'AAVE',
-  'SNX',   'CRV',   'ENA',   'COMP',  'SUSHI', 'ENS',   'BLUR',  'GALA',  'SAND',  'AXS',
-  'ICP',   'S',     'ALGO',  'HBAR',  'ETC',   'XLM',   'TAO',   'EIGEN', 'CELO',  'IOTA',
-  'NEO',   'ZEC',   'DASH',  'STRK',  'JTO',   'ONDO',
-  // New 8/8 coins (all verified)
-  'SKY',   'W',     'APE',   'AR',    'NOT',   'CFX',   'GMT',   'MINA',  'TRB',   'RSR',
-  'YGG',   'VIRTUAL','AERO', 'ZRO',   'BERA',  'PNUT',  'ETHFI', 'MOVE',  'BOME',  'BRETT',
-  'MEW',   'PENGU', 'POPCAT','PEOPLE','ZETA',  'TURBO', 'KAITO', 'GRASS', 'MOODENG','ME',
-  'SPX',
+  'BTC','ETH','SOL','XRP','BNB','DOGE','ADA','AVAX','HYPE','SUI',
+  'DOT','LINK','TON','TRX','NEAR','APT','LTC','BCH','UNI','ARB',
+  'OP','ATOM','POL','INJ','TIA','SEI','JUP','PYTH','WIF','PEPE',
+  'RNDR','IMX','LDO','STX','ORDI','WLD','PENDLE','GMX','DYDX','AAVE',
+  'SNX','CRV','ENA','COMP','SUSHI','ENS','BLUR','GALA','SAND','AXS',
+  'ICP','S','ALGO','HBAR','ETC','XLM','TAO','EIGEN','CELO','IOTA',
+  'NEO','ZEC','DASH','STRK','JTO','ONDO',
+  'SKY','W','APE','AR','NOT','CFX','GMT','MINA','TRB','RSR',
+  'YGG','VIRTUAL','AERO','ZRO','BERA','PNUT','ETHFI','MOVE','BOME','BRETT',
+  'MEW','PENGU','POPCAT','PEOPLE','ZETA','TURBO','KAITO','GRASS','MOODENG','ME','SPX',
 ]
 
-// CoinMarketCap exchange logos
 const EXCHANGES = [
-  { key: 'binance',     label: 'Binance',   color: '#f0b90b', logo: 'https://s2.coinmarketcap.com/static/img/exchanges/64x64/270.png' },
-  { key: 'okx',        label: 'OKX',       color: '#ffffff', logo: 'https://s2.coinmarketcap.com/static/img/exchanges/64x64/294.png' },
-  { key: 'bybit',      label: 'Bybit',     color: '#f7a600', logo: 'https://s2.coinmarketcap.com/static/img/exchanges/64x64/521.png' },
-  { key: 'bitget',     label: 'Bitget',    color: '#00c9a7', logo: 'https://s2.coinmarketcap.com/static/img/exchanges/64x64/513.png' },
-  { key: 'hyperliquid',label: 'HyperLiq',  color: '#9b5de5', logo: 'https://app.hyperliquid.xyz/apple-touch-icon.png' },
+  { key: 'binance',     label: 'Binance',  short: 'BIN', color: '#f0b90b', logo: 'https://s2.coinmarketcap.com/static/img/exchanges/64x64/270.png',  interval: 8 },
+  { key: 'okx',         label: 'OKX',      short: 'OKX', color: '#e8e8e8', logo: 'https://s2.coinmarketcap.com/static/img/exchanges/64x64/294.png',  interval: 8 },
+  { key: 'bybit',       label: 'Bybit',    short: 'BBT', color: '#f7a600', logo: 'https://s2.coinmarketcap.com/static/img/exchanges/64x64/521.png',  interval: 8 },
+  { key: 'bitget',      label: 'Bitget',   short: 'BG',  color: '#00c9a7', logo: 'https://s2.coinmarketcap.com/static/img/exchanges/64x64/513.png',  interval: 8 },
+  { key: 'hyperliquid', label: 'HyperLiq', short: 'HL',  color: '#9b5de5', logo: 'https://app.hyperliquid.xyz/apple-touch-icon.png',                interval: 1 },
 ]
 
-const PERIODS = [
-  { key: 'current', label: 'Current' },
-  { key: '1d', label: '1 Day' },
-  { key: '7d', label: '7 Day' },
-  { key: '30d', label: '30 Day' },
-  { key: '1y', label: '1 Year' },
-]
-
-/* ── Coin logos: verified CoinGecko URLs ──────────────────────────── */
 const COIN_LOGOS = {
-  BTC:     'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png?1696501400',
-  ETH:     'https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628',
-  SOL:     'https://coin-images.coingecko.com/coins/images/4128/large/solana.png?1718769756',
-  XRP:     'https://coin-images.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png?1696501442',
-  BNB:     'https://coin-images.coingecko.com/coins/images/825/large/bnb-icon2_2x.png?1696501970',
-  DOGE:    'https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png?1696501409',
-  ADA:     'https://coin-images.coingecko.com/coins/images/975/large/cardano.png?1696502090',
-  AVAX:    'https://coin-images.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png?1696512369',
-  HYPE:    'https://coin-images.coingecko.com/coins/images/50882/large/hyperliquid.jpg?1729431300',
-  SUI:     'https://coin-images.coingecko.com/coins/images/26375/large/sui-ocean-square.png?1727791290',
-  DOT:     'https://coin-images.coingecko.com/coins/images/12171/large/polkadot.jpg?1766533446',
-  LINK:    'https://coin-images.coingecko.com/coins/images/877/large/Chainlink_Logo_500.png?1760023405',
-  TON:     'https://coin-images.coingecko.com/coins/images/17980/large/photo_2024-09-10_17.09.00.jpeg?1725963446',
-  TRX:     'https://coin-images.coingecko.com/coins/images/1094/large/tron-logo.png?1696502193',
-  NEAR:    'https://coin-images.coingecko.com/coins/images/10365/large/near.jpg?1696510367',
-  APT:     'https://coin-images.coingecko.com/coins/images/26455/large/Aptos-Network-Symbol-Black-RGB-1x.png?1761789140',
-  LTC:     'https://coin-images.coingecko.com/coins/images/2/large/litecoin.png?1696501400',
-  BCH:     'https://coin-images.coingecko.com/coins/images/780/large/bitcoin-cash-circle.png?1696501932',
-  UNI:     'https://coin-images.coingecko.com/coins/images/12504/large/uniswap-logo.png?1720676669',
-  ARB:     'https://coin-images.coingecko.com/coins/images/16547/large/arb.jpg?1721358242',
-  OP:      'https://coin-images.coingecko.com/coins/images/25244/large/Optimism.png?1696524385',
-  ATOM:    'https://coin-images.coingecko.com/coins/images/1481/large/cosmos_hub.png?1696502525',
-  POL:     'https://coin-images.coingecko.com/coins/images/32440/large/pol.png?1759114181',
-  INJ:     'https://coin-images.coingecko.com/coins/images/12882/large/Other_200x200.png?1738782212',
-  TIA:     'https://coin-images.coingecko.com/coins/images/31967/large/tia.jpg?1696530772',
-  SEI:     'https://coin-images.coingecko.com/coins/images/28205/large/Sei_Logo_-_Transparent.png?1696527207',
-  JUP:     'https://coin-images.coingecko.com/coins/images/34188/large/jup.png?1704266489',
-  PYTH:    'https://coin-images.coingecko.com/coins/images/31924/large/pyth.png?1701245725',
-  WIF:     'https://coin-images.coingecko.com/coins/images/33566/large/dogwifhat.jpg?1702499428',
-  PEPE:    'https://coin-images.coingecko.com/coins/images/29850/large/pepe-token.jpeg?1696528776',
-  RNDR:    'https://coin-images.coingecko.com/coins/images/11636/large/rndr.png?1696511529',
-  IMX:     'https://coin-images.coingecko.com/coins/images/17233/large/immutableX-symbol-BLK-RGB.png?1696516787',
-  LDO:     'https://coin-images.coingecko.com/coins/images/13573/large/Lido_DAO.png?1696513326',
-  STX:     'https://coin-images.coingecko.com/coins/images/2069/large/Stacks_Logo_png.png?1709979332',
-  ORDI:    'https://coin-images.coingecko.com/coins/images/30162/large/ordi.png?1696529082',
-  WLD:     'https://coin-images.coingecko.com/coins/images/31069/large/worldcoin.jpeg?1696529903',
-  PENDLE:  'https://coin-images.coingecko.com/coins/images/15069/large/Pendle_Logo_Normal-03.png?1696514728',
-  GMX:     'https://coin-images.coingecko.com/coins/images/18323/large/arbit.png?1696517814',
-  DYDX:    'https://coin-images.coingecko.com/coins/images/32594/large/dydx.png?1698673495',
-  AAVE:    'https://coin-images.coingecko.com/coins/images/12645/large/aave-token-round.png?1720472354',
-  SNX:     'https://coin-images.coingecko.com/coins/images/3406/large/SNX.png?1696504103',
-  CRV:     'https://coin-images.coingecko.com/coins/images/12124/large/Curve.png?1696511967',
-  ENA:     'https://coin-images.coingecko.com/coins/images/36530/large/ethena.png?1711701436',
-  COMP:    'https://coin-images.coingecko.com/coins/images/10775/large/COMP.png?1696510737',
-  SUSHI:   'https://coin-images.coingecko.com/coins/images/12271/large/512x512_Logo_no_chop.png?1696512101',
-  ENS:     'https://coin-images.coingecko.com/coins/images/19785/large/ENS.jpg?1727872989',
-  BLUR:    'https://coin-images.coingecko.com/coins/images/28453/large/blur.png?1696527448',
-  GALA:    'https://coin-images.coingecko.com/coins/images/12493/large/GALA_token_image_-_200PNG.png?1709725869',
-  SAND:    'https://coin-images.coingecko.com/coins/images/12129/large/sandbox_logo.jpg?1696511971',
-  AXS:     'https://coin-images.coingecko.com/coins/images/13029/large/axie_infinity_logo.png?1696512817',
-  ICP:     'https://coin-images.coingecko.com/coins/images/14495/large/Internet_Computer_logo.png?1696514180',
-  S:       'https://coin-images.coingecko.com/coins/images/38108/large/200x200_Sonic_Logo.png?1734679256',
-  ALGO:    'https://coin-images.coingecko.com/coins/images/4380/large/download.png?1696504978',
-  HBAR:    'https://coin-images.coingecko.com/coins/images/3688/large/hbar.png?1696504364',
-  ETC:     'https://coin-images.coingecko.com/coins/images/453/large/ethereum-classic-logo.png?1696501717',
-  XLM:     'https://coin-images.coingecko.com/coins/images/100/large/fmpFRHHQ_400x400.jpg?1735231350',
-  TAO:     'https://coin-images.coingecko.com/coins/images/28452/large/ARUsPeNQ_400x400.jpeg?1696527447',
-  EIGEN:   'https://coin-images.coingecko.com/coins/images/37441/large/eigencloud.jpg?1751003565',
-  CELO:    'https://coin-images.coingecko.com/coins/images/11090/large/InjXBNx9_400x400.jpg?1696511031',
-  IOTA:    'https://coin-images.coingecko.com/coins/images/692/large/IOTA_Thumbnail_%281%29.png?1743772896',
-  NEO:     'https://coin-images.coingecko.com/coins/images/480/large/NEO_512_512.png?1696501735',
-  ZEC:     'https://coin-images.coingecko.com/coins/images/486/large/circle-zcash-color.png?1696501740',
-  DASH:    'https://coin-images.coingecko.com/coins/images/19/large/dash-logo.png?1696501423',
-  STRK:    'https://coin-images.coingecko.com/coins/images/26433/large/starknet.png?1696525507',
-  JTO:     'https://coin-images.coingecko.com/coins/images/33228/large/jto.png?1701137022',
-  ONDO:    'https://coin-images.coingecko.com/coins/images/26580/large/ONDO.png?1696525656',
-  SKY:     'https://coin-images.coingecko.com/coins/images/39925/large/sky.jpg?1724827980',
-  W:       'https://coin-images.coingecko.com/coins/images/35087/large/W_Token_%283%29.png?1758122686',
-  APE:     'https://coin-images.coingecko.com/coins/images/24383/large/APECOIN.png?1756551529',
-  AR:      'https://coin-images.coingecko.com/coins/images/4343/large/oRt6SiEN_400x400.jpg?1696504946',
-  NOT:     'https://coin-images.coingecko.com/coins/images/33453/large/rFmThDiD_400x400.jpg?1701876350',
-  CFX:     'https://coin-images.coingecko.com/coins/images/13079/large/3vuYMbjN.png?1696512867',
-  GMT:     'https://coin-images.coingecko.com/coins/images/23597/large/token-gmt-200x200.png?1703153841',
-  MINA:    'https://coin-images.coingecko.com/coins/images/15628/large/JM4_vQ34_400x400.png?1696515261',
-  TRB:     'https://coin-images.coingecko.com/coins/images/9644/large/TRB-New_Logo.png?1737722143',
-  RSR:     'https://coin-images.coingecko.com/coins/images/8365/large/RSR_Blue_Circle_1000.png?1721777856',
-  YGG:     'https://coin-images.coingecko.com/coins/images/17358/large/Shield_Mark_-_Colored_-_Iridescent.png?1696516909',
-  VIRTUAL: 'https://coin-images.coingecko.com/coins/images/34057/large/LOGOMARK.png?1708356054',
-  AERO:    'https://coin-images.coingecko.com/coins/images/31745/large/token.png?1696530564',
-  ZRO:     'https://coin-images.coingecko.com/coins/images/28206/large/ftxG9_TJ_400x400.jpeg?1696527208',
-  BERA:    'https://coin-images.coingecko.com/coins/images/25235/large/BERA.png?1738822008',
-  PNUT:    'https://coin-images.coingecko.com/coins/images/51301/large/Peanut_the_Squirrel.png?1734941241',
-  ETHFI:   'https://coin-images.coingecko.com/coins/images/35958/large/etherfi.jpeg?1710254562',
-  MOVE:    'https://coin-images.coingecko.com/coins/images/39345/large/movement-testnet-token.png?1721878759',
-  BOME:    'https://coin-images.coingecko.com/coins/images/36071/large/bome.png?1710407255',
-  BRETT:   'https://coin-images.coingecko.com/coins/images/35529/large/1000050750.png?1709031995',
-  MEW:     'https://coin-images.coingecko.com/coins/images/36440/large/MEW.png?1711442286',
-  PENGU:   'https://coin-images.coingecko.com/coins/images/52622/large/PUDGY_PENGUINS_PENGU_PFP.png?1733809110',
-  POPCAT:  'https://coin-images.coingecko.com/coins/images/33760/large/image.jpg?1702964227',
-  PEOPLE:  'https://coin-images.coingecko.com/coins/images/20612/large/GN_UVm3d_400x400.jpg?1696520017',
-  ZETA:    'https://coin-images.coingecko.com/coins/images/26718/large/Twitter_icon.png?1696525788',
-  TURBO:   'https://coin-images.coingecko.com/coins/images/30117/large/TurboMark-QL_200.png?1708079597',
-  KAITO:   'https://coin-images.coingecko.com/coins/images/54411/large/Qm4DW488_400x400.jpg?1739552780',
-  GRASS:   'https://coin-images.coingecko.com/coins/images/40094/large/Grass.jpg?1725697048',
-  MOODENG: 'https://coin-images.coingecko.com/coins/images/50264/large/MOODENG.jpg?1726726975',
-  ME:      'https://coin-images.coingecko.com/coins/images/39850/large/_ME_Profile_Dark_2x.png?1734013082',
-  SPX:     'https://coin-images.coingecko.com/coins/images/31401/large/centeredcoin_%281%29.png?1737048493',
-  PIXEL:   'https://coin-images.coingecko.com/coins/images/32503/large/pixel_logo.png?1707384160',
-  XAI:     'https://coin-images.coingecko.com/coins/images/33946/large/image_2024-01-09_152341901.png?1704785038',
-  U:       'https://coin-images.coingecko.com/coins/images/52079/large/u.png?1732551467',
-  OPN:     'https://coin-images.coingecko.com/coins/images/36284/large/opn_logo.png?1719543958',
-  ACX:     'https://coin-images.coingecko.com/coins/images/28456/large/across.png?1669894371',
+  BTC:'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png?1696501400',
+  ETH:'https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628',
+  SOL:'https://coin-images.coingecko.com/coins/images/4128/large/solana.png?1718769756',
+  XRP:'https://coin-images.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png?1696501442',
+  BNB:'https://coin-images.coingecko.com/coins/images/825/large/bnb-icon2_2x.png?1696501970',
+  DOGE:'https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png?1696501409',
+  ADA:'https://coin-images.coingecko.com/coins/images/975/large/cardano.png?1696502090',
+  AVAX:'https://coin-images.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png?1696512369',
+  HYPE:'https://coin-images.coingecko.com/coins/images/50882/large/hyperliquid.jpg?1729431300',
+  SUI:'https://coin-images.coingecko.com/coins/images/26375/large/sui-ocean-square.png?1727791290',
+  DOT:'https://coin-images.coingecko.com/coins/images/12171/large/polkadot.jpg?1766533446',
+  LINK:'https://coin-images.coingecko.com/coins/images/877/large/Chainlink_Logo_500.png?1760023405',
+  TON:'https://coin-images.coingecko.com/coins/images/17980/large/photo_2024-09-10_17.09.00.jpeg?1725963446',
+  TRX:'https://coin-images.coingecko.com/coins/images/1094/large/tron-logo.png?1696502193',
+  NEAR:'https://coin-images.coingecko.com/coins/images/10365/large/near.jpg?1696510367',
+  APT:'https://coin-images.coingecko.com/coins/images/26455/large/Aptos-Network-Symbol-Black-RGB-1x.png?1761789140',
+  LTC:'https://coin-images.coingecko.com/coins/images/2/large/litecoin.png?1696501400',
+  BCH:'https://coin-images.coingecko.com/coins/images/780/large/bitcoin-cash-circle.png?1696501932',
+  UNI:'https://coin-images.coingecko.com/coins/images/12504/large/uniswap-logo.png?1720676669',
+  ARB:'https://coin-images.coingecko.com/coins/images/16547/large/arb.jpg?1721358242',
+  OP:'https://coin-images.coingecko.com/coins/images/25244/large/Optimism.png?1696524385',
+  ATOM:'https://coin-images.coingecko.com/coins/images/1481/large/cosmos_hub.png?1696502525',
+  POL:'https://coin-images.coingecko.com/coins/images/32440/large/pol.png?1759114181',
+  INJ:'https://coin-images.coingecko.com/coins/images/12882/large/Other_200x200.png?1738782212',
+  TIA:'https://coin-images.coingecko.com/coins/images/31967/large/tia.jpg?1696530772',
+  SEI:'https://coin-images.coingecko.com/coins/images/28205/large/Sei_Logo_-_Transparent.png?1696527207',
+  JUP:'https://coin-images.coingecko.com/coins/images/34188/large/jup.png?1704266489',
+  PYTH:'https://coin-images.coingecko.com/coins/images/31924/large/pyth.png?1701245725',
+  WIF:'https://coin-images.coingecko.com/coins/images/33566/large/dogwifhat.jpg?1702499428',
+  PEPE:'https://coin-images.coingecko.com/coins/images/29850/large/pepe-token.jpeg?1696528776',
+  RNDR:'https://coin-images.coingecko.com/coins/images/11636/large/rndr.png?1696511529',
+  IMX:'https://coin-images.coingecko.com/coins/images/17233/large/immutableX-symbol-BLK-RGB.png?1696516787',
+  LDO:'https://coin-images.coingecko.com/coins/images/13573/large/Lido_DAO.png?1696513326',
+  STX:'https://coin-images.coingecko.com/coins/images/2069/large/Stacks_Logo_png.png?1709979332',
+  ORDI:'https://coin-images.coingecko.com/coins/images/30162/large/ordi.png?1696529082',
+  WLD:'https://coin-images.coingecko.com/coins/images/31069/large/worldcoin.jpeg?1696529903',
+  PENDLE:'https://coin-images.coingecko.com/coins/images/15069/large/Pendle_Logo_Normal-03.png?1696514728',
+  GMX:'https://coin-images.coingecko.com/coins/images/18323/large/arbit.png?1696517814',
+  DYDX:'https://coin-images.coingecko.com/coins/images/32594/large/dydx.png?1698673495',
+  AAVE:'https://coin-images.coingecko.com/coins/images/12645/large/aave-token-round.png?1720472354',
 }
 
-function coinLogoUrl(symbol) {
-  return COIN_LOGOS[symbol] ?? `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
-}
-
-/* ── Symbol normalizer ────────────────────────────────────────────── */
-// Handles 1000x prefixes, suffix variants, and exchange rebrands
-const SYM_ALIAS = {
-  RENDER: 'RNDR',  // OKX/Bybit use RENDER
-  XBT:    'BTC',   // KuCoin uses XBT
-  MATIC:  'POL',   // Polygon renamed to POL
-  FTM:    'S',     // Fantom renamed to Sonic (S)
-  SONIC:  'S',     // Binance futures use SONIC
-  kPEPE:  'PEPE',  // HyperLiquid uses kPEPE
-}
-
+const SYM_ALIAS = { RENDER:'RNDR', XBT:'BTC', MATIC:'POL', FTM:'S', SONIC:'S', kPEPE:'PEPE' }
 function normSym(raw) {
   let s = raw
   if (s.startsWith('1000000')) s = s.slice(7)
@@ -167,87 +76,84 @@ function normSym(raw) {
   return SYM_ALIAS[s] ?? s
 }
 
-/* ── Helpers ──────────────────────────────────────────────────────── */
 function fmtRate(r) {
-  if (r == null) return null
-  return (r * 100).toFixed(4) + '%'
+  if (r == null || isNaN(r)) return null
+  return (r >= 0 ? '+' : '') + (r * 100).toFixed(4) + '%'
 }
 function rateColor(r) {
-  if (r == null) return 'var(--text-3)'
-  if (r > 0) return '#00d992'
-  if (r < 0) return '#ff3b5c'
-  return 'var(--text-2)'
+  if (r == null || isNaN(r)) return 'rgba(255,255,255,0.2)'
+  if (r > 0) return '#00e87a'
+  if (r < 0) return '#f43f5e'
+  return 'rgba(255,255,255,0.35)'
+}
+function msUntilNext(intervalHours) {
+  const ms = intervalHours * 3_600_000
+  return ms - (Date.now() % ms)
+}
+function fmtCountdown(ms) {
+  const s = Math.floor(ms / 1000)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`
+  return `${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`
 }
 
-/* ── Data Fetchers ───────────────────────────────────────────────── */
+// ─── Fallback direct fetchers ─────────────────────────────────────────────────
 async function fetchBinance() {
   const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex')
   const data = await res.json()
   const out = {}
   for (const d of data) {
-    const sym = normSym(d.symbol.replace('USDT', '').replace('BUSD', ''))
+    const sym = normSym(d.symbol.replace('USDT','').replace('BUSD',''))
     out[sym] = { rate: parseFloat(d.lastFundingRate) }
   }
   return out
 }
-
 async function fetchBybit() {
   const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear&limit=300')
   const json = await res.json()
   const out = {}
   for (const d of (json.result?.list ?? [])) {
     if (!d.symbol.endsWith('USDT') || !d.fundingRate) continue
-    const sym = normSym(d.symbol.replace('USDT', ''))
-    out[sym] = { rate: parseFloat(d.fundingRate) }
+    out[normSym(d.symbol.replace('USDT',''))] = { rate: parseFloat(d.fundingRate) }
   }
   return out
 }
-
 async function fetchOKX() {
   const out = {}
   try {
-    // Step 1: get instruments to build normalized symbol → instId map
     const r1 = await fetch('https://www.okx.com/api/v5/public/instruments?instType=SWAP')
     const j1 = await r1.json()
     const instMap = {}
     for (const d of (j1.data || [])) {
       if (!d.instId?.endsWith('-USDT-SWAP')) continue
-      const sym = normSym(d.instId.replace('-USDT-SWAP', ''))
-      instMap[sym] = d.instId
+      instMap[normSym(d.instId.replace('-USDT-SWAP',''))] = d.instId
     }
-    // Step 2: fetch funding rates for our coins in parallel
-    await Promise.allSettled(
-      COINS.map(async coin => {
-        const instId = instMap[coin]
-        if (!instId) return
-        try {
-          const r = await fetch(`https://www.okx.com/api/v5/public/funding-rate?instId=${instId}`)
-          const j = await r.json()
-          const d = j.data?.[0]
-          if (d?.fundingRate != null) out[coin] = { rate: parseFloat(d.fundingRate) }
-        } catch (err) { console.warn('[FundingRate] OKX coin fetch error', err) }
-      })
-    )
+    await Promise.allSettled(COINS.map(async coin => {
+      const instId = instMap[coin]; if (!instId) return
+      try {
+        const r = await fetch(`https://www.okx.com/api/v5/public/funding-rate?instId=${instId}`)
+        const j = await r.json()
+        const d = j.data?.[0]
+        if (d?.fundingRate != null) out[coin] = { rate: parseFloat(d.fundingRate) }
+      } catch {}
+    }))
   } catch {
-    // Fallback: direct per-coin
-    await Promise.allSettled(
-      COINS.slice(0, 40).map(async coin => {
-        try {
-          const r = await fetch(`https://www.okx.com/api/v5/public/funding-rate?instId=${coin}-USDT-SWAP`)
-          const j = await r.json()
-          const d = j.data?.[0]
-          if (d?.fundingRate != null) out[coin] = { rate: parseFloat(d.fundingRate) }
-        } catch (err) { console.warn('[FundingRate] OKX fallback error', err) }
-      })
-    )
+    await Promise.allSettled(COINS.slice(0,40).map(async coin => {
+      try {
+        const r = await fetch(`https://www.okx.com/api/v5/public/funding-rate?instId=${coin}-USDT-SWAP`)
+        const j = await r.json()
+        const d = j.data?.[0]
+        if (d?.fundingRate != null) out[coin] = { rate: parseFloat(d.fundingRate) }
+      } catch {}
+    }))
   }
   return out
 }
-
 async function fetchHL() {
   const res = await fetch('https://api.hyperliquid.xyz/info', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
   })
   const [meta, ctxs] = await res.json()
@@ -258,125 +164,70 @@ async function fetchHL() {
   })
   return out
 }
-
 async function fetchBitget() {
   try {
     const res = await fetch('https://api.bitget.com/api/v2/mix/market/tickers?productType=usdt-futures')
     const json = await res.json()
     const out = {}
     for (const d of (json.data || [])) {
-      const raw = d.symbol?.replace('USDT', '')
-      if (!raw) continue
-      const sym = normSym(raw)
-      if (d.fundingRate != null) out[sym] = { rate: parseFloat(d.fundingRate) }
+      const raw = d.symbol?.replace('USDT',''); if (!raw) continue
+      if (d.fundingRate != null) out[normSym(raw)] = { rate: parseFloat(d.fundingRate) }
     }
     return out
-  } catch (err) { console.warn('[FundingRate] Bitget error', err); return {} }
+  } catch { return {} }
 }
+const FETCHERS = { binance: fetchBinance, okx: fetchOKX, bybit: fetchBybit, bitget: fetchBitget, hyperliquid: fetchHL }
 
-const FETCHERS = {
-  binance: fetchBinance, okx: fetchOKX, bybit: fetchBybit,
-  bitget: fetchBitget,   hyperliquid: fetchHL,
-}
-
-/* ── Exchange Logo ────────────────────────────────────────────────── */
-function ExchangeLogo({ ex }) {
-  const [err, setErr] = useState(false)
-  if (!err && ex.logo) {
-    return (
-      <img
-        src={ex.logo} alt={ex.label}
-        width={16} height={16}
-        style={{ borderRadius: 3, objectFit: 'cover', flexShrink: 0, verticalAlign: 'middle', marginRight: 4 }}
-        onError={() => setErr(true)}
-      />
-    )
-  }
-  return <span className="cg-fr-ex-dot" style={{ background: ex.color }} />
-}
-
-/* ── Coin Logo ────────────────────────────────────────────────────── */
-export function CoinLogo({ symbol }) {
-  const [err, setErr] = useState(false)
-  if (err) {
-    return (
-      <span style={{
-        width: 18, height: 18, borderRadius: '50%', background: 'var(--bg-3)',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 7, color: 'var(--text-2)', flexShrink: 0, fontWeight: 700,
-      }}>
-        {symbol[0]}
-      </span>
-    )
-  }
-  return (
-    <img
-      src={coinLogoUrl(symbol)} alt={symbol}
-      width={18} height={18}
-      style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-      onError={() => setErr(true)}
-    />
-  )
-}
-
-/* ── Countdown helpers ───────────────────────────────────────────── */
-function msUntilNext(intervalHours) {
-  const ms = intervalHours * 3_600_000
-  return ms - (Date.now() % ms)
-}
-function fmtCountdown(ms) {
-  const s   = Math.floor(ms / 1000)
-  const h   = Math.floor(s / 3600)
-  const m   = Math.floor((s % 3600) / 60)
-  const sec = s % 60
-  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`
-  return `${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`
-}
-
-// interval in hours per exchange
-const EX_INTERVAL = { binance: 8, okx: 8, bybit: 8, bitget: 8, hyperliquid: 1 }
-
-function FundingCountdownBar({ data }) {
-  const [now, setNow] = useState(Date.now())
+// ─── Countdown Strip ──────────────────────────────────────────────────────────
+function CountdownStrip({ data }) {
+  const [tick, setTick] = useState(0)
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
+    const id = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(id)
   }, [])
 
-  // aggregate avg rate per exchange for top coins
-  const avgRates = useMemo(() => {
-    const out = {}
-    for (const ex of EXCHANGES) {
-      const rates = Object.values(data[ex.key] || {}).map(d => d.rate).filter(r => r != null)
-      out[ex.key] = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
-    }
-    return out
-  }, [data])
-
   return (
-    <div className="fr-countdown-bar">
+    <div style={{
+      display: 'flex', gap: 8, padding: '14px 20px',
+      overflowX: 'auto', flexWrap: 'nowrap', scrollbarWidth: 'none',
+      borderBottom: '1px solid rgba(255,255,255,0.06)',
+    }}>
       {EXCHANGES.map(ex => {
-        const interval = EX_INTERVAL[ex.key]
-        const ms   = msUntilNext(interval) - (now % 1000 === 0 ? 0 : 0)  // recompute each second
-        const remaining = msUntilNext(interval)
-        const pct  = 1 - remaining / (interval * 3_600_000)
-        const avg  = avgRates[ex.key]
-        const urgency = remaining < 15 * 60_000  // <15min → highlight
-
+        const remaining = msUntilNext(ex.interval)
+        const pct = 1 - remaining / (ex.interval * 3_600_000)
+        const urgent = remaining < 15 * 60_000
+        const rates = Object.values(data[ex.key] || {}).map(d => d.rate).filter(r => r != null)
+        const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
         return (
-          <div key={ex.key} className={`fr-cd-item${urgency ? ' urgent' : ''}`}>
-            <div className="fr-cd-top">
-              <ExchangeLogo ex={ex} />
-              <span className="fr-cd-name">{ex.label}</span>
-              <span className="fr-cd-interval">{interval}h</span>
+          <div key={ex.key} style={{
+            flexShrink: 0, minWidth: 110,
+            background: urgent ? 'rgba(244,63,94,0.06)' : 'rgba(255,255,255,0.025)',
+            border: `1px solid ${urgent ? 'rgba(244,63,94,0.22)' : 'rgba(255,255,255,0.07)'}`,
+            borderRadius: 12, padding: '10px 12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+              <img src={ex.logo} alt={ex.label} width={14} height={14}
+                style={{ borderRadius: 3, objectFit: 'cover', flexShrink: 0 }}
+                onError={e => { e.target.style.display = 'none' }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>{ex.short}</span>
+              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>{ex.interval}h</span>
             </div>
-            <div className="fr-cd-timer">{fmtCountdown(remaining)}</div>
-            <div className="fr-cd-bar-track">
-              <div className="fr-cd-bar-fill" style={{ width: pct * 100 + '%', background: urgency ? 'var(--danger)' : 'var(--accent)' }} />
+            <div style={{
+              fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)',
+              color: urgent ? '#f43f5e' : 'var(--text-0)', marginBottom: 6,
+            }}>
+              {fmtCountdown(remaining)}
+            </div>
+            <div style={{ height: 2, background: 'rgba(255,255,255,0.07)', borderRadius: 1, marginBottom: 5 }}>
+              <div style={{
+                height: '100%', borderRadius: 1, transition: 'width 1s linear',
+                width: pct * 100 + '%',
+                background: urgent ? '#f43f5e' : '#00e87a',
+              }} />
             </div>
             {avg != null && (
-              <div className="fr-cd-avg" style={{ color: avg >= 0 ? 'var(--accent)' : 'var(--danger)' }}>
-                avg {(avg * 100).toFixed(4)}%
+              <div style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', color: rateColor(avg) }}>
+                {avg >= 0 ? '+' : ''}{(avg * 100).toFixed(4)}%
               </div>
             )}
           </div>
@@ -386,91 +237,383 @@ function FundingCountdownBar({ data }) {
   )
 }
 
-/* ── Funding history bar chart (Binance) ─────────────────────────── */
-function FundingHistoryChart({ coin }) {
-  const [history, setHistory] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!coin) return
-    setLoading(true)
-    fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${coin}USDT&limit=90`)
-      .then(r => r.json())
-      .then(data => {
-        if (!Array.isArray(data)) return
-        setHistory(data.map(d => ({
-          time: d.fundingTime,
-          rate: parseFloat(d.fundingRate),
-        })))
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [coin])
-
-  if (loading) return <div className="fr-hist-loading">Yükleniyor…</div>
-  if (!history.length) return <div className="fr-hist-loading">Veri yok</div>
-
-  const rates  = history.map(d => d.rate)
-  const maxAbs = Math.max(...rates.map(Math.abs), 0.0001)
-  const W = 100, H = 48
-  const barW = Math.max(1, (W / rates.length) - 0.5)
-
-  // running 7-day annualised cost label
-  const last8 = rates.slice(-24)  // last 24 periods = ~8 days
-  const avg   = last8.reduce((a, b) => a + b, 0) / last8.length
-  const annual = avg * 3 * 365  // 3 payments/day * 365
+// ─── Funding Sentiment Gauge ──────────────────────────────────────────────────
+function FundingSentiment({ sentiment }) {
+  if (!sentiment) {
+    return (
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', fontWeight: 700, letterSpacing: 0.5 }}>
+          SENTIMENT · FUNDING · loading…
+        </div>
+      </div>
+    )
+  }
+  const tone = sentiment.verdict === 'BULLISH' ? '#00e87a'
+             : sentiment.verdict === 'BEARISH' ? '#f43f5e'
+             :                                   '#aaa'
+  const pct = Math.max(0, Math.min(100, (sentiment.score + 1) * 50))
+  const avgPct = (sentiment.avg_rate * 100).toFixed(4)
 
   return (
-    <div className="fr-hist-wrap">
-      <div className="fr-hist-header">
-        <span className="fr-hist-title">Funding Rate Geçmişi — {coin} (Binance, son 90 dönem)</span>
-        <span className="fr-hist-annual" style={{ color: annual >= 0 ? 'var(--accent)' : 'var(--danger)' }}>
-          8g ort: {(avg * 100).toFixed(4)}% · yıllık ~{(annual * 100).toFixed(1)}%
-        </span>
+    <div style={{ padding: '14px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', fontWeight: 700, letterSpacing: 0.8 }}>
+          SENTIMENT · FUNDING
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)', color: tone }}>
+            {sentiment.score >= 0 ? '+' : ''}{sentiment.score.toFixed(2)}
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.6, color: tone }}>{sentiment.verdict}</span>
+        </div>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="fr-hist-svg" preserveAspectRatio="none">
-        {/* zero line */}
-        <line x1="0" y1={H / 2} x2={W} y2={H / 2} stroke="rgba(255,255,255,0.08)" strokeWidth="0.3" />
-        {rates.map((r, i) => {
-          const pct = Math.abs(r) / maxAbs
-          const barH = pct * (H / 2 - 2)
-          const x   = (i / rates.length) * W
-          const y   = r >= 0 ? H / 2 - barH : H / 2
-          return (
-            <rect key={i} x={x} y={y} width={barW} height={barH}
-              fill={r >= 0 ? 'rgba(0,217,146,0.75)' : 'rgba(255,59,92,0.75)'} />
-          )
-        })}
-      </svg>
-      <div className="fr-hist-labels">
-        <span>{new Date(history[0].time).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
-        <span>{new Date(history[Math.floor(history.length / 2)].time).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
-        <span>{new Date(history[history.length - 1].time).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
+
+      <div style={{ position: 'relative', height: 8, marginBottom: 8 }}>
+        <div style={{
+          position: 'absolute', inset: 0, borderRadius: 4,
+          background: 'linear-gradient(to right, rgba(244,63,94,0.5) 0%, rgba(244,63,94,0.15) 35%, rgba(255,255,255,0.06) 50%, rgba(0,232,122,0.15) 65%, rgba(0,232,122,0.5) 100%)',
+        }} />
+        <div style={{ position: 'absolute', top: -2, bottom: -2, left: '50%', width: 1, background: 'rgba(255,255,255,0.18)', transform: 'translateX(-50%)' }} />
+        <div style={{
+          position: 'absolute', top: '50%', left: pct + '%',
+          width: 12, height: 12, borderRadius: '50%', background: tone,
+          boxShadow: `0 0 10px ${tone}99`, border: '2px solid #000',
+          transform: 'translate(-50%, -50%)',
+          transition: 'left 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        }} />
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: 'rgba(255,255,255,0.2)', fontWeight: 700, letterSpacing: 0.5, marginBottom: 12 }}>
+        <span>BEARISH</span><span>NEUTRAL</span><span>BULLISH</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: 10, padding: '10px 10px' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: '#00e87a', letterSpacing: 0.5, marginBottom: 4 }}>OVERSOLD</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-0)', marginBottom: 2 }}>{sentiment.oversold_count}</div>
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>
+            {sentiment.top_oversold?.[0]
+              ? sentiment.top_oversold[0].symbol + ' ' + (sentiment.top_oversold[0].avg_rate * 100).toFixed(3) + '%'
+              : '—'}
+          </div>
+        </div>
+        <div style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.15)', borderRadius: 10, padding: '10px 10px' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: '#f43f5e', letterSpacing: 0.5, marginBottom: 4 }}>OVERBOUGHT</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-0)', marginBottom: 2 }}>{sentiment.overbought_count}</div>
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>
+            {sentiment.top_overbought?.[0]
+              ? sentiment.top_overbought[0].symbol + ' +' + (sentiment.top_overbought[0].avg_rate * 100).toFixed(3) + '%'
+              : '—'}
+          </div>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '10px 10px' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: 0.5, marginBottom: 4 }}>AVG RATE</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: sentiment.avg_rate >= 0 ? '#f43f5e' : '#00e87a', marginBottom: 2 }}>
+            {sentiment.avg_rate >= 0 ? '+' : ''}{avgPct}%
+          </div>
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>{sentiment.total_symbols} coins</div>
+        </div>
+        <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 10, padding: '10px 10px' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: '#fbbf24', letterSpacing: 0.5, marginBottom: 4 }}>ARB OPPS</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-0)', marginBottom: 2 }}>{sentiment.arb_count}</div>
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>
+            {sentiment.top_arb?.[0]
+              ? sentiment.top_arb[0].symbol + ' Δ' + (sentiment.top_arb[0].spread * 100).toFixed(3) + '%'
+              : '—'}
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
-/* ── Component ───────────────────────────────────────────────────── */
-export default function FundingRate() {
-  const [data, setData] = useState({})
+// ─── History Chart ────────────────────────────────────────────────────────────
+function HistoryChart({ coin }) {
+  const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
-  const [period, setPeriod] = useState('current')
-  const [search, setSearch] = useState('')
-  const [sortEx, setSortEx] = useState(null)
-  const [sortDir, setSortDir] = useState(-1)
-  const [favorites, setFavorites] = useState([])
-  const [showFav, setShowFav] = useState(false)
-  const [selectedCoin, setSelectedCoin] = useState(null)
+
+  useEffect(() => {
+    setLoading(true); setHistory([])
+    fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${coin}USDT&limit=90`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setHistory(data.map(d => ({ time: d.fundingTime, rate: parseFloat(d.fundingRate) })))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [coin])
+
+  if (loading) return <div style={{ padding: '20px 0', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>Loading…</div>
+  if (!history.length) return <div style={{ padding: '16px 0', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>No data</div>
+
+  const rates  = history.map(d => d.rate)
+  const maxAbs = Math.max(...rates.map(Math.abs), 0.0001)
+  const last24 = rates.slice(-24)
+  const avg    = last24.reduce((a, b) => a + b, 0) / last24.length
+  const annual = avg * 3 * 365
+  const W = 100, H = 52
+  const barW = Math.max(0.8, (W / rates.length) - 0.3)
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontWeight: 600 }}>Binance · Last 90 periods</span>
+        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: annual >= 0 ? '#00e87a' : '#f43f5e' }}>
+          ~{(annual * 100).toFixed(1)}% annualized
+        </span>
+      </div>
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 12px' }}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="56" preserveAspectRatio="none" style={{ display: 'block' }}>
+          <line x1="0" y1={H/2} x2={W} y2={H/2} stroke="rgba(255,255,255,0.06)" strokeWidth="0.3" />
+          {rates.map((r, i) => {
+            const pct  = Math.abs(r) / maxAbs
+            const barH = Math.max(0.5, pct * (H / 2 - 2))
+            const x    = (i / rates.length) * W
+            const y    = r >= 0 ? H / 2 - barH : H / 2
+            return <rect key={i} x={x} y={y} width={barW} height={barH}
+              fill={r >= 0 ? 'rgba(0,232,122,0.8)' : 'rgba(244,63,94,0.8)'} />
+          })}
+        </svg>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'rgba(255,255,255,0.2)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+          <span>{new Date(history[0].time).toLocaleDateString('en-US', { day:'numeric', month:'short' })}</span>
+          <span>{new Date(history[Math.floor(history.length/2)].time).toLocaleDateString('en-US', { day:'numeric', month:'short' })}</span>
+          <span>{new Date(history[history.length-1].time).toLocaleDateString('en-US', { day:'numeric', month:'short' })}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Countdown Badge (in detail view) ────────────────────────────────────────
+function CountdownBadge({ interval }) {
+  const [ms, setMs] = useState(() => msUntilNext(interval))
+  useEffect(() => {
+    const id = setInterval(() => setMs(msUntilNext(interval)), 1000)
+    return () => clearInterval(id)
+  }, [interval])
+  const urgent = ms < 15 * 60_000
+  return (
+    <div style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', color: urgent ? '#f43f5e' : 'rgba(255,255,255,0.28)' }}>
+      {fmtCountdown(ms)}
+    </div>
+  )
+}
+
+// ─── Coin Detail Page ─────────────────────────────────────────────────────────
+function CoinDetail({ coin, data, onBack, isFav, onToggleFav }) {
+  const logo = COIN_LOGOS[coin]
+  const [imgErr, setImgErr] = useState(false)
+  const [showChart, setShowChart] = useState(false)
+
+  const rates      = EXCHANGES.map(ex => ({ ...ex, rate: data[ex.key]?.[coin]?.rate ?? null }))
+  const validRates = rates.filter(r => r.rate != null)
+  const avgRate    = validRates.length ? validRates.reduce((a, b) => a + b.rate, 0) / validRates.length : null
+  const maxRate    = validRates.length ? Math.max(...validRates.map(r => r.rate)) : null
+  const minRate    = validRates.length ? Math.min(...validRates.map(r => r.rate)) : null
+  const spread     = maxRate != null && minRate != null ? maxRate - minRate : null
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-0)', color: 'var(--text-0)', overflowY: 'auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '18px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+        <button onClick={onBack}
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: 'var(--text-0)', fontSize: 16, cursor: 'pointer', padding: '6px 10px', lineHeight: 1, marginRight: 14 }}>
+          ←
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {!imgErr && logo
+              ? <img src={logo} alt={coin} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgErr(true)} />
+              : <span style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.3)' }}>{coin.slice(0,3)}</span>
+            }
+          </div>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800 }}>{coin}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Perpetual Funding Rate</div>
+          </div>
+        </div>
+        <button onClick={() => onToggleFav(coin)}
+          style={{ background: 'none', border: 'none', color: isFav ? '#f59e0b' : 'rgba(255,255,255,0.2)', fontSize: 22, cursor: 'pointer', padding: 0 }}>
+          ★
+        </button>
+      </div>
+
+      {/* Summary stats */}
+      {avgRate != null && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, padding: '16px 20px 8px' }}>
+          {[
+            { label: 'AVG RATE', val: fmtRate(avgRate), color: rateColor(avgRate) },
+            { label: 'HIGHEST',  val: fmtRate(maxRate), color: rateColor(maxRate) },
+            { label: 'LOWEST',   val: fmtRate(minRate), color: rateColor(minRate) },
+            { label: 'SPREAD',   val: spread != null ? 'Δ' + (spread * 100).toFixed(4) + '%' : '—', color: spread != null && spread >= 0.0003 ? '#fbbf24' : 'rgba(255,255,255,0.35)' },
+          ].map(s => (
+            <div key={s.label} style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)', fontWeight: 700, letterSpacing: 0.6, marginBottom: 5 }}>{s.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: s.color }}>{s.val}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Exchange cards */}
+      <div style={{ padding: '8px 20px' }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>EXCHANGE RATES</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {rates.map(ex => (
+            <div key={ex.key} style={{
+              display: 'flex', alignItems: 'center',
+              background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 12, padding: '12px 16px',
+            }}>
+              <img src={ex.logo} alt={ex.label} width={22} height={22}
+                style={{ borderRadius: 4, objectFit: 'cover', flexShrink: 0, marginRight: 12 }}
+                onError={e => { e.target.style.display = 'none' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-0)' }}>{ex.label}</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 1 }}>Every {ex.interval}h</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-mono)', color: ex.rate != null ? rateColor(ex.rate) : 'rgba(255,255,255,0.2)' }}>
+                  {ex.rate != null ? fmtRate(ex.rate) : '—'}
+                </div>
+                <CountdownBadge interval={ex.interval} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* History chart toggle */}
+      <div style={{ padding: '12px 20px 24px' }}>
+        <button onClick={() => setShowChart(v => !v)}
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '8px 14px', width: '100%' }}>
+          {showChart ? '▲ Hide' : '▼ Binance Funding History (90 periods)'}
+        </button>
+        {showChart && <HistoryChart coin={coin} />}
+      </div>
+    </div>
+  )
+}
+
+// ─── Coin Row ─────────────────────────────────────────────────────────────────
+function CoinRow({ coin, data, isFav, onSelect, onToggleFav }) {
+  const [imgErr, setImgErr] = useState(false)
+  const logo = COIN_LOGOS[coin]
+
+  const rates      = EXCHANGES.map(ex => ({ key: ex.key, short: ex.short, rate: data[ex.key]?.[coin]?.rate ?? null }))
+  const validRates = rates.filter(r => r.rate != null)
+  const avgRate    = validRates.length ? validRates.reduce((a, b) => a + b.rate, 0) / validRates.length : null
+  const spread     = validRates.length >= 2
+    ? Math.max(...validRates.map(r => r.rate)) - Math.min(...validRates.map(r => r.rate))
+    : null
+  const spreadHot  = spread != null && Math.abs(spread) >= 0.0003
+
+  return (
+    <div
+      onClick={() => onSelect(coin)}
+      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      style={{ padding: '13px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', transition: 'background 0.15s' }}
+    >
+      {/* Row 1: coin identity + avg + spread + fav */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+        <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {!imgErr && logo
+            ? <img src={logo} alt={coin} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgErr(true)} />
+            : <span style={{ fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.3)' }}>{coin.slice(0,3)}</span>
+          }
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', flex: 1, color: 'var(--text-0)' }}>{coin}</span>
+        {spread != null && (
+          <span style={{
+            fontSize: 9, fontWeight: 800, fontFamily: 'var(--font-mono)',
+            color: spreadHot ? '#fbbf24' : 'rgba(255,255,255,0.2)',
+            background: spreadHot ? 'rgba(251,191,36,0.1)' : 'transparent',
+            padding: spreadHot ? '2px 6px' : '0', borderRadius: 4, letterSpacing: 0.3,
+          }}>
+            Δ{(spread * 100).toFixed(3)}%
+          </span>
+        )}
+        {avgRate != null && (
+          <span style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', color: rateColor(avgRate) }}>
+            {fmtRate(avgRate)}
+          </span>
+        )}
+        <button onClick={e => { e.stopPropagation(); onToggleFav(coin) }}
+          style={{ background: 'none', border: 'none', color: isFav ? '#f59e0b' : 'rgba(255,255,255,0.1)', fontSize: 16, cursor: 'pointer', padding: '0 0 0 6px', lineHeight: 1 }}>
+          ★
+        </button>
+      </div>
+
+      {/* Row 2: exchange rate pills — nowrap, scroll horizontally */}
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        {rates.map(r => (
+          <div key={r.key} style={{
+            display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+            background: 'rgba(255,255,255,0.04)', borderRadius: 6, padding: '4px 8px',
+          }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)', letterSpacing: 0.3 }}>{r.short}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono)', color: r.rate != null ? rateColor(r.rate) : 'rgba(255,255,255,0.12)' }}>
+              {r.rate != null ? fmtRate(r.rate) : '—'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Exported CoinLogo (used by VolumeMonitor) ───────────────────────────────
+export function CoinLogo({ symbol, size = 22 }) {
+  const coin = normSym(String(symbol || '').replace(/USDT$|BUSD$|USD$/, ''))
+  const logo  = COIN_LOGOS[coin]
+  const [err, setErr] = useState(false)
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      {!err && logo
+        ? <img src={logo} alt={coin} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setErr(true)} />
+        : <span style={{ fontSize: size * 0.38, fontWeight: 800, color: 'rgba(255,255,255,0.4)' }}>{coin.slice(0, 2)}</span>
+      }
+    </div>
+  )
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export default function FundingRate() {
+  const [data,      setData]      = useState({})
+  const [sentiment, setSentiment] = useState(null)
+  const [loading,   setLoading]   = useState(true)
+  const [search,    setSearch]    = useState('')
+  const [sortBy,    setSortBy]    = useState('default')
+  const [showSort,  setShowSort]  = useState(false)
+  const [showFavs,  setShowFavs]  = useState(false)
+  const [favorites, setFavorites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('fr_favorites') || '[]') } catch { return [] }
+  })
+  const [selected, setSelected] = useState(null)
 
   const fetchAll = useCallback(async () => {
-    const results = await Promise.allSettled(EXCHANGES.map(ex => FETCHERS[ex.key]()))
-    const newData = {}
-    EXCHANGES.forEach((ex, i) => {
-      newData[ex.key] = results[i].status === 'fulfilled' ? results[i].value : {}
-    })
-    setData(newData)
-    setLoading(false)
+    try {
+      const r = await fetch(`${API_BASE}/api/funding/snapshot`)
+      if (!r.ok) throw new Error('http_' + r.status)
+      const json = await r.json()
+      const out = {}
+      EXCHANGES.forEach(ex => { out[ex.key] = {} })
+      for (const [coin, byEx] of Object.entries(json.rates || {})) {
+        for (const [exKey, payload] of Object.entries(byEx)) {
+          if (!out[exKey]) out[exKey] = {}
+          out[exKey][coin] = { rate: payload.rate }
+        }
+      }
+      setData(out)
+    } catch {
+      const results = await Promise.allSettled(EXCHANGES.map(ex => FETCHERS[ex.key]()))
+      const newData = {}
+      EXCHANGES.forEach((ex, i) => { newData[ex.key] = results[i].status === 'fulfilled' ? results[i].value : {} })
+      setData(newData)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -479,128 +622,188 @@ export default function FundingRate() {
     return () => clearInterval(t)
   }, [fetchAll])
 
-  const toggleFav = (coin) => {
-    setFavorites(prev => prev.includes(coin) ? prev.filter(c => c !== coin) : [...prev, coin])
-  }
+  useEffect(() => {
+    let alive = true
+    async function pull() {
+      try {
+        const r = await fetch(`${API_BASE}/api/funding/sentiment`)
+        if (!alive || !r.ok) return
+        setSentiment(await r.json())
+      } catch {}
+    }
+    pull()
+    const id = setInterval(pull, REFRESH_MS)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
 
-  let coins = COINS.filter(c => !search || c.toLowerCase().includes(search.toLowerCase()))
-  if (showFav && favorites.length > 0) coins = coins.filter(c => favorites.includes(c))
-  if (sortEx) {
-    coins = [...coins].sort((a, b) => {
-      const ra = data[sortEx]?.[a]?.rate
-      const rb = data[sortEx]?.[b]?.rate
-      if (ra == null && rb == null) return 0
-      if (ra == null) return 1
-      if (rb == null) return -1
-      return sortDir > 0 ? ra - rb : rb - ra
+  const toggleFav = useCallback((coin) => {
+    setFavorites(prev => {
+      const next = prev.includes(coin) ? prev.filter(c => c !== coin) : [...prev, coin]
+      localStorage.setItem('fr_favorites', JSON.stringify(next))
+      return next
     })
+  }, [])
+
+  const sortLabels = {
+    default:      'Default',
+    spread_desc:  'Spread: High → Low',
+    avg_desc:     'Rate: High → Low',
+    avg_asc:      'Rate: Low → High',
+    binance_desc: 'Binance: High → Low',
+    hl_desc:      'HyperLiq: High → Low',
   }
 
-  const handleSort = (exKey) => {
-    if (sortEx === exKey) setSortDir(d => -d)
-    else { setSortEx(exKey); setSortDir(-1) }
+  const displayed = useMemo(() => {
+    let list = COINS.filter(c => {
+      const matchSearch = !search || c.toLowerCase().includes(search.toLowerCase())
+      const matchFav    = !showFavs || favorites.includes(c)
+      return matchSearch && matchFav
+    })
+    const ratesArr  = (coin) => EXCHANGES.map(ex => data[ex.key]?.[coin]?.rate).filter(r => r != null)
+    const avgRate   = (coin) => { const rs = ratesArr(coin); return rs.length ? rs.reduce((a,b) => a+b, 0) / rs.length : null }
+    const spreadOf  = (coin) => { const rs = ratesArr(coin); return rs.length >= 2 ? Math.max(...rs) - Math.min(...rs) : null }
+    if (sortBy === 'spread_desc')  list = [...list].sort((a, b) => (spreadOf(b) ?? -Infinity) - (spreadOf(a) ?? -Infinity))
+    if (sortBy === 'avg_desc')     list = [...list].sort((a, b) => (avgRate(b) ?? -Infinity) - (avgRate(a) ?? -Infinity))
+    if (sortBy === 'avg_asc')      list = [...list].sort((a, b) => (avgRate(a) ?? Infinity)  - (avgRate(b) ?? Infinity))
+    if (sortBy === 'binance_desc') list = [...list].sort((a, b) => (data.binance?.[b]?.rate ?? -Infinity) - (data.binance?.[a]?.rate ?? -Infinity))
+    if (sortBy === 'hl_desc')      list = [...list].sort((a, b) => (data.hyperliquid?.[b]?.rate ?? -Infinity) - (data.hyperliquid?.[a]?.rate ?? -Infinity))
+    return list
+  }, [search, showFavs, favorites, sortBy, data])
+
+  if (selected) {
+    return (
+      <CoinDetail
+        coin={selected}
+        data={data}
+        onBack={() => setSelected(null)}
+        isFav={favorites.includes(selected)}
+        onToggleFav={toggleFav}
+      />
+    )
   }
 
   return (
-    <div className="cg-fr-page">
+    /* Outer: full height, flex column, NO scroll — inner list scrolls */
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-0)', color: 'var(--text-0)', overflow: 'hidden' }}>
 
-      {/* ── Countdown Bar ── */}
-      <FundingCountdownBar data={data} />
+      {/* ── Fixed top section — never scrolls away ───────────────── */}
+      <div style={{ flexShrink: 0 }}>
 
-      {/* ── Top Bar ── */}
-      <div className="cg-fr-topbar">
-        <div className="cg-fr-periods">
-          {PERIODS.map(p => (
-            <button key={p.key} className={`cg-fr-period-btn ${period === p.key ? 'active' : ''}`} onClick={() => setPeriod(p.key)}>
-              {p.label}
+        {/* Header + search */}
+        <div style={{ padding: '18px 20px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  onClick={() => setShowSort(v => !v)}
+                  style={{ fontSize: 18, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, letterSpacing: -0.3 }}>
+                  Funding Rate
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', transform: showSort ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
+                {displayed.length} coins · 5 exchanges · 30s refresh
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowFavs(v => !v)}
+              style={{
+                background: showFavs ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${showFavs ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                borderRadius: 20, padding: '6px 14px', cursor: 'pointer',
+                color: showFavs ? '#f59e0b' : 'rgba(255,255,255,0.35)', fontSize: 12, fontWeight: 700,
+              }}>
+              ★ {favorites.length > 0 ? favorites.length : 'Favs'}
             </button>
-          ))}
-          <button className="cg-fr-period-btn cg-fr-heatmap-btn">Funding Rate Heatmap</button>
-        </div>
-        <div className="cg-fr-actions">
-          <button className={`cg-fr-action-btn ${showFav ? '' : 'active'}`}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-            </svg>
-          </button>
-          <button className={`cg-fr-action-btn ${showFav ? 'active' : ''}`} onClick={() => setShowFav(!showFav)}>
-            Show Favorites
-          </button>
-          <button className="cg-fr-action-btn" onClick={() => {
-            const coin = prompt('Add coin to favorites (e.g. BTC):')
-            if (coin && COINS.includes(coin.toUpperCase())) toggleFav(coin.toUpperCase())
-          }}>Add Favorites</button>
-        </div>
-        <div className="cg-fr-search-wrap">
-          <input
-            className="cg-fr-search" placeholder="Search..."
-            value={search} onChange={e => setSearch(e.target.value)} spellCheck={false}
-          />
-          {search && <button className="cg-fr-search-x" onClick={() => setSearch('')}>×</button>}
-        </div>
-      </div>
+          </div>
 
-      {/* ── Table ── */}
-      <div className="cg-fr-table-wrap">
-        <table className="cg-fr-table">
-          <thead>
-            <tr>
-              <th className="cg-fr-th cg-fr-th-sym"><span className="cg-fr-th-text">Symbol</span></th>
-              {EXCHANGES.map(ex => (
-                <th key={ex.key} className={`cg-fr-th cg-fr-th-ex ${sortEx === ex.key ? 'cg-fr-th-sorted' : ''}`} onClick={() => handleSort(ex.key)}>
-                  <ExchangeLogo ex={ex} />
-                  <span className="cg-fr-th-text">{ex.label}</span>
-                  {sortEx === ex.key && <span className="cg-fr-sort-arrow">{sortDir > 0 ? '↑' : '↓'}</span>}
-                </th>
+          {/* Sort dropdown */}
+          {showSort && (
+            <div style={{
+              position: 'absolute', top: 70, left: 20,
+              background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 12, padding: 6, zIndex: 50,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.8)', minWidth: 220,
+            }}>
+              {Object.entries(sortLabels).map(([key, label]) => (
+                <div key={key}
+                  onClick={() => { setSortBy(key); setShowSort(false) }}
+                  style={{
+                    padding: '10px 14px', fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: 'pointer',
+                    color: sortBy === key ? '#00e87a' : 'rgba(255,255,255,0.6)',
+                    background: sortBy === key ? 'rgba(0,232,122,0.08)' : 'transparent',
+                    transition: 'background 0.15s',
+                  }}>
+                  {label}
+                </div>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading && Array.from({ length: 20 }).map((_, i) => (
-              <tr key={i} className="cg-fr-row cg-fr-row-skel">
-                <td className="cg-fr-td"><div className="cg-fr-skel" style={{ width: 60 }} /></td>
-                {EXCHANGES.map(ex => <td key={ex.key} className="cg-fr-td"><div className="cg-fr-skel" style={{ width: 64 }} /></td>)}
-              </tr>
-            ))}
-            {!loading && coins.map(coin => {
-              const isSelected = selectedCoin === coin
-              return (
-                <>
-                  <tr key={coin} className={`cg-fr-row${isSelected ? ' fr-row-selected' : ''}`}
-                    onClick={() => setSelectedCoin(isSelected ? null : coin)}
-                    style={{ cursor: 'pointer' }}>
-                    <td className="cg-fr-td cg-fr-td-sym">
-                      <button className={`cg-fr-fav ${favorites.includes(coin) ? 'active' : ''}`}
-                        onClick={e => { e.stopPropagation(); toggleFav(coin) }}>★</button>
-                      <CoinLogo symbol={coin} />
-                      <span className="cg-fr-coin-name">{coin}</span>
-                      <span className="fr-row-expand">{isSelected ? '▲' : '▼'}</span>
-                    </td>
-                    {EXCHANGES.map(ex => {
-                      const r = data[ex.key]?.[coin]?.rate
-                      return (
-                        <td key={ex.key} className="cg-fr-td cg-fr-td-rate">
-                          {r != null
-                            ? <span style={{ color: rateColor(r) }}>{fmtRate(r)}</span>
-                            : <span className="cg-fr-no-data">-</span>
-                          }
-                        </td>
-                      )
-                    })}
-                  </tr>
-                  {isSelected && (
-                    <tr key={coin + '_hist'} className="fr-hist-row">
-                      <td colSpan={EXCHANGES.length + 1} style={{ padding: 0 }}>
-                        <FundingHistoryChart coin={coin} />
-                      </td>
-                    </tr>
-                  )}
-                </>
-              )
-            })}
-          </tbody>
-        </table>
+            </div>
+          )}
+
+          {/* Search */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '8px 12px',
+            border: '1px solid rgba(255,255,255,0.07)', marginBottom: 14,
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="BTC, ETH, SOL…"
+              spellCheck={false}
+              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text-0)', fontSize: 13, fontFamily: 'var(--font-mono)' }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: 0, fontSize: 14 }}>✕</button>
+            )}
+          </div>
+        </div>
+
+        {/* Sentiment gauge — always visible */}
+        <FundingSentiment sentiment={sentiment} />
+
+        {/* Countdown strip — always visible */}
+        <CountdownStrip data={data} />
+
+      </div>{/* end fixed top */}
+
+      {/* Click-away for sort */}
+      {showSort && <div onClick={() => setShowSort(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />}
+
+      {/* ── Scrollable token list ─────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        {loading ? (
+          Array.from({ length: 15 }).map((_, i) => (
+            <div key={i} style={{ padding: '13px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+                <div style={{ height: 13, width: 50, borderRadius: 4, background: 'rgba(255,255,255,0.07)' }} />
+                <div style={{ marginLeft: 'auto', height: 13, width: 70, borderRadius: 4, background: 'rgba(255,255,255,0.07)' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 5 }}>
+                {EXCHANGES.map(ex => (
+                  <div key={ex.key} style={{ height: 24, width: 70, borderRadius: 6, background: 'rgba(255,255,255,0.04)' }} />
+                ))}
+              </div>
+            </div>
+          ))
+        ) : displayed.length === 0 ? (
+          <div style={{ padding: '60px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>
+            {showFavs ? 'No favorites added' : 'No coins found'}
+          </div>
+        ) : (
+          displayed.map(coin => (
+            <CoinRow
+              key={coin} coin={coin} data={data}
+              isFav={favorites.includes(coin)}
+              onSelect={setSelected}
+              onToggleFav={toggleFav}
+            />
+          ))
+        )}
       </div>
     </div>
   )

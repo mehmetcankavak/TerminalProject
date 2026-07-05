@@ -119,12 +119,21 @@ class MarketDataService:
         """
         if price <= 0:
             return None
+        # Prefer live L1 from adapter cache when available; otherwise leave
+        # zeros (honest "spread unknown") rather than fabricating a 2bp spread
+        # that misleads risk/execution layers.
+        bid, ask, spread = 0.0, 0.0, 0.0
+        cached = getattr(self._adapter, "_best_bidask", {}) if self._adapter else {}
+        live = cached.get(symbol) if cached else None
+        if live:
+            bid, ask = live
+            spread = round(ask - bid, 8) if ask and bid else 0.0
         ticker = Ticker(
             symbol=symbol,
             last_price=price,
-            bid=round(price * 0.9999, 8),
-            ask=round(price * 1.0001, 8),
-            spread=round(price * 0.0002, 8),
+            bid=bid,
+            ask=ask,
+            spread=spread,
             volume_24h=volume_24h,
             change_24h_pct=change_24h_pct,
             high_24h=high_24h,

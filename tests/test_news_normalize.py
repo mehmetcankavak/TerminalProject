@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-import pytest
 
 from cryptoterminal.core.enums import NewsPriority
 from cryptoterminal.news.normalize import determine_priority, extract_symbols

@@ -9,7 +9,6 @@
 import { API_BASE } from '../config'
 
 const BINANCE_FAPI = 'https://fapi.binance.com'
-const BINANCE_API = 'https://api.binance.com'
 const FEAR_GREED_API = 'https://api.alternative.me'
 const COINGECKO_API = 'https://api.coingecko.com/api/v3'
 
@@ -212,36 +211,45 @@ export async function fetchRecentLiquidations() {
     }))
 }
 
-// ─── Volume Monitor (24h Tickers) ───────────────────────
-export async function fetchVolume24h(limit = 20) {
-    const url = `${BINANCE_API}/api/v3/ticker/24hr`
+// ─── Volume Monitor (anomaly-ranked) ─────────────────────
+// Backend `/api/market/volume-monitor` evren olarak top-100 USDT perp alıp
+// 7g hacim ortalamasına oranı * |fiyat değişimi| ile skorlar; ham hacim
+// sıralamasının "büyük coinler sürekli tepede" sorununu çözer.
+function _normalizeVolItem(it, i) {
+    return {
+        rank: i + 1,
+        symbol: (it.symbol || '').replace(/USDT$/, ''),
+        pair: 'USDT',
+        price: it.price || 0,
+        volume24h: it.volume_24h || 0,
+        volume7dAvg: it.volume_7d_avg || 0,
+        ratio: it.ratio || 0,
+        anomalyScore: it.anomaly_score || 0,
+        band: it.band || 'normal',
+        priceChangePct: it.change_24h_pct || 0,
+    }
+}
+
+export async function fetchVolume24h(limit = 50) {
+    const url = `${API_BASE}/api/market/volume-monitor?limit=${limit}`
     const data = await fetchJSON(url, 60_000)
-    if (!data) return []
+    const items = data?.items
+    if (!Array.isArray(items)) return []
+    return items.map(_normalizeVolItem)
+}
 
-    // Filter USDT pairs, sort by quote volume
-    const usdtPairs = data
-        .filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('_'))
-        .map(t => {
-            const sym = t.symbol.replace('USDT', '')
-            const quoteVol = parseFloat(t.quoteVolume || 0)
-            const priceChange = parseFloat(t.priceChangePercent || 0)
-            return {
-                symbol: sym,
-                pair: 'USDT',
-                price: parseFloat(t.lastPrice || 0),
-                volume24h: quoteVol,
-                volumeBtc: quoteVol / 100000, // approx BTC equivalent  
-                priceChangePct: priceChange,
-                highPrice: parseFloat(t.highPrice || 0),
-                lowPrice: parseFloat(t.lowPrice || 0),
-                trades: parseInt(t.count || 0),
-            }
-        })
-        .sort((a, b) => b.volume24h - a.volume24h)
-        .slice(0, limit)
-
-    // Assign ranks
-    return usdtPairs.map((item, i) => ({ ...item, rank: i + 1 }))
+// Volume monitor + majors + universe-wide sentiment (mobile screen kullanır).
+export async function fetchVolumeMonitorFull(limit = 50) {
+    const url = `${API_BASE}/api/market/volume-monitor?limit=${limit}`
+    const data = await fetchJSON(url, 60_000)
+    if (!data || !Array.isArray(data.items)) {
+        return { items: [], majors: [], sentiment: null }
+    }
+    return {
+        items: data.items.map(_normalizeVolItem),
+        majors: (data.majors || []).map((m, i) => _normalizeVolItem(m, i)),
+        sentiment: data.sentiment || null,
+    }
 }
 
 // ─── Funding Rates ──────────────────────────────────────

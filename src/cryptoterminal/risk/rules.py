@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from ..config.settings import Settings
-from ..core.models import Order, RiskCheckResult
-from .state import RecentOrder, RiskState
+from ..core.models import Order
+from .state import RiskState
 
 
 def check_max_trade_size(order: Order, settings: Settings) -> str | None:

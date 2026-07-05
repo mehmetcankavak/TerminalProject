@@ -1,23 +1,243 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 
+/* ── iOS Toggle ─────────────────────────────────────────────────── */
+function Toggle({ value, onChange, disabled }) {
+  return (
+    <button
+      type="button"
+      className={`acc2-toggle ${value ? 'on' : ''}`}
+      onClick={() => !disabled && onChange(!value)}
+      disabled={disabled}
+      aria-checked={value}
+      role="switch"
+    >
+      <div className="acc2-toggle-thumb" />
+    </button>
+  )
+}
+
+/* ── Section Label ──────────────────────────────────────────────── */
+function SectionLabel({ children }) {
+  return <div className="acc2-section-label">{children}</div>
+}
+
+/* ── Setting Card ───────────────────────────────────────────────── */
+function SettingCard({ children }) {
+  return <div className="acc2-setting-card">{children}</div>
+}
+
+/* ── Setting Row ────────────────────────────────────────────────── */
+function SettingRow({ label, sub, right, last }) {
+  return (
+    <div className={`acc2-row ${last ? 'last' : ''}`}>
+      <div className="acc2-row-text">
+        <div className="acc2-row-label">{label}</div>
+        {sub && <div className="acc2-row-sub">{sub}</div>}
+      </div>
+      {right && <div className="acc2-row-right">{right}</div>}
+    </div>
+  )
+}
+
+/* ── Modal ──────────────────────────────────────────────────────── */
+function Modal({ open, onClose, title, children }) {
+  useEffect(() => {
+    if (!open) return
+    const handler = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, onClose])
+  if (!open) return null
+  return (
+    <div className="acc2-modal-overlay" onClick={onClose}>
+      <div className="acc2-modal" onClick={e => e.stopPropagation()}>
+        <div className="acc2-modal-header">
+          <div className="acc2-modal-title">{title}</div>
+          <button className="acc2-modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="acc2-modal-body">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Password Modal ─────────────────────────────────────────────── */
+function PasswordModal({ open, onClose, token }) {
+  const [form, setForm]         = useState({ current: '', next: '', confirm: '' })
+  const [error, setError]       = useState('')
+  const [success, setSuccess]   = useState(false)
+  const [loading, setLoading]   = useState(false)
+
+  const handleSubmit = async e => {
+    e.preventDefault()
+    setError(''); setSuccess(false)
+    if (form.next !== form.confirm) { setError('Passwords do not match'); return }
+    if (form.next.length < 8)       { setError('Min. 8 characters');      return }
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ current_password: form.current, new_password: form.next }),
+      })
+      if (res.ok) {
+        setSuccess(true)
+        setForm({ current: '', next: '', confirm: '' })
+      } else {
+        const data = await res.json()
+        setError(data.detail || 'Failed to change password')
+      }
+    } catch {
+      setError('Network error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Change Password">
+      <form className="acc2-form" onSubmit={handleSubmit}>
+        <input className="acc2-input" type="password" placeholder="Current password"
+          value={form.current} onChange={e => setForm(p => ({ ...p, current: e.target.value }))} required />
+        <input className="acc2-input" type="password" placeholder="New password (min. 8 chars)"
+          value={form.next} onChange={e => setForm(p => ({ ...p, next: e.target.value }))} required />
+        <input className="acc2-input" type="password" placeholder="Confirm new password"
+          value={form.confirm} onChange={e => setForm(p => ({ ...p, confirm: e.target.value }))} required />
+        {error   && <div className="acc2-msg acc2-msg-error">{error}</div>}
+        {success && <div className="acc2-msg acc2-msg-ok">Password updated successfully.</div>}
+        <button className="acc2-btn acc2-btn-primary" type="submit" disabled={loading}>
+          {loading ? <span className="auth-spinner" /> : 'Update Password'}
+        </button>
+      </form>
+    </Modal>
+  )
+}
+
+/* ── Telegram Modal ─────────────────────────────────────────────── */
+function TelegramModal({ open, onClose, token, tgStatus, onConnected, onDisconnected }) {
+  const [chatId, setChatId]     = useState('')
+  const [settings, setSettings] = useState({ notify_news: true, notify_orders: true, notify_alerts: true })
+  const [loading, setLoading]   = useState(false)
+  const [msg, setMsg]           = useState('')
+
+  useEffect(() => {
+    if (open && tgStatus?.connected) {
+      setSettings({
+        notify_news:   tgStatus.notify_news   ?? true,
+        notify_orders: tgStatus.notify_orders ?? true,
+        notify_alerts: tgStatus.notify_alerts ?? true,
+      })
+    }
+  }, [open, tgStatus])
+
+  const handleConnect = async e => {
+    e.preventDefault(); setMsg(''); setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/telegram/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ chat_id: chatId, ...settings }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMsg('✓ Telegram connected!')
+        onConnected({ chat_id: chatId, ...settings })
+      } else {
+        setMsg(`Error: ${data.detail || 'Connection failed'}`)
+      }
+    } catch { setMsg('Connection error') }
+    finally { setLoading(false) }
+  }
+
+  const handleUpdate = async () => {
+    setLoading(true); setMsg('')
+    try {
+      const res = await fetch(`${API_BASE}/api/telegram/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ chat_id: tgStatus?.chat_id, ...settings }),
+      })
+      if (res.ok) { setMsg('✓ Settings updated'); onConnected({ ...tgStatus, ...settings }) }
+      else setMsg('Failed to update')
+    } catch { setMsg('Network error') }
+    finally { setLoading(false) }
+  }
+
+  const handleDisconnect = async () => {
+    setLoading(true)
+    try {
+      await fetch(`${API_BASE}/api/telegram/connect`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      onDisconnected()
+      onClose()
+    } catch {} finally { setLoading(false) }
+  }
+
+  const connected = tgStatus?.connected
+
+  return (
+    <Modal open={open} onClose={onClose} title="Telegram Notifications">
+      {connected ? (
+        <div className="acc2-form">
+          <div className="acc2-tg-status">
+            <span className="acc2-tg-dot" />
+            <span>Connected · {tgStatus.chat_id}</span>
+          </div>
+          <div className="acc2-setting-card" style={{ marginTop: 12 }}>
+            {[['notify_alerts', 'Price Alerts'], ['notify_orders', 'Orders'], ['notify_news', 'HIGH Priority News']].map(([key, label], i, arr) => (
+              <SettingRow key={key} label={label} last={i === arr.length - 1}
+                right={<Toggle value={settings[key]} onChange={v => setSettings(p => ({ ...p, [key]: v }))} />} />
+            ))}
+          </div>
+          {msg && <div className={`acc2-msg ${msg.startsWith('✓') ? 'acc2-msg-ok' : 'acc2-msg-error'}`}>{msg}</div>}
+          <div className="acc2-btn-row">
+            <button className="acc2-btn acc2-btn-primary" onClick={handleUpdate} disabled={loading}>
+              {loading ? <span className="auth-spinner" /> : 'Save Settings'}
+            </button>
+            <button className="acc2-btn acc2-btn-danger" onClick={handleDisconnect} disabled={loading}>
+              Disconnect
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form className="acc2-form" onSubmit={handleConnect}>
+          <div className="acc2-tg-hint">
+            1. Open Telegram and send <code>/start</code> to <b>@TradingToolsBot</b>.<br />
+            2. The bot will reply with your Chat ID — paste it below.
+          </div>
+          <input className="acc2-input" type="text" placeholder="Chat ID (e.g. 123456789)"
+            value={chatId} onChange={e => setChatId(e.target.value)} required />
+          <div className="acc2-setting-card">
+            {[['notify_alerts', 'Price Alerts'], ['notify_orders', 'Orders'], ['notify_news', 'HIGH Priority News']].map(([key, label], i, arr) => (
+              <SettingRow key={key} label={label} last={i === arr.length - 1}
+                right={<Toggle value={settings[key]} onChange={v => setSettings(p => ({ ...p, [key]: v }))} />} />
+            ))}
+          </div>
+          {msg && <div className={`acc2-msg ${msg.startsWith('✓') ? 'acc2-msg-ok' : 'acc2-msg-error'}`}>{msg}</div>}
+          <button className="acc2-btn acc2-btn-primary" type="submit" disabled={loading}>
+            {loading ? <span className="auth-spinner" /> : 'Connect Telegram →'}
+          </button>
+        </form>
+      )}
+    </Modal>
+  )
+}
+
+/* ── Main ───────────────────────────────────────────────────────── */
 export default function AccountSettings() {
   const { user, token, plan, logout } = useAuth()
   const isPro = plan === 'pro'
-  const goUpgrade = () => {
-    window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'upgrade' } }))
-  }
 
-  const [pwForm, setPwForm]                   = useState({ current: '', next: '', confirm: '' })
-  const [pwError, setPwError]                 = useState('')
-  const [pwSuccess, setPwSuccess]             = useState(false)
-  const [pwLoading, setPwLoading]             = useState(false)
+  const goUpgrade = () => window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'upgrade' } }))
 
-  // Email
+  // Modals
+  const [pwOpen, setPwOpen]   = useState(false)
+  const [tgOpen, setTgOpen]   = useState(false)
+
+  // Email settings
   const [emailSettings, setEmailSettings] = useState(null)
   const [emailSaving, setEmailSaving]     = useState(false)
-  const [emailMsg, setEmailMsg]           = useState('')
 
   useEffect(() => {
     if (!token) return
@@ -27,308 +247,180 @@ export default function AccountSettings() {
       .catch(() => setEmailSettings({ enabled: false, notify_news: false, notify_orders: true, notify_alerts: true }))
   }, [token])
 
-  const handleEmailSave = async () => {
-    setEmailSaving(true); setEmailMsg('')
+  const saveEmailSettings = useCallback(async (patch) => {
+    const next = { ...emailSettings, ...patch }
+    setEmailSettings(next)
     try {
-      const res = await fetch(`${API_BASE}/api/email/settings`, {
+      await fetch(`${API_BASE}/api/email/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(emailSettings),
+        body: JSON.stringify(next),
       })
-      if (res.ok) { setEmailMsg('✓ Saved'); setEmailSettings(p => ({ ...p, enabled: true })) }
-      else setEmailMsg('Something went wrong')
-    } catch { setEmailMsg('Connection error') }
-    finally { setEmailSaving(false) }
-  }
+    } catch {}
+  }, [emailSettings, token])
 
   const handleEmailDisable = async () => {
     setEmailSaving(true)
     try {
       await fetch(`${API_BASE}/api/email/settings`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-      setEmailSettings(p => ({ ...p, enabled: false })); setEmailMsg('')
-    } catch { /* silent — next poll will retry */ }
+      setEmailSettings(p => ({ ...p, enabled: false }))
+    } catch {}
     finally { setEmailSaving(false) }
   }
 
   // Telegram
-  const [tgStatus, setTgStatus]       = useState(null)   // null=yükleniyor, {connected}
-  const [tgChatId, setTgChatId]       = useState('')
-  const [tgLoading, setTgLoading]     = useState(false)
-  const [tgMsg, setTgMsg]             = useState('')
-  const [tgSettings, setTgSettings]   = useState({ notify_news: true, notify_orders: true, notify_alerts: true })
+  const [tgStatus, setTgStatus] = useState(null)
 
   useEffect(() => {
     if (!token) return
     fetch(`${API_BASE}/api/telegram/status`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(d => { setTgStatus(d); if (d.connected) setTgSettings({ notify_news: d.notify_news, notify_orders: d.notify_orders, notify_alerts: d.notify_alerts }) })
+      .then(d => setTgStatus(d))
       .catch(() => setTgStatus({ connected: false }))
   }, [token])
 
-  const handleTgConnect = async (e) => {
-    e.preventDefault()
-    setTgMsg('')
-    setTgLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/telegram/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ chat_id: tgChatId, ...tgSettings }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setTgStatus({ connected: true, chat_id: tgChatId, ...tgSettings })
-        setTgMsg('✓ Telegram connected! A test message has been sent.')
-      } else {
-        setTgMsg(`Error: ${data.detail || 'Connection failed'}`)
-      }
-    } catch { setTgMsg('Connection error') }
-    finally { setTgLoading(false) }
-  }
-
-  const handleTgDisconnect = async () => {
-    setTgLoading(true)
-    try {
-      await fetch(`${API_BASE}/api/telegram/connect`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-      setTgStatus({ connected: false })
-      setTgChatId('')
-      setTgMsg('')
-    } catch { /* silent */ }
-    finally { setTgLoading(false) }
-  }
-
-  const handleChangePassword = async (e) => {
-    e.preventDefault()
-    setPwError('')
-    setPwSuccess(false)
-    if (pwForm.next !== pwForm.confirm) { setPwError('Passwords do not match'); return }
-    if (pwForm.next.length < 8)         { setPwError('Min. 8 characters');      return }
-    setPwLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/auth/change-password`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ current_password: pwForm.current, new_password: pwForm.next }),
-      })
-      if (res.ok) {
-        setPwSuccess(true)
-        setPwForm({ current: '', next: '', confirm: '' })
-      } else {
-        const data = await res.json()
-        setPwError(data.detail || 'Failed to change password')
-      }
-    } catch {
-      setPwError('Network error')
-    } finally {
-      setPwLoading(false)
-    }
-  }
+  const initial = user?.email?.charAt(0)?.toUpperCase() || '?'
+  const memberSince = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : '—'
 
   return (
-    <div className="account-settings">
+    <div className="acc2-page">
 
-      {/* ── Plan & Billing ── */}
-      <div className="acc-section">
-        <div className="acc-section-title">PLAN &amp; BILLING</div>
-
-        <div className="acc-plan-row">
-          <div className="acc-plan-info">
-            <span className={`acc-plan-badge ${isPro ? 'acc-plan-pro' : 'acc-plan-free'}`}>
-              {isPro ? 'PRO' : 'FREE'}
-            </span>
-            <div>
-              <div className="acc-plan-name">{isPro ? 'Pro Plan' : 'Free Plan'}</div>
-              <div className="acc-plan-sub">
-                {isPro
-                  ? user?.plan_expires_at
-                    ? `Active until ${new Date(user.plan_expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                    : 'Active'
-                  : 'Upgrade to unlock all 13 tools'}
-              </div>
-            </div>
+      {/* ── Hero header ────────────────────────────────────────────── */}
+      <div className="acc2-hero">
+        <div className="acc2-hero-left">
+          <div className="acc2-avatar-lg">{initial}</div>
+          <div>
+            <div className="acc2-hero-email">{user?.email}</div>
+            <div className="acc2-hero-meta">Member since {memberSince}</div>
           </div>
+        </div>
+        <div className="acc2-hero-right">
+          <span className={`acc2-plan-badge-lg ${isPro ? 'pro' : 'free'}`}>
+            {isPro ? '✦ PRO' : 'FREE'}
+          </span>
           {!isPro && (
-            <button
-              className="acc-btn acc-btn-pro"
-              onClick={goUpgrade}
-            >
+            <button className="acc2-btn acc2-btn-pro acc2-upgrade-btn" onClick={goUpgrade}>
               Upgrade to Pro →
             </button>
           )}
-          {isPro && (
-            <button
-              className="acc-btn acc-btn-outline"
-              onClick={goUpgrade}
-            >
-              Extend Plan →
-            </button>
+          {isPro && user?.plan_expires_at && (
+            <div className="acc2-hero-expiry">
+              Active until {new Date(user.plan_expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </div>
           )}
         </div>
-
-        {isPro && user?.plan_expires_at && (
-          <div className="acc-billing-note">
-            Your PRO access expires on {new Date(user.plan_expires_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
-            You can extend anytime by making another crypto payment.
-          </div>
-        )}
       </div>
 
-      {/* ── Account Info ── */}
-      <div className="acc-section">
-        <div className="acc-section-title">ACCOUNT</div>
-        <div className="acc-field-row">
-          <span className="acc-field-label">EMAIL</span>
-          <span className="acc-field-value">{user?.email}</span>
-        </div>
-        <div className="acc-field-row">
-          <span className="acc-field-label">MEMBER SINCE</span>
-          <span className="acc-field-value">
-            {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
-          </span>
-        </div>
-      </div>
+      {/* ── 2-column grid ──────────────────────────────────────────── */}
+      <div className="acc2-grid">
 
-      {/* ── Change Password ── */}
-      <div className="acc-section">
-        <div className="acc-section-title">CHANGE PASSWORD</div>
-        <form className="acc-pw-form" onSubmit={handleChangePassword}>
-          <input
-            className="acc-input"
-            type="password"
-            placeholder="Current password"
-            value={pwForm.current}
-            onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))}
-            required
-          />
-          <input
-            className="acc-input"
-            type="password"
-            placeholder="New password (min. 8 chars)"
-            value={pwForm.next}
-            onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))}
-            required
-          />
-          <input
-            className="acc-input"
-            type="password"
-            placeholder="Confirm new password"
-            value={pwForm.confirm}
-            onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))}
-            required
-          />
-          {pwError   && <div className="acc-msg acc-msg-error">{pwError}</div>}
-          {pwSuccess && <div className="acc-msg acc-msg-ok">Password updated successfully.</div>}
-          <button className="acc-btn acc-btn-outline" type="submit" disabled={pwLoading}>
-            {pwLoading ? <span className="auth-spinner" /> : 'Update Password'}
-          </button>
-        </form>
-      </div>
+        {/* Left column */}
+        <div className="acc2-col">
 
-      {/* ── Email Notifications ── */}
-      <div className="acc-section">
-        <div className="acc-section-title">EMAIL NOTIFICATIONS</div>
-        {emailSettings === null ? (
-          <div className="acc-field-row"><span className="acc-field-label">Loading…</span></div>
-        ) : (
-          <div>
-            <div className="acc-billing-note" style={{ marginBottom: 12 }}>
-              Notifications will be sent to <b>{user?.email}</b>.
-              {!emailSettings.enabled && <span style={{ color: '#4e4d49' }}> (Disabled)</span>}
-              {emailSettings.enabled && <span style={{ color: '#00d992' }}> (Active)</span>}
-            </div>
-            <div style={{ display: 'flex', gap: 16, margin: '8px 0 12px' }}>
-              {[['notify_alerts', 'Price Alerts'], ['notify_orders', 'Orders'], ['notify_news', 'HIGH Priority News']].map(([key, label]) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#b0ada8', cursor: 'pointer' }}>
-                  <input type="checkbox"
-                    checked={emailSettings[key] ?? false}
-                    onChange={e => setEmailSettings(p => ({ ...p, [key]: e.target.checked }))}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-            {emailMsg && <div className={`acc-msg ${emailMsg.startsWith('✓') ? 'acc-msg-ok' : 'acc-msg-error'}`}>{emailMsg}</div>}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="acc-btn acc-btn-outline" style={{ fontSize: 12 }} onClick={handleEmailSave} disabled={emailSaving}>
-                {emailSaving ? <span className="auth-spinner" /> : 'Save'}
-              </button>
-              {emailSettings.enabled && (
-                <button className="acc-btn acc-btn-danger" style={{ fontSize: 12 }} onClick={handleEmailDisable} disabled={emailSaving}>
-                  Disable
+          <SectionLabel>ACCOUNT</SectionLabel>
+          <SettingCard>
+            <SettingRow label="Email" sub={user?.email} />
+            <SettingRow label="Member since" sub={memberSince} last />
+          </SettingCard>
+
+          <SectionLabel>SECURITY</SectionLabel>
+          <SettingCard>
+            <SettingRow label="Password" sub="••••••••••••"
+              right={
+                <button className="acc2-btn acc2-btn-ghost" onClick={() => setPwOpen(true)}>
+                  Change →
                 </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Telegram Notifications ── */}
-      <div className="acc-section">
-        <div className="acc-section-title">TELEGRAM NOTIFICATIONS</div>
-        {tgStatus === null ? (
-          <div className="acc-field-row"><span className="acc-field-label">Loading…</span></div>
-        ) : tgStatus.connected ? (
-          <div>
-            <div className="acc-field-row">
-              <span className="acc-field-label">STATUS</span>
-              <span className="acc-field-value" style={{ color: '#00d992' }}>● Connected · {tgStatus.chat_id}</span>
-            </div>
-            <div className="acc-field-row" style={{ gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
-              {[['notify_news', 'HIGH Priority News'], ['notify_orders', 'Orders'], ['notify_alerts', 'Price Alerts']].map(([key, label]) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#b0ada8', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={tgSettings[key]} onChange={e => setTgSettings(p => ({ ...p, [key]: e.target.checked }))} />
-                  {label}
-                </label>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="acc-btn acc-btn-outline" style={{ fontSize: 12 }}
-                onClick={() => handleTgConnect({ preventDefault: () => {} })} disabled={tgLoading}>
-                {tgLoading ? <span className="auth-spinner" /> : 'Update Settings'}
-              </button>
-              <button className="acc-btn acc-btn-danger" style={{ fontSize: 12 }} onClick={handleTgDisconnect} disabled={tgLoading}>
-                Disconnect
-              </button>
-            </div>
-            {tgMsg && <div className={`acc-msg ${tgMsg.startsWith('✓') ? 'acc-msg-ok' : 'acc-msg-error'}`}>{tgMsg}</div>}
-          </div>
-        ) : (
-          <form onSubmit={handleTgConnect}>
-            <div className="acc-billing-note" style={{ marginBottom: 12 }}>
-              1. Open Telegram and send <code>/start</code> to <b>@TradingToolsBot</b>.<br />
-              2. The bot will reply with your Chat ID — paste it below.
-            </div>
-            <input
-              className="acc-input"
-              type="text"
-              placeholder="Chat ID (e.g. 123456789)"
-              value={tgChatId}
-              onChange={e => setTgChatId(e.target.value)}
-              required
+              }
             />
-            <div style={{ display: 'flex', gap: 16, margin: '10px 0' }}>
-              {[['notify_news', 'HIGH Priority News'], ['notify_orders', 'Orders'], ['notify_alerts', 'Price Alerts']].map(([key, label]) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#b0ada8', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={tgSettings[key]} onChange={e => setTgSettings(p => ({ ...p, [key]: e.target.checked }))} />
-                  {label}
-                </label>
-              ))}
-            </div>
-            {tgMsg && <div className={`acc-msg ${tgMsg.startsWith('✓') ? 'acc-msg-ok' : 'acc-msg-error'}`}>{tgMsg}</div>}
-            <button className="acc-btn acc-btn-outline" type="submit" disabled={tgLoading}>
-              {tgLoading ? <span className="auth-spinner" /> : 'Connect Telegram →'}
-            </button>
-          </form>
-        )}
+            <SettingRow label="Plan" sub={isPro ? 'Pro — all tools unlocked' : 'Free — 13 tools locked'} last
+              right={
+                <button className={`acc2-btn ${isPro ? 'acc2-btn-outline' : 'acc2-btn-pro'}`} onClick={goUpgrade}>
+                  {isPro ? 'Extend →' : 'Upgrade →'}
+                </button>
+              }
+            />
+          </SettingCard>
+
+          <SectionLabel>SESSION</SectionLabel>
+          <SettingCard>
+            <SettingRow label="Sign Out" sub="Log out of this device" last
+              right={
+                <button className="acc2-btn acc2-btn-danger" onClick={logout}>
+                  Sign Out
+                </button>
+              }
+            />
+          </SettingCard>
+
+        </div>
+
+        {/* Right column */}
+        <div className="acc2-col">
+
+          <SectionLabel>EMAIL NOTIFICATIONS</SectionLabel>
+          <SettingCard>
+            {emailSettings === null ? (
+              <SettingRow label="Loading…" last />
+            ) : (
+              <>
+                <SettingRow label="Email Alerts" sub={emailSettings.enabled ? 'Active · ' + user?.email : 'Disabled'}
+                  right={
+                    <Toggle
+                      value={!!emailSettings.enabled}
+                      onChange={v => { if (v) saveEmailSettings({ enabled: true }); else handleEmailDisable() }}
+                      disabled={emailSaving}
+                    />
+                  }
+                />
+                <SettingRow label="Price Alerts"
+                  right={<Toggle value={emailSettings.notify_alerts ?? true}
+                    onChange={v => saveEmailSettings({ notify_alerts: v })} />}
+                />
+                <SettingRow label="Order Fills"
+                  right={<Toggle value={emailSettings.notify_orders ?? true}
+                    onChange={v => saveEmailSettings({ notify_orders: v })} />}
+                />
+                <SettingRow label="HIGH Priority News" last
+                  right={<Toggle value={emailSettings.notify_news ?? false}
+                    onChange={v => saveEmailSettings({ notify_news: v })} />}
+                />
+              </>
+            )}
+          </SettingCard>
+
+          <SectionLabel>TELEGRAM NOTIFICATIONS</SectionLabel>
+          <SettingCard>
+            {tgStatus === null ? (
+              <SettingRow label="Loading…" last />
+            ) : (
+              <SettingRow
+                label="Telegram Bot"
+                sub={tgStatus.connected ? `● Connected · ${tgStatus.chat_id}` : 'Not connected'}
+                last
+                right={
+                  tgStatus.connected
+                    ? <button className="acc2-btn acc2-btn-ghost" onClick={() => setTgOpen(true)}>Settings →</button>
+                    : <button className="acc2-btn acc2-btn-outline" onClick={() => setTgOpen(true)}>Connect →</button>
+                }
+              />
+            )}
+          </SettingCard>
+
+        </div>
       </div>
 
-      {/* ── Danger zone ── */}
-      <div className="acc-section acc-section-danger">
-        <div className="acc-section-title">SESSION</div>
-        <button className="acc-btn acc-btn-danger" onClick={logout}>
-          Sign Out
-        </button>
-      </div>
+      {/* Modals */}
+      <PasswordModal open={pwOpen} onClose={() => setPwOpen(false)} token={token} />
+      <TelegramModal
+        open={tgOpen}
+        onClose={() => setTgOpen(false)}
+        token={token}
+        tgStatus={tgStatus}
+        onConnected={status => setTgStatus({ connected: true, ...status })}
+        onDisconnected={() => setTgStatus({ connected: false })}
+      />
 
     </div>
   )

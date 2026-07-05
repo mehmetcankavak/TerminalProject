@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { useAuth } from '../context/AuthContext'
 
 let sharedCtx = null
 function getCtx() {
@@ -32,6 +33,7 @@ function playDoubleBeep() {
 }
 
 export default function GlobalAlertSound() {
+  const { token } = useAuth()
   const lastPlayRef = useRef(0)
 
   const onMessage = useCallback((msg) => {
@@ -42,7 +44,6 @@ export default function GlobalAlertSound() {
     playDoubleBeep()
   }, [])
 
-  useWebSocket(onMessage)
+  useWebSocket(onMessage, undefined, { token })
   return null
 }
-

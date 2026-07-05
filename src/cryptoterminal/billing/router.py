@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from ..auth.router import get_current_user_id
@@ -160,4 +160,44 @@ async def billing_status(user_id: int = Depends(get_current_user_id)) -> dict:
         "email": user.email,
         "plan_expires_at": user.plan_expires_at,
         "stripe_customer_id": user.stripe_customer_id,
+    }
+
+
+# ── Apple In-App Purchase ───────────────────────────────────────
+
+class AppleVerifyBody(BaseModel):
+    jws: str  # JWS signed transaction from StoreKit 2 (purchase or restore)
+
+
+@router.post("/apple/verify-receipt")
+async def apple_verify_receipt(
+    body: AppleVerifyBody,
+    user_id: int = Depends(get_current_user_id),
+) -> dict:
+    """Verify an Apple StoreKit 2 transaction and upgrade the user to Pro.
+
+    Called from the iOS app immediately after a successful purchase or
+    restore. Backend re-checks the JWS before granting Pro — never trust
+    the client to mark itself Pro.
+    """
+    from . import apple_service
+    from ..auth.service import update_user_plan
+
+    try:
+        info = await apple_service.verify_and_extract(body.jws)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    product_id = info["product_id"]
+    expires_at = info["expires_at"]
+
+    # Idempotent: record this transaction and bump plan
+    await update_user_plan(user_id, "pro", expires_at=expires_at)
+
+    return {
+        "ok": True,
+        "plan": "pro",
+        "plan_expires_at": str(expires_at),
+        "product_id": product_id,
+        "sandbox": info.get("is_sandbox", False),
     }

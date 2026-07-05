@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500">
+  <defs>
+    <radialGradient id="bg1" cx="20%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#0c1f18"/>
+      <stop offset="100%" stop-color="#020808"/>
+    </radialGradient>
+    <radialGradient id="bg2" cx="85%" cy="50%" r="45%">
+      <stop offset="0%" stop-color="#081510"/>
+      <stop offset="100%" stop-color="#020808" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow1" cx="22%" cy="50%" r="38%">
+      <stop offset="0%" stop-color="#00d992" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#00d992" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="78%" cy="45%" r="30%">
+      <stop offset="0%" stop-color="#00d992" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#00d992" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ttGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ffb3"/>
+      <stop offset="100%" stop-color="#00a86b"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00d992" stop-opacity="0"/>
+      <stop offset="20%" stop-color="#00d992" stop-opacity="0.6"/>
+      <stop offset="80%" stop-color="#00d992" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#00d992" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="chartFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00d992" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#00d992" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="divider" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00d992" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#00d992" stop-opacity="0.3"/>
+      <stop offset="70%" stop-color="#00d992" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#00d992" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="chartGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background layers -->
+  <rect width="1500" height="500" fill="url(#bg1)"/>
+  <rect width="1500" height="500" fill="url(#bg2)"/>
+  <rect width="1500" height="500" fill="url(#glow1)"/>
+  <rect width="1500" height="500" fill="url(#glow2)"/>
+
+  <!-- Grid -->
+  <g stroke="#00d992" stroke-opacity="0.04" stroke-width="1">
+    <line x1="0" y1="125" x2="1500" y2="125"/>
+    <line x1="0" y1="250" x2="1500" y2="250"/>
+    <line x1="0" y1="375" x2="1500" y2="375"/>
+    <line x1="187" y1="0" x2="187" y2="500"/>
+    <line x1="375" y1="0" x2="375" y2="500"/>
+    <line x1="562" y1="0" x2="562" y2="500"/>
+    <line x1="750" y1="0" x2="750" y2="500"/>
+    <line x1="937" y1="0" x2="937" y2="500"/>
+    <line x1="1125" y1="0" x2="1125" y2="500"/>
+    <line x1="1312" y1="0" x2="1312" y2="500"/>
+  </g>
+
+  <!-- Top + bottom border lines -->
+  <line x1="0" y1="1" x2="1500" y2="1" stroke="url(#lineGrad)" stroke-width="1.5"/>
+  <line x1="0" y1="499" x2="1500" y2="499" stroke="url(#lineGrad)" stroke-width="1.5"/>
+
+  <!-- Right side chart area -->
+  <!-- Chart fill -->
+  <polygon points="780,420 860,368 940,382 1020,318 1100,285 1180,252 1260,220 1340,185 1420,155 1500,130 1500,420"
+    fill="url(#chartFill)"/>
+  <!-- Chart line -->
+  <polyline points="780,420 860,368 940,382 1020,318 1100,285 1180,252 1260,220 1340,185 1420,155 1500,130"
+    fill="none" stroke="#00d992" stroke-width="2.5" stroke-opacity="0.5"
+    stroke-linecap="round" stroke-linejoin="round"
+    filter="url(#chartGlow)"/>
+
+  <!-- Candlesticks -->
+  <g opacity="0.4">
+    <!-- candle 1 -->
+    <line x1="840" y1="325" x2="840" y2="410" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="832" y="345" width="16" height="42" rx="2" fill="#00d992"/>
+    <!-- candle 2 -->
+    <line x1="890" y1="338" x2="890" y2="400" stroke="#ef4444" stroke-width="1.2"/>
+    <rect x="882" y="350" width="16" height="36" rx="2" fill="#ef4444"/>
+    <!-- candle 3 -->
+    <line x1="940" y1="305" x2="940" y2="388" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="932" y="320" width="16" height="48" rx="2" fill="#00d992"/>
+    <!-- candle 4 -->
+    <line x1="990" y1="278" x2="990" y2="362" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="982" y="292" width="16" height="46" rx="2" fill="#00d992"/>
+    <!-- candle 5 -->
+    <line x1="1040" y1="290" x2="1040" y2="370" stroke="#ef4444" stroke-width="1.2"/>
+    <rect x="1032" y="305" width="16" height="42" rx="2" fill="#ef4444"/>
+    <!-- candle 6 -->
+    <line x1="1090" y1="255" x2="1090" y2="338" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="1082" y="268" width="16" height="44" rx="2" fill="#00d992"/>
+    <!-- candle 7 -->
+    <line x1="1140" y1="232" x2="1140" y2="310" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="1132" y="244" width="16" height="42" rx="2" fill="#00d992"/>
+    <!-- candle 8 -->
+    <line x1="1190" y1="242" x2="1190" y2="318" stroke="#ef4444" stroke-width="1.2"/>
+    <rect x="1182" y="256" width="16" height="38" rx="2" fill="#ef4444"/>
+    <!-- candle 9 -->
+    <line x1="1240" y1="205" x2="1240" y2="288" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="1232" y="218" width="16" height="44" rx="2" fill="#00d992"/>
+    <!-- candle 10 -->
+    <line x1="1290" y1="182" x2="1290" y2="260" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="1282" y="195" width="16" height="42" rx="2" fill="#00d992"/>
+    <!-- candle 11 -->
+    <line x1="1340" y1="165" x2="1340" y2="242" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="1332" y="178" width="16" height="40" rx="2" fill="#00d992"/>
+    <!-- candle 12 -->
+    <line x1="1390" y1="148" x2="1390" y2="224" stroke="#ef4444" stroke-width="1.2"/>
+    <rect x="1382" y="160" width="16" height="38" rx="2" fill="#ef4444"/>
+    <!-- candle 13 -->
+    <line x1="1440" y1="128" x2="1440" y2="205" stroke="#00d992" stroke-width="1.2"/>
+    <rect x="1432" y="140" width="16" height="42" rx="2" fill="#00d992"/>
+  </g>
+
+  <!-- Vertical divider -->
+  <line x1="740" y1="0" x2="740" y2="500" stroke="url(#divider)" stroke-width="1"/>
+
+  <!-- ─── LEFT SIDE: Brand ─── -->
+
+  <!-- Logo mark -->
+  <text x="148" y="248" font-family="'Arial Black', 'Helvetica Neue', sans-serif"
+    font-size="140" font-weight="900"
+    fill="url(#ttGrad)" text-anchor="middle" letter-spacing="-8"
+    filter="url(#glow)">TT</text>
+
+  <!-- Top eyebrow -->
+  <text x="148" y="148" font-family="'Courier New', monospace"
+    font-size="12" fill="#00d992" text-anchor="middle"
+    letter-spacing="6" opacity="0.45">@TradeTerminal_</text>
+
+  <!-- Horizontal rule -->
+  <line x1="48" y1="272" x2="248" y2="272" stroke="#00d992" stroke-opacity="0.2" stroke-width="1"/>
+
+  <!-- Brand name -->
+  <text x="148" y="308" font-family="'Arial Black', 'Helvetica Neue', sans-serif"
+    font-size="18" font-weight="900" fill="#ffffff"
+    text-anchor="middle" letter-spacing="8" opacity="0.9">TRADING TERMINAL</text>
+
+  <!-- Tagline -->
+  <text x="148" y="338" font-family="'Courier New', monospace"
+    font-size="11" fill="#00d992" text-anchor="middle"
+    letter-spacing="3" opacity="0.4">NEWS · SIGNALS · EXECUTION</text>
+
+  <!-- Corner accents -->
+  <path d="M18 70 L18 18 L70 18" fill="none" stroke="#00d992" stroke-width="2" stroke-linecap="round" stroke-opacity="0.5"/>
+  <path d="M1430 18 L1482 18 L1482 70" fill="none" stroke="#00d992" stroke-width="2" stroke-linecap="round" stroke-opacity="0.5"/>
+  <path d="M18 430 L18 482 L70 482" fill="none" stroke="#00d992" stroke-width="2" stroke-linecap="round" stroke-opacity="0.5"/>
+  <path d="M1430 482 L1482 482 L1482 430" fill="none" stroke="#00d992" stroke-width="2" stroke-linecap="round" stroke-opacity="0.5"/>
+
+  <!-- Live badge top right -->
+  <rect x="1390" y="22" width="80" height="22" rx="11" fill="#00d992" fill-opacity="0.12" stroke="#00d992" stroke-width="0.8" stroke-opacity="0.4"/>
+  <circle cx="1403" cy="33" r="4" fill="#00d992" filter="url(#glow)"/>
+  <text x="1452" y="38" font-family="'Courier New', monospace" font-size="11"
+    fill="#00d992" text-anchor="middle" letter-spacing="2" font-weight="700">LIVE</text>
+
+  <!-- Stats bottom left -->
+  <text x="48" y="462" font-family="'Courier New', monospace" font-size="10"
+    fill="#00d992" letter-spacing="2" opacity="0.3">cryptoterminal-production.up.railway.app</text>
+</svg>

@@ -5,7 +5,9 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from typing import Optional
+
+from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -17,6 +19,26 @@ from ..config.settings import get_settings
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
 limiter = Limiter(key_func=get_remote_address)
+
+_RT_COOKIE = "rt"
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    s = get_settings()
+    is_prod = getattr(s, "app_env", "development") == "production"
+    response.set_cookie(
+        key=_RT_COOKIE,
+        value=refresh_token,
+        httponly=True,
+        secure=is_prod,
+        samesite="lax",
+        max_age=30 * 24 * 3600,
+        path="/auth",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key=_RT_COOKIE, path="/auth")
 
 
 def _send_reset_email(to: str, reset_link: str) -> None:
@@ -56,33 +78,48 @@ async def get_current_user_id(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
 
+async def require_pro(user_id: int = Depends(get_current_user_id)) -> int:
+    user = await service.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.plan != "pro" and not user.is_admin:
+        raise HTTPException(status_code=402, detail="Pro plan required")
+    return user_id
+
+
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
-async def register(request: Request, body: UserCreate) -> Token:
+async def register(request: Request, response: Response, body: UserCreate) -> Token:
     if not body.email or not body.password:
         raise HTTPException(status_code=400, detail="Email and password are required")
     if len(body.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
     try:
-        return await service.register(body.email, body.password, name=body.name)
+        tokens = await service.register(body.email, body.password, name=body.name)
+        _set_refresh_cookie(response, tokens.refresh_token)
+        return tokens
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/login", response_model=Token)
 @limiter.limit("10/minute")
-async def login(request: Request, body: UserLogin) -> Token:
+async def login(request: Request, response: Response, body: UserLogin) -> Token:
     try:
-        return await service.login(body.email, body.password)
+        tokens = await service.login(body.email, body.password)
+        _set_refresh_cookie(response, tokens.refresh_token)
+        return tokens
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
 
 @router.post("/google", response_model=Token)
 @limiter.limit("10/minute")
-async def google_auth(request: Request, body: GoogleAuthRequest) -> Token:
+async def google_auth(request: Request, response: Response, body: GoogleAuthRequest) -> Token:
     try:
-        return await service.google_login(body.credential)
+        tokens = await service.google_login(body.credential)
+        _set_refresh_cookie(response, tokens.refresh_token)
+        return tokens
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
@@ -108,14 +145,28 @@ async def me(user_id: int = Depends(get_current_user_id)) -> UserOut:
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh(body: dict) -> Token:
-    refresh_token = body.get("refresh_token", "")
-    if not refresh_token:
-        raise HTTPException(status_code=400, detail="refresh_token is required")
+async def refresh(
+    response: Response,
+    body: dict = Body(default={}),
+    rt: Optional[str] = Cookie(default=None, alias=_RT_COOKIE),
+) -> Token:
+    """Cookie'den veya body'den refresh token al (geriye dönük uyumluluk)."""
+    token = rt or body.get("refresh_token", "")
+    if not token:
+        raise HTTPException(status_code=401, detail="No refresh token provided")
     try:
-        return await service.refresh_tokens(refresh_token)
+        tokens = await service.refresh_tokens(token)
+        _set_refresh_cookie(response, tokens.refresh_token)
+        return tokens
     except ValueError as e:
+        _clear_refresh_cookie(response)
         raise HTTPException(status_code=401, detail=str(e))
+
+
+@router.post("/logout")
+async def logout(response: Response) -> dict:
+    _clear_refresh_cookie(response)
+    return {"message": "Logged out"}
 
 
 @router.post("/change-password")
