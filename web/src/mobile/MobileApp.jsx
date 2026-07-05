@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { useAuth } from '../context/AuthContext'
+import OnboardingModal from '../components/OnboardingModal'
 import { haptic, requestNotificationPermission, requestPushPermission, isNative } from '../capacitor'
 import LogoTT from '../components/LogoTT'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -127,6 +128,23 @@ export default function MobileApp() {
     requestNotificationPermission()
   }, [])
 
+  // Handle tt-navigate events dispatched by OnboardingModal finish
+  useEffect(() => {
+    const handler = (e) => {
+      const page = e.detail?.page
+      if (!page) return
+      const tabs = new Set(['stocks', 'markets', 'terminal', 'wallet', 'menu'])
+      if (tabs.has(page)) {
+        setSubPage(null)
+        setActiveTab(page)
+      } else if (page in SUB_PAGES) {
+        setSubPage(page)
+      }
+    }
+    window.addEventListener('tt-navigate', handler)
+    return () => window.removeEventListener('tt-navigate', handler)
+  }, [])
+
   // Push permission + token registration — runs once after login
   useEffect(() => {
     if (!user || !token) return
@@ -226,6 +244,7 @@ export default function MobileApp() {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
+        <OnboardingModal />
         <div className="m-root m-shell">
           {/* Safe area top spacer */}
           <div className="m-status-bar" />

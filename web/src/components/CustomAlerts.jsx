@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
+import FeatureSpotlight from './FeatureSpotlight'
 
 let _alertCtx = null
 function getAudioCtx() {
@@ -257,6 +258,12 @@ export default function CustomAlerts() {
   return (
     <div className="ca2-page">
       <Toast alerts={toasts} onDismiss={id => setToasts(t => t.filter(x => x.id !== id))} />
+
+      <FeatureSpotlight
+        featureKey="custom-alerts"
+        title="Özel Fiyat Alarmları"
+        description="Herhangi bir coin için hedef fiyat belirleyin. Alarm tetiklendiğinde tarayıcı bildirimi, e-posta ve Telegram üzerinden bilgilendirme alırsınız."
+      />
 
       {/* ── Page Header ─────────────────────────────────────────── */}
       <div className="ca2-header">

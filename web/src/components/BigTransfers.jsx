@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 import { useWebSocket } from '../hooks/useWebSocket'
+import FeatureSpotlight from './FeatureSpotlight'
 
 // Real on-chain big transfers fed by backend trackers:
 //   • BTC: mempool.space WebSocket (free, no key)
@@ -615,6 +616,12 @@ export default function BigTransfers() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-0)', color: 'var(--text-0)', overflowY: 'auto' }}>
+
+      <FeatureSpotlight
+        featureKey="big-transfers"
+        title="Balina Transferleri"
+        description="BTC, ETH, USDT ve USDC üzerinde $500K+ tutarındaki on-chain transferleri gerçek zamanlı izleyin. CEX giriş/çıkış akışları fiyat hareketini önceden sinyalleyebilir."
+      />
 
       {/* Header */}
       <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>

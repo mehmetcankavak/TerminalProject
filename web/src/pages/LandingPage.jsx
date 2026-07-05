@@ -288,6 +288,53 @@ function CardStack({ items, autoAdvance = true, intervalMs = 3500 }) {
   )
 }
 
+// ── Token Logo Ticker ─────────────────────────────────────────────────────────
+const CG = 'https://coin-images.coingecko.com/coins/images'
+const TOKEN_LIST = [
+  { sym:'BTC',  color:'#F7931A', img:`${CG}/1/large/bitcoin.png` },
+  { sym:'ETH',  color:'#627EEA', img:`${CG}/279/large/ethereum.png` },
+  { sym:'SOL',  color:'#9945FF', img:`${CG}/4128/large/solana.png` },
+  { sym:'BNB',  color:'#F0B90B', img:`${CG}/825/large/bnb-icon2_2x.png` },
+  { sym:'XRP',  color:'#00AAE4', img:`${CG}/44/large/xrp-symbol-white-128.png` },
+  { sym:'USDT', color:'#26A17B', img:`${CG}/325/large/Tether.png` },
+  { sym:'HYPE', color:'#00E87A', img:'https://assets.coingecko.com/coins/images/50882/large/hyperliquid.jpg' },
+  { sym:'AVAX', color:'#E84142', img:`${CG}/12559/large/Avalanche_Circle_RedWhite_Trans.png` },
+  { sym:'DOGE', color:'#C2A633', img:`${CG}/5/large/dogecoin.png` },
+  { sym:'ARB',  color:'#12AAFF', img:`${CG}/16547/large/photo_2023-03-29_21.47.00.jpeg` },
+  { sym:'SUI',  color:'#4DA2FF', img:`${CG}/26375/large/sui_asset.jpeg` },
+  { sym:'OP',   color:'#FF0420', img:`${CG}/25244/large/Optimism.png` },
+  { sym:'LINK', color:'#2A5ADA', img:`${CG}/877/large/chainlink-new-logo.png` },
+  { sym:'DOT',  color:'#E6007A', img:`${CG}/12171/large/polkadot.png` },
+  { sym:'APT',  color:'#1FD1A3', img:`${CG}/26455/large/aptos_round.png` },
+  { sym:'JUP',  color:'#C7A857', img:`${CG}/34188/large/jup.png` },
+  { sym:'UNI',  color:'#FF007A', img:`${CG}/12504/large/uni.jpg` },
+  { sym:'ATOM', color:'#8B8FAE', img:`${CG}/1481/large/cosmos_hub.png` },
+]
+
+function TokenTicker() {
+  const all = [...TOKEN_LIST, ...TOKEN_LIST]
+  return (
+    <div className="tt-wrap">
+      <div className="tt-fade-l" /><div className="tt-fade-r" />
+      <div className="tt-track">
+        {all.map((t, i) => (
+          <div key={i} className="tt-token">
+            <div className="tt-circle" style={{ '--tc': t.color }}>
+              <img
+                src={t.img}
+                alt={t.sym}
+                className="tt-img"
+                onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }}
+              />
+              <span className="tt-fallback" style={{ color: t.color }}>{t.sym.slice(0,2)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Infinite marquee ─────────────────────────────────────────────────────────
 function Marquee({ items }) {
   const doubled = [...items, ...items]
@@ -300,6 +347,74 @@ function Marquee({ items }) {
             <span className="ld3-mq-dot" />{item}
           </span>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Hero Visual ───────────────────────────────────────────────────────────────
+function HeroVisual() {
+  const [btc, setBtc] = useState(67480)
+  const [liqAmt, setLiqAmt] = useState(124)
+  const [whaleAmt, setWhaleAmt] = useState(4.2)
+  const [fundRate, setFundRate] = useState(0.083)
+  const [btcUp, setBtcUp] = useState(true)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setBtc(p => { const n = p + (Math.random() - 0.48) * 60; setBtcUp(n > p); return Math.round(n) })
+      setLiqAmt(p => Math.max(80, Math.min(220, p + (Math.random() - 0.5) * 12)))
+      setWhaleAmt(p => parseFloat(Math.max(1, Math.min(12, p + (Math.random() - 0.5) * 0.8)).toFixed(1)))
+      setFundRate(p => parseFloat(Math.max(0.01, Math.min(0.18, p + (Math.random() - 0.5) * 0.008)).toFixed(3)))
+    }, 1800)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <div className="hv-root">
+      {/* Ambient glow */}
+      <div className="hv-ambient" />
+
+      {/* Rotating orbit rings */}
+      <div className="hv-ring hv-ring-outer" />
+      <div className="hv-ring hv-ring-mid" />
+
+      {/* Main terminal frame */}
+      <div className="hv-frame">
+        <div className="hv-corner hv-c-tl" />
+        <div className="hv-corner hv-c-tr" />
+        <div className="hv-corner hv-c-bl" />
+        <div className="hv-corner hv-c-br" />
+        <div className="hv-frame-inner">
+          <TerminalPreview />
+        </div>
+        <div className="hv-frame-glow" />
+      </div>
+
+      {/* Floating data bubbles */}
+      <div className="hv-bubble hv-b-btc">
+        <span className="hv-b-label">BTC / USDT</span>
+        <span className={`hv-b-price ${btcUp ? 'up' : 'down'}`}>${btc.toLocaleString()}</span>
+        <span className={`hv-b-change ${btcUp ? 'up' : 'down'}`}>{btcUp ? '▲' : '▼'} {btcUp ? '+' : ''}{((btc - 67000) / 670).toFixed(2)}%</span>
+      </div>
+
+      <div className="hv-bubble hv-b-liq">
+        <div className="hv-b-row">
+          <span className="bm-pulse-dot" />
+          <span className="hv-b-label">24H LIQ</span>
+        </div>
+        <span className="hv-b-price red">${liqAmt.toFixed(0)}M</span>
+      </div>
+
+      <div className="hv-bubble hv-b-whale">
+        <span className="hv-b-label">WHALE ALERT</span>
+        <span className="hv-b-whale-val">${whaleAmt}M BTC</span>
+        <span className="hv-b-label" style={{color:'rgba(245,158,11,.7)'}}>ON-CHAIN</span>
+      </div>
+
+      <div className="hv-bubble hv-b-fund">
+        <span className="hv-b-label">FUND RATE</span>
+        <span className="hv-b-price" style={{color:'#3b82f6'}}>+{fundRate}%</span>
       </div>
     </div>
   )
@@ -1135,6 +1250,612 @@ function TermMini() {
   )
 }
 
+// ── Mobile App Showcase ───────────────────────────────────────────────────────
+// CMC logo CDN — same source as real mobile app MarketsScreen
+const CMC = 'https://s2.coinmarketcap.com/static/img/coins/64x64'
+const FLOAT_TOKENS = [
+  { sym:'BTC',  color:'#F7931A', img:`${CMC}/1.png`,     pos:{ left:'-22%', top:'8%'  }, delay:0   },
+  { sym:'ETH',  color:'#627EEA', img:`${CMC}/1027.png`,  pos:{ right:'-20%',top:'18%' }, delay:0.7 },
+  { sym:'SOL',  color:'#9945FF', img:`${CMC}/5426.png`,  pos:{ left:'-18%', top:'58%' }, delay:1.4 },
+  { sym:'HYPE', color:'#00D992', img:`${CMC}/29093.png`, pos:{ right:'-18%',top:'55%' }, delay:0.4 },
+  { sym:'BNB',  color:'#F0B90B', img:`${CMC}/1839.png`,  pos:{ left:'-24%', top:'34%' }, delay:1.8 },
+  { sym:'AVAX', color:'#E84142', img:`${CMC}/5805.png`,  pos:{ right:'-22%',top:'75%' }, delay:1.1 },
+]
+
+// ─── App Showcase: 5 phone screens matching the real app ──────────────────────
+
+function fmtPx(p) {
+  if (p >= 1000) return '$' + Math.round(p).toLocaleString('en-US')
+  if (p >= 1)    return '$' + p.toFixed(2)
+  return '$' + p.toFixed(4)
+}
+
+// Screen 1: Crypto Markets
+const MKT_COINS = [
+  { sym:'BTC',  name:'Bitcoin',     id:1,    base:67480, chg: 2.34 },
+  { sym:'ETH',  name:'Ethereum',    id:1027, base:3621,  chg:-0.87 },
+  { sym:'SOL',  name:'Solana',      id:5426, base:168.4, chg: 5.12 },
+  { sym:'HYPE', name:'Hyperliquid', id:29093,base:24.81, chg: 8.64 },
+  { sym:'BNB',  name:'BNB',         id:1839, base:592.3, chg: 1.21 },
+  { sym:'AVAX', name:'Avalanche',   id:5805, base:38.72, chg:-1.53 },
+]
+function PhoneMarkets({ isActive }) {
+  const [coins, setCoins] = useState(() => MKT_COINS.map(c => ({ ...c, price: c.base })))
+  const [flash, setFlash] = useState({})
+  useEffect(() => {
+    if (!isActive) return
+    const id = setInterval(() => {
+      setCoins(prev => prev.map(c => {
+        const np = c.price + (Math.random()-.48)*c.base*.0015
+        if (Math.abs(np - c.price) > c.base*.0007) {
+          setFlash(f => ({ ...f, [c.sym]: np > c.price }))
+          setTimeout(() => setFlash(f => { const n={...f}; delete n[c.sym]; return n }), 450)
+        }
+        return { ...c, price: np }
+      }))
+    }, 2000)
+    return () => clearInterval(id)
+  }, [isActive])
+  return (
+    <div className="phs-screen">
+      <div className="phs-shd"><span className="phs-stitle">Crypto Markets</span><span className="phs-live-tag green"><span className="bm-pulse-dot green" style={{width:4,height:4}}/>LIVE</span></div>
+      <div className="phs-chips"><span className="phs-chip on">All</span><span className="phs-chip">Watchlist</span><span className="phs-chip">Gainers</span></div>
+      <div className="phs-list">
+        {coins.map(c => (
+          <div key={c.sym} className={`phs-row${flash[c.sym]===true?' fl-up':flash[c.sym]===false?' fl-dn':''}`}>
+            <img src={`${CMC}/${c.id}.png`} alt={c.sym} className="phs-logo" onError={e=>{e.currentTarget.style.opacity='.1'}}/>
+            <div className="phs-info"><span className="phs-sym">{c.sym}</span><span className="phs-nm">{c.name}</span></div>
+            <div className="phs-px"><span className="phs-val">{fmtPx(c.price)}</span><span className={`phs-chg ${c.chg>=0?'up':'dn'}`}>{c.chg>=0?'+':''}{c.chg.toFixed(2)}%</span></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Screen 2: Liquidation Stream
+const LIQ_SYMS2 = ['BTC','ETH','SOL','BNB','HYPE','ARB','AVAX','OP']
+const LIQ_AMTS2 = ['$6.1M','$2.3M','$890K','$4.7M','$1.1M','$3.2M','$580K']
+function PhoneLiquidations({ isActive }) {
+  const [liqs, setLiqs] = useState([
+    { sym:'BTC', side:'LONG',  amt:'$6.1M', ago:'1s',  color:'#f43f5e' },
+    { sym:'ETH', side:'SHORT', amt:'$2.3M', ago:'4s',  color:'#00d992' },
+    { sym:'SOL', side:'LONG',  amt:'$890K', ago:'7s',  color:'#f43f5e' },
+    { sym:'HYPE',side:'SHORT', amt:'$1.1M', ago:'12s', color:'#00d992' },
+    { sym:'BNB', side:'LONG',  amt:'$580K', ago:'18s', color:'#f43f5e' },
+  ])
+  const [score, setScore] = useState(.34)
+  useEffect(() => {
+    if (!isActive) return
+    const id = setInterval(() => {
+      const sym = LIQ_SYMS2[Math.floor(Math.random()*LIQ_SYMS2.length)]
+      const side = Math.random()>.5?'LONG':'SHORT'
+      setLiqs(prev => [{ sym, side, amt:LIQ_AMTS2[Math.floor(Math.random()*LIQ_AMTS2.length)], ago:'just now', color:side==='LONG'?'#f43f5e':'#00d992' }, ...prev.slice(0,4)])
+      setScore(s => Math.max(-1, Math.min(1, s+(Math.random()-.5)*.08)))
+    }, 1800)
+    return () => clearInterval(id)
+  }, [isActive])
+  const pct=(score+1)*50
+  const verdict=score>.3?'BULLISH':score<-.3?'BEARISH':'NEUTRAL'
+  const tone=verdict==='BULLISH'?'#00d992':verdict==='BEARISH'?'#f43f5e':'#888'
+  return (
+    <div className="phs-screen">
+      <div className="phs-shd"><span className="phs-stitle">Liquidations</span><span className="phs-live-tag" style={{color:'#f43f5e'}}><span className="bm-pulse-dot" style={{width:4,height:4}}/>LIVE</span></div>
+      <div className="phs-sentiment">
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+          <span style={{fontSize:9,color:'#555',fontFamily:'var(--mono)',letterSpacing:.6,fontWeight:700}}>SENTIMENT · 24H</span>
+          <span style={{fontSize:11,fontWeight:800,fontFamily:'var(--mono)',color:tone}}>{verdict}</span>
+        </div>
+        <div className="phs-sent-bg"><div className="phs-sent-fill" style={{width:`${pct}%`,background:tone}}/><div className="phs-sent-needle" style={{left:`${pct}%`}}/></div>
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:3}}>
+          <span style={{fontSize:8,color:'#f43f5e',fontFamily:'var(--mono)'}}>LONG LIQ</span>
+          <span style={{fontSize:8,color:'#00d992',fontFamily:'var(--mono)'}}>SHORT LIQ</span>
+        </div>
+      </div>
+      <div className="phs-list">
+        {liqs.map((l,i) => (
+          <div key={i} className={`phs-row${i===0?' phs-new':''}`}>
+            <span className="phs-sym">{l.sym}</span>
+            <span className="phs-side-badge" style={{color:l.color,background:l.color+'18'}}>{l.side}</span>
+            <span className="phs-val" style={{flex:1,textAlign:'right'}}>{l.amt}</span>
+            <span style={{fontSize:9,color:'rgba(255,255,255,.25)',fontFamily:'var(--mono)',marginLeft:4,minWidth:36,textAlign:'right'}}>{l.ago}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Screen 3: Smart Money
+const SM_SYMS = ['BTC','ETH','SOL','HYPE','BNB','ARB']
+const SM_AMTS = ['$12.4M','$4.8M','$2.1M','$890K','$5.1M','$3.4M']
+function PhoneSmartMoney({ isActive }) {
+  const [moves, setMoves] = useState([
+    { label:'Whale #1', addr:'0x3b4a...f8c2', action:'BUY',  sym:'BTC',  amt:'$12.4M', ago:'2m' },
+    { label:'Whale #2', addr:'0x7d91...3a4e', action:'SELL', sym:'ETH',  amt:'$4.8M',  ago:'5m' },
+    { label:'Fund #3',  addr:'0xa2c8...9b1d', action:'BUY',  sym:'SOL',  amt:'$2.1M',  ago:'11m' },
+    { label:'Whale #4', addr:'0x5f2e...c70a', action:'BUY',  sym:'HYPE', amt:'$890K',  ago:'19m' },
+  ])
+  useEffect(() => {
+    if (!isActive) return
+    const id = setInterval(() => {
+      const sym=SM_SYMS[Math.floor(Math.random()*SM_SYMS.length)]
+      const action=Math.random()>.5?'BUY':'SELL'
+      const n=Math.floor(Math.random()*99)+1
+      const addr='0x'+Math.random().toString(16).slice(2,6)+'...'+Math.random().toString(16).slice(2,6)
+      setMoves(prev=>[{ label:`Whale #${n}`, addr, action, sym, amt:SM_AMTS[Math.floor(Math.random()*SM_AMTS.length)], ago:'just now' },...prev.slice(0,3)])
+    }, 2400)
+    return () => clearInterval(id)
+  }, [isActive])
+  return (
+    <div className="phs-screen">
+      <div className="phs-shd"><span className="phs-stitle">Smart Money</span><span className="phs-live-tag green"><span className="bm-pulse-dot green" style={{width:4,height:4}}/>TRACKING</span></div>
+      <div className="phs-list" style={{gap:6}}>
+        {moves.map((m,i)=>(
+          <div key={i} className={`phs-sm-row${i===0?' phs-new':''}`}>
+            <div className="phs-sm-whale-icon" style={{color:m.action==='BUY'?'#00d992':'#f43f5e',background:m.action==='BUY'?'rgba(0,217,146,.1)':'rgba(244,63,94,.08)'}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 16.3c0 2.6-4.5 4.7-10 4.7S2 18.9 2 16.3c0-1.1.9-2.1 2.3-2.9L12 17l7.7-3.6c1.4.8 2.3 1.8 2.3 2.9z"/><path d="M19.7 13.4C21.1 12.3 22 11 22 9.5 22 6.5 17.5 4 12 4S2 6.5 2 9.5c0 1.5.9 2.8 2.3 3.9"/></svg>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:2}}>
+                <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,.85)'}}>{m.label}</span>
+                <span className="phs-side-badge" style={{color:m.action==='BUY'?'#00d992':'#f43f5e',background:m.action==='BUY'?'rgba(0,217,146,.12)':'rgba(244,63,94,.12)'}}>{m.action}</span>
+                <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,.7)',fontFamily:'var(--mono)'}}>{m.sym}</span>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between'}}>
+                <span style={{fontSize:9,color:'rgba(255,255,255,.28)',fontFamily:'var(--mono)'}}>{m.addr}</span>
+                <span style={{fontSize:9,color:'rgba(255,255,255,.28)',fontFamily:'var(--mono)'}}>{m.ago}</span>
+              </div>
+            </div>
+            <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,.8)',fontFamily:'var(--mono)',marginLeft:6,flexShrink:0}}>{m.amt}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Screen 4: Funding Rates
+const FUND_BASE2 = [
+  { sym:'BTC',  id:1,     rate:.0210, long:true  },
+  { sym:'ETH',  id:1027,  rate:.0085, long:false },
+  { sym:'SOL',  id:5426,  rate:.0320, long:true  },
+  { sym:'HYPE', id:29093, rate:.0512, long:true  },
+  { sym:'BNB',  id:1839,  rate:.0041, long:false },
+  { sym:'ARB',  id:11841, rate:.0183, long:true  },
+]
+function PhoneFunding({ isActive }) {
+  const [rates, setRates] = useState(FUND_BASE2)
+  useEffect(() => {
+    if (!isActive) return
+    const id = setInterval(() => {
+      setRates(prev => prev.map(r => ({
+        ...r, rate: Math.max(.001, r.rate+(Math.random()-.5)*.003),
+        long: Math.random()>.35 ? r.long : !r.long,
+      })))
+    }, 2400)
+    return () => clearInterval(id)
+  }, [isActive])
+  return (
+    <div className="phs-screen">
+      <div className="phs-shd"><span className="phs-stitle">Funding Rates</span><span className="phs-live-tag" style={{color:'#3b82f6'}}>8H RATE</span></div>
+      <div className="phs-fund-hd"><span>Asset</span><span>Rate</span><span>Pays</span></div>
+      <div className="phs-list" style={{gap:3}}>
+        {rates.map(r=>(
+          <div key={r.sym} className="phs-fund-row">
+            <div style={{display:'flex',alignItems:'center',gap:7}}>
+              <img src={`${CMC}/${r.id}.png`} alt={r.sym} className="phs-logo" style={{width:26,height:26}} onError={e=>{e.currentTarget.style.opacity='.1'}}/>
+              <span className="phs-sym">{r.sym}</span>
+            </div>
+            <span className={`phs-fund-rate ${r.rate>.04?'hi':r.rate>.02?'md':'lo'}`}>{r.rate.toFixed(4)}%</span>
+            <span className={`phs-side-badge ${r.long?'long-badge':'short-badge'}`}>{r.long?'LONG':'SHORT'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Screen 5: Stocks
+const STOCK_BASE2 = [
+  { sym:'AAPL', name:'Apple',     base:189.5, chg: 1.24 },
+  { sym:'TSLA', name:'Tesla',     base:248.3, chg:-2.87 },
+  { sym:'NVDA', name:'Nvidia',    base:892.4, chg: 4.52 },
+  { sym:'AMZN', name:'Amazon',    base:178.6, chg: 0.91 },
+  { sym:'META', name:'Meta',      base:512.8, chg: 2.13 },
+  { sym:'MSFT', name:'Microsoft', base:421.3, chg:-0.34 },
+]
+function PhoneStocks({ isActive }) {
+  const [stocks, setStocks] = useState(() => STOCK_BASE2.map(s=>({...s,price:s.base})))
+  useEffect(() => {
+    if (!isActive) return
+    const id = setInterval(() => {
+      setStocks(prev => prev.map(s => ({ ...s, price: Math.max(s.base*.7, s.price+(Math.random()-.48)*s.base*.002) })))
+    }, 1600)
+    return () => clearInterval(id)
+  }, [isActive])
+  return (
+    <div className="phs-screen">
+      <div className="phs-shd"><span className="phs-stitle">Stocks</span><span className="phs-live-tag" style={{color:'#f59e0b'}}>NYSE/NASDAQ</span></div>
+      <div className="phs-chips"><span className="phs-chip on">All</span><span className="phs-chip">Tech</span><span className="phs-chip">Watchlist</span></div>
+      <div className="phs-list">
+        {stocks.map(s=>(
+          <div key={s.sym} className="phs-row">
+            <div className="phs-stock-ico" style={{background:s.chg>=0?'rgba(0,217,146,.08)':'rgba(244,63,94,.08)',border:`1px solid ${s.chg>=0?'rgba(0,217,146,.2)':'rgba(244,63,94,.2)'}`}}>
+              <span style={{fontSize:8,fontWeight:800,color:s.chg>=0?'#00d992':'#f43f5e',fontFamily:'var(--mono)'}}>{s.sym.slice(0,4)}</span>
+            </div>
+            <div className="phs-info"><span className="phs-sym">{s.sym}</span><span className="phs-nm">{s.name}</span></div>
+            <div className="phs-px"><span className="phs-val">${s.price.toFixed(2)}</span><span className={`phs-chg ${s.chg>=0?'up':'dn'}`}>{s.chg>=0?'+':''}{s.chg.toFixed(2)}%</span></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Terminal screen: live news/event feed ──────────────────────────────────────
+const TERM_EVENTS = [
+  { id:1, prio:'HIGH',   badge:'LIST',  badgeColor:'#00d992', sym:'HYPE',  headline:'Hyperliquid listed on Coinbase — trading starts immediately',         age:'2s',  side:null },
+  { id:2, prio:'HIGH',   badge:'HACK',  badgeColor:'#f43f5e', sym:'WBTC',  headline:'$47M exploit detected on WrappedBTC bridge — withdrawals paused',      age:'41s', side:'SHORT' },
+  { id:3, prio:'MEDIUM', badge:'MACRO', badgeColor:'#f59e0b', sym:'BTC',   headline:'Fed signals no rate cut in Q3 — markets pricing hawkish pivot',        age:'3m',  side:null },
+  { id:4, prio:'LOW',    badge:'NEWS',  badgeColor:'#6b7280', sym:'SOL',   headline:'Solana DEX volume hits $4.2B — highest since March 2024',              age:'7m',  side:null },
+  { id:5, prio:'HIGH',   badge:'LIST',  badgeColor:'#00d992', sym:'PEPE',  headline:'PEPE perpetuals live on Binance — $120M OI within first hour',         age:'12m', side:'LONG' },
+  { id:6, prio:'MEDIUM', badge:'PROD',  badgeColor:'#c084fc', sym:'ETH',   headline:'EIP-4844 upgrade scheduled for next week — gas fees expected to drop', age:'18m', side:null },
+  { id:7, prio:'HIGH',   badge:'HACK',  badgeColor:'#f43f5e', sym:'ONDO',  headline:'Ondo Finance oracle manipulation — team investigating',                age:'24m', side:null },
+]
+const TERM_LOGS = [
+  { type:'system',  text:'WebSocket connected — Binance · OKX · Bybit' },
+  { type:'info',    text:'[LIQ] 1h Long: $138.1M  Short: $56.5M' },
+  { type:'success', text:'[FUND] Binance: +0.90%  OKX: +0.84%' },
+  { type:'trade',   text:'[WHALE] BTC/USDT −$5.1M SELL · OKX spot' },
+  { type:'warning', text:'[ALARM] ETH/USDT target reached · $4858' },
+  { type:'info',    text:'[L/S] Long: 53.8%  Short: 48.2% → NEUTRAL' },
+  { type:'success', text:'[SMART] 0x87c2… opened SOL LONG $412K' },
+]
+const LOG_C = { system:'#a1a1aa', info:'#a1a1aa', success:'#00d992', warning:'#f59e0b', trade:'#00d992', error:'#f43f5e' }
+
+function PhoneTerminal({ isActive }) {
+  const [tab, setTab] = useState('news')
+  const [logs, setLogs]  = useState(TERM_LOGS.slice(0,4))
+  const [events, setEvents] = useState(TERM_EVENTS.slice(0,4))
+  const [blink, setBlink] = useState(true)
+
+  useEffect(() => {
+    if (!isActive) return
+    let logIdx = 4
+    let evIdx  = 4
+    const li = setInterval(() => {
+      if (logIdx < TERM_LOGS.length) {
+        setLogs(p => [...p, TERM_LOGS[logIdx++]].slice(-6))
+      }
+    }, 900)
+    const ei = setInterval(() => {
+      if (evIdx < TERM_EVENTS.length) {
+        setEvents(p => [TERM_EVENTS[evIdx++], ...p].slice(0,5))
+      }
+    }, 2200)
+    const bi = setInterval(() => setBlink(b => !b), 550)
+    return () => { clearInterval(li); clearInterval(ei); clearInterval(bi) }
+  }, [isActive])
+
+  return (
+    <div className="phs-screen" style={{padding:0,display:'flex',flexDirection:'column',height:'100%',background:'#000'}}>
+      {/* Tab bar */}
+      <div style={{display:'flex',borderBottom:'1px solid rgba(255,255,255,.07)',flexShrink:0}}>
+        {['news','logs'].map(t=>(
+          <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:'8px 0',background:'none',border:'none',cursor:'pointer',
+            fontSize:10,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',fontFamily:'var(--mono)',
+            color:tab===t?'#00d992':'rgba(255,255,255,.28)',borderBottom:tab===t?'2px solid #00d992':'2px solid transparent',
+            transition:'color .2s'}}>
+            {t==='news'?'Intel Feed':'System Log'}
+          </button>
+        ))}
+        <div style={{display:'flex',alignItems:'center',gap:4,padding:'0 10px',flexShrink:0}}>
+          <span style={{width:5,height:5,borderRadius:'50%',background:'#00d992',boxShadow:'0 0 6px #00d992',display:'inline-block'}}/>
+          <span style={{fontSize:9,color:'#00d992',fontFamily:'var(--mono)',fontWeight:700}}>LIVE</span>
+        </div>
+      </div>
+
+      {tab==='news' ? (
+        <div style={{flex:1,overflowY:'hidden',display:'flex',flexDirection:'column',gap:0}}>
+          {events.map((ev,i) => {
+            const alpha = Math.max(0.25, 1 - i * 0.18)
+            const isHigh = ev.prio === 'HIGH'
+            return (
+              <div key={ev.id} style={{padding:'7px 10px',borderBottom:'1px solid rgba(255,255,255,.05)',
+                opacity:alpha,background:i===0?'rgba(255,255,255,.025)':'transparent',transition:'all .3s'}}>
+                <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3}}>
+                  <span style={{fontSize:8,fontWeight:800,padding:'2px 5px',borderRadius:3,
+                    background:ev.badgeColor+'25',color:ev.badgeColor,fontFamily:'var(--mono)',letterSpacing:'.08em'}}>
+                    {ev.badge}
+                  </span>
+                  <span style={{fontSize:9,fontWeight:700,color:'rgba(255,255,255,.35)',fontFamily:'var(--mono)'}}>
+                    {ev.sym}
+                  </span>
+                  {ev.side && (
+                    <span style={{fontSize:8,fontWeight:800,padding:'1px 4px',borderRadius:3,marginLeft:'auto',
+                      background:ev.side==='LONG'?'rgba(0,217,146,.15)':'rgba(244,63,94,.15)',
+                      color:ev.side==='LONG'?'#00d992':'#f43f5e',fontFamily:'var(--mono)',letterSpacing:'.08em'}}>
+                      {ev.side}
+                    </span>
+                  )}
+                  <span style={{fontSize:8,color:'rgba(255,255,255,.2)',fontFamily:'var(--mono)',marginLeft:ev.side?0:'auto'}}>{ev.age}</span>
+                </div>
+                <div style={{fontSize:10,color:isHigh?'rgba(255,255,255,.8)':'rgba(255,255,255,.45)',
+                  lineHeight:1.35,fontFamily:'-apple-system,sans-serif'}}>
+                  {ev.headline}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div style={{flex:1,overflowY:'hidden',padding:'6px 0',display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+          {logs.map((l,i)=>(
+            <div key={i} style={{padding:'2px 10px',fontFamily:'var(--mono)',fontSize:9.5,color:LOG_C[l.type]||'#a1a1aa',
+              lineHeight:1.5,opacity:Math.max(0.25,1-(logs.length-1-i)*0.15)}}>
+              {l.text}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Command input row */}
+      <div style={{borderTop:'1px solid rgba(255,255,255,.08)',padding:'7px 10px',flexShrink:0,
+        display:'flex',alignItems:'center',gap:6,background:'rgba(0,217,146,.03)'}}>
+        <span style={{color:'#00d992',fontFamily:'var(--mono)',fontSize:10,fontWeight:700,flexShrink:0}}>›</span>
+        <span style={{fontFamily:'var(--mono)',fontSize:10,color:'rgba(255,255,255,.55)',flex:1,letterSpacing:'.02em'}}>
+          {'status'}{blink && <span style={{color:'#00d992',fontWeight:700}}>_</span>}
+        </span>
+        <div style={{display:'flex',gap:4}}>
+          {['pos','close','help'].map(c=>(
+            <span key={c} style={{fontSize:8,padding:'2px 6px',borderRadius:4,border:'1px solid rgba(255,255,255,.12)',
+              color:'rgba(255,255,255,.4)',fontFamily:'var(--mono)',cursor:'pointer',letterSpacing:'.04em',background:'rgba(255,255,255,.03)'}}>
+              {c}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Nav icons (matching real app TABS) ─────────────────────────────────────────
+const ASC_NAV = [
+  { label:'Stocks',   icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> },
+  { label:'Crypto',   icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.5 9.5h3a2 2 0 0 1 0 4h-3v-4zm0 4h3.5a2 2 0 0 1 0 4H9.5v-4z"/><line x1="12" y1="6" x2="12" y2="9"/><line x1="12" y1="18" x2="12" y2="21"/></svg> },
+  { label:'Terminal', icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> },
+  { label:'Wallet',   icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  { label:'More',     icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg> },
+]
+
+// ── App features shown in scroll panels ────────────────────────────────────────
+const APP_FEATURES = [
+  {
+    eyebrow:'CRYPTO MARKETS', accentColor:'#00d992', tabActive:1,
+    title:'Live prices.\nAlways on.',
+    desc:'250+ coins with real-time Binance WebSocket data. Sorted by market cap, watchlist, gainers or losers — always one tap away.',
+    feats:['Real-time Binance feed','250+ coins tracked','Watchlist & alerts','Market cap ordering'],
+    Screen: PhoneMarkets,
+  },
+  {
+    eyebrow:'LIQUIDATION STREAM', accentColor:'#f43f5e', tabActive:4,
+    title:'Watch the market\nget liquidated. Live.',
+    desc:'Real-time OKX + Bybit liquidation events filtered above $10K. Sentiment gauge tells you who is getting crushed — longs or shorts.',
+    feats:['OKX + Bybit live stream','24H sentiment gauge','Long/short breakdown','Minimum $10K filter'],
+    Screen: PhoneLiquidations,
+  },
+  {
+    eyebrow:'SMART MONEY', accentColor:'#a855f7', tabActive:4,
+    title:'Follow the whales.',
+    desc:'On-chain wallet tracker for the biggest movers. See what top wallets buy and sell before the market even notices.',
+    feats:['On-chain wallet tracking','Buy/sell detection','Real-time notifications','Whale wallet labels'],
+    Screen: PhoneSmartMoney,
+  },
+  {
+    eyebrow:'FUNDING RATES', accentColor:'#3b82f6', tabActive:4,
+    title:'Know who pays who.',
+    desc:'Perpetual funding rates across all major pairs. High positive rates mean overheated longs — know this edge before the crowd.',
+    feats:['8-hour rate breakdown','Long/short bias signal','Multi-exchange data','Extreme rate alerts'],
+    Screen: PhoneFunding,
+  },
+  {
+    eyebrow:'TERMINAL', accentColor:'#00d992', tabActive:2,
+    title:'Intel feed.\nTrade in seconds.',
+    desc:'Live event stream: exchange listings, exploit alerts, macro news — all AI-classified by priority. Execute trades directly from the news card.',
+    feats:['AI event classification','Listing & hack alerts','One-tap trade from news','Real-time system logs'],
+    Screen: PhoneTerminal,
+  },
+  {
+    eyebrow:'STOCKS', accentColor:'#f59e0b', tabActive:0,
+    title:'Stocks and crypto.\nOne terminal.',
+    desc:'NYSE and NASDAQ alongside your crypto — tech stocks, ETFs and macro indices without switching apps.',
+    feats:['NYSE + NASDAQ live prices','Tech & ETF coverage','Cross-asset portfolio','Macro correlation view'],
+    Screen: PhoneStocks,
+  },
+]
+
+function AppShowcase() {
+  const [active, setActive] = useState(0)
+  const panelRefs = useRef([])
+  const sectionRef = useRef(null)
+  const phoneColRef = useRef(null)
+
+  // Active panel detection
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      entries => { entries.forEach(e => { if (e.isIntersecting) setActive(Number(e.target.dataset.idx)) }) },
+      { threshold: 0, rootMargin: '-42% 0px -42% 0px' }
+    )
+    panelRefs.current.forEach(el => el && obs.observe(el))
+    return () => obs.disconnect()
+  }, [])
+
+  // JS-driven sticky: translateY compensates for scroll, keeping phone centered in viewport
+  useEffect(() => {
+    const section = sectionRef.current
+    const phoneCol = phoneColRef.current
+    if (!section || !phoneCol) return
+
+    const PHONE_H = 580
+    let phoneNaturalTop = 0
+    let sectionDocTop = 0
+    let sectionH = 0
+
+    const measure = () => {
+      phoneCol.style.transform = ''
+      const r = phoneCol.getBoundingClientRect()
+      phoneNaturalTop = r.top + window.scrollY
+      sectionDocTop = section.getBoundingClientRect().top + window.scrollY
+      sectionH = section.offsetHeight
+    }
+
+    const update = () => {
+      const sy = window.scrollY
+      const targetTop = (window.innerHeight - PHONE_H) / 2
+      const scrolledPast = sy - (phoneNaturalTop - targetTop)
+      const maxTY = sectionDocTop + sectionH - phoneNaturalTop - PHONE_H
+      phoneCol.style.transform = `translateY(${Math.max(0, Math.min(scrolledPast, maxTY))}px)`
+    }
+
+    const onResize = () => { measure(); update() }
+
+    requestAnimationFrame(() => { measure(); update() })
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', onResize, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [])
+
+  const feat = APP_FEATURES[active]
+
+  return (
+    <section className="asc-section" ref={sectionRef}>
+      {/* Background color-shift orb follows active feature */}
+      <div className="asc-bg-orb" style={{ background:`radial-gradient(ellipse at 70% 50%, ${feat.accentColor}0d 0%, transparent 60%)` }}/>
+
+      {/* Centered top header */}
+      <div className="asc-top">
+        <div className="asc-eyebrow"><span className="asc-eye-dot"/>MOBILE APP</div>
+        <h2 className="asc-main-title">Professional trading.<br/><span className="asc-main-em">In your pocket.</span></h2>
+        <p className="asc-main-sub">Every tool. Natively on iOS and Android.</p>
+        <div className="asc-store-row">
+          <button className="asc-sbtn asc-sbtn-primary">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            App Store
+          </button>
+          <button className="asc-sbtn">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.3.17.65.19.97.05l12.45-7.19-2.65-2.65-10.77 9.79zM.35 1.16C.13 1.49 0 1.95 0 2.54v18.92c0 .59.13 1.05.35 1.38l.07.07 10.59-10.59v-.25L.42 1.09l-.07.07zM21.14 10.57l-2.93-1.69-2.99 2.99 2.99 2.99 2.95-1.7c.84-.48.84-1.27-.02-1.59zM3.18.24l12.45 7.19-2.65 2.65L2.21.29C2.53.16 2.88.18 3.18.24z"/></svg>
+            Google Play
+          </button>
+        </div>
+      </div>
+
+      {/* Scroll zone: left panels + sticky right phone */}
+      <div className="asc-zone">
+        {/* Left: feature panels */}
+        <div className="asc-panels">
+          {APP_FEATURES.map((f, i) => (
+            <div key={i} className={`asc-panel${active===i?' asc-panel-on':''}`}
+              data-idx={i} ref={el => panelRefs.current[i] = el}>
+              <div className="asc-panel-ew" style={{ color:f.accentColor }}>
+                <span className="asc-panel-dot" style={{ background:f.accentColor, boxShadow:`0 0 8px ${f.accentColor}` }}/>
+                {f.eyebrow}
+              </div>
+              <h3 className="asc-panel-h3">
+                {f.title.split('\n').map((l,j,arr) => <span key={j}>{l}{j<arr.length-1&&<br/>}</span>)}
+              </h3>
+              <p className="asc-panel-desc">{f.desc}</p>
+              <ul className="asc-panel-feats">
+                {f.feats.map(ft => (
+                  <li key={ft}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={f.accentColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    {ft}
+                  </li>
+                ))}
+              </ul>
+              {/* Progress indicator */}
+              <div className="asc-panel-prog">
+                {APP_FEATURES.map((_,di) => (
+                  <div key={di} className={`asc-pdot${active===di?' asc-pdot-on':''}`}
+                    style={active===di?{background:feat.accentColor,width:20}:{}}/>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Right: outer column stretches full panel height; inner col tracks scroll via JS */}
+        <div className="asc-phone-outer">
+        <div className="asc-phone-col" ref={phoneColRef}>
+          <div className="asc-phone-wrap">
+            {/* Dynamic glow */}
+            <div className="asc-phone-glow" style={{ background:`radial-gradient(ellipse, ${feat.accentColor}20 0%, transparent 65%)` }}/>
+
+            {/* Floating tokens */}
+            {FLOAT_TOKENS.map((t,i) => (
+              <div key={i} className="asc-float" style={{ ...t.pos, '--fd':`${t.delay}s` }}>
+                <img src={t.img} alt={t.sym} className="asc-float-img"
+                  onError={e => { e.currentTarget.style.opacity='.08' }}
+                  style={{ border:`2px solid ${t.color}60`, boxShadow:`0 0 16px ${t.color}40, 0 4px 12px rgba(0,0,0,.5)` }}
+                />
+              </div>
+            ))}
+
+            {/* Phone frame */}
+            <div className="asc-phone">
+              <div className="asc-notch"/>
+              {/* Status bar */}
+              <div className="asc-statusbar">
+                <span style={{fontSize:11,fontWeight:600,color:'rgba(255,255,255,.85)',fontFamily:'-apple-system,sans-serif'}}>9:41</span>
+                <div style={{display:'flex',gap:5,alignItems:'center'}}>
+                  <svg width="13" height="9" viewBox="0 0 13 9" fill="rgba(255,255,255,.6)"><rect x="0" y="3" width="2" height="6" rx=".4"/><rect x="3" y="2" width="2" height="7" rx=".4"/><rect x="6" y="1" width="2" height="8" rx=".4"/><rect x="9" y="0" width="2" height="9" rx=".4"/><rect x="11.5" y="0" width="1.5" height="9" rx=".3" opacity=".25"/></svg>
+                  <svg width="22" height="10" viewBox="0 0 22 10" fill="none"><rect x=".5" y="1.5" width="18" height="7" rx="1.5" stroke="rgba(255,255,255,.45)" strokeWidth="1"/><rect x="19" y="3.5" width="2.5" height="3" rx=".8" fill="rgba(255,255,255,.35)"/><rect x="1.5" y="2.5" width="14" height="5" rx="1" fill="rgba(255,255,255,.85)"/></svg>
+                </div>
+              </div>
+              {/* App header */}
+              <div className="asc-app-hd">
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontFamily:'var(--mono)',fontSize:14,fontWeight:700,color:'#fff',letterSpacing:'.04em'}}><span style={{color:'#00d992'}}>[</span>TT<span style={{color:'#00d992'}}>]</span></span>
+                  <span style={{fontFamily:'var(--mono)',fontSize:9,fontWeight:700,color:'#00d992',border:'1px solid rgba(0,217,146,.3)',borderRadius:4,padding:'2px 6px',letterSpacing:'.06em',background:'rgba(0,217,146,.08)'}}>PRO</span>
+                </div>
+                <span className="bm-pulse-dot green" style={{width:6,height:6}}/>
+              </div>
+
+              {/* Screen area — all 5 screens stacked, active one shows */}
+              <div className="asc-screen-area">
+                {APP_FEATURES.map((f, i) => (
+                  <div key={i} className={`asc-slide${active===i?' asc-slide-on':''}`}>
+                    <f.Screen isActive={active===i}/>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom nav — active tab changes per feature */}
+              <div className="asc-bottom-nav">
+                {ASC_NAV.map((n,i) => (
+                  <div key={n.label} className={`asc-nav-item${feat.tabActive===i?' asc-nav-on':''}`}
+                    style={feat.tabActive===i?{color:feat.accentColor}:{}}>
+                    {n.icon}
+                    <span>{n.label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="asc-home-bar"/>
+            </div>
+          </div>
+        </div>
+        </div>{/* /asc-phone-outer */}
+      </div>
+    </section>
+  )
+}
+
+function MobileShowcase() { return null }
+function MobileAppScreen() { return null }
+
 // ── Stack items (tools + minis) ───────────────────────────────────────────────
 const STACK_ITEMS = [
   { id:'liquidations-stream', tag:'LIQ',   pro:true,  color:'#f23645', dim:'rgba(242,54,69,0.14)',   name:'Liquidation Stream', mini:<LiqMini /> },
@@ -1348,6 +2069,201 @@ function FeatureShowcase() {
   )
 }
 
+// ── Scroll Cinema ─────────────────────────────────────────────────────────────
+
+const PARTICLE_SYMBOLS = [
+  '$1.2M','BTC','ETH','LONG','SHORT','+0.08%','-2.3%','$48K',
+  '0x7f..','WHALE','BNB','SOL','FUND','LIQ','ARB','0.083%',
+  '>$5M','PERP','SPOT','+3.2%','CASCADE','ALERT','ON-CHAIN',
+]
+
+const CINEMA_TOOLS = [
+  {
+    id: 'liquidations-stream', num: '01', tag: 'LIQ',
+    name: 'Liquidation\nStream',
+    tagline: 'Real-time cascade detection',
+    desc: 'Watch forced liquidations stream in across Binance, OKX, Bybit and Hyperliquid the instant they happen. Every long and short caught before the market reacts.',
+    color: '#f23645',
+    stats: [{ v:'$420M+', l:'Daily liquidated' }, { v:'<50ms', l:'Latency' }, { v:'4', l:'Perp exchanges' }],
+    mini: <LiqMini />,
+  },
+  {
+    id: 'big-transfers', num: '02', tag: 'WHALE',
+    name: 'Whale\nAlerts',
+    tagline: 'On-chain transfer monitoring',
+    desc: 'Detect billion-dollar blockchain transfers the second they hit mempool. BTC, ETH, USDT, SOL and more — tracked 24/7 across 6 chains.',
+    color: '#f59e0b',
+    stats: [{ v:'6+', l:'Blockchains' }, { v:'$1M', l:'Min alert' }, { v:'<5s', l:'Detection lag' }],
+    mini: <WhaleMini />,
+  },
+  {
+    id: 'smart-money', num: '03', tag: 'SM',
+    name: 'Smart\nMoney',
+    tagline: 'Copy top on-chain traders',
+    desc: 'Track the top 50 Hyperliquid wallets in real-time. Positions, leverage, realized PnL — follow the smart money before the market does.',
+    color: '#a855f7',
+    stats: [{ v:'Top 50', l:'Wallets tracked' }, { v:'Live', l:'PnL updates' }, { v:'HL', l:'Hyperliquid' }],
+    mini: <SmartMini />,
+  },
+  {
+    id: 'funding-rate', num: '04', tag: 'FUND',
+    name: 'Funding\nRates',
+    tagline: 'Cross-exchange spread finder',
+    desc: 'Compare live perpetual funding rates across Binance, OKX and Bybit. Spot arbitrage opportunities the moment they appear.',
+    color: '#3b82f6',
+    stats: [{ v:'3', l:'Exchanges' }, { v:'200+', l:'Pairs tracked' }, { v:'1min', l:'Refresh rate' }],
+    mini: <FundMini />,
+  },
+  {
+    id: 'long-short-ratio', num: '05', tag: 'L/S',
+    name: 'Long / Short\nRatio',
+    tagline: 'Live market sentiment signal',
+    desc: 'Know what the crowd is doing before the market moves. Real-time long/short positioning across BTC, ETH and SOL — aggregated from 4 exchanges.',
+    color: '#00e87a',
+    stats: [{ v:'3', l:'Pairs' }, { v:'Live', l:'Sentiment' }, { v:'4', l:'Exchanges' }],
+    mini: <LSMini />,
+  },
+  {
+    id: 'custom-alerts', num: '06', tag: 'ALT',
+    name: 'Custom\nAlerts',
+    tagline: 'Set price, volume & event triggers',
+    desc: 'Build your own alert conditions — price levels, funding spikes, whale moves, liquidation cascades. Never miss a signal again.',
+    color: '#eab308',
+    stats: [{ v:'∞', l:'Alerts' }, { v:'<1s', l:'Trigger speed' }, { v:'6', l:'Alert types' }],
+    mini: <AltMini />,
+  },
+]
+
+function DataParticles({ color, active }) {
+  const canvasRef = useRef(null)
+  const rafRef = useRef(null)
+  const particlesRef = useRef([])
+
+  useEffect(() => {
+    if (!active) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return }
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    canvas.width = canvas.offsetWidth
+    canvas.height = canvas.offsetHeight
+    if (particlesRef.current.length === 0) {
+      particlesRef.current = Array.from({ length: 22 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        text: PARTICLE_SYMBOLS[Math.floor(Math.random() * PARTICLE_SYMBOLS.length)],
+        speed: 0.18 + Math.random() * 0.32,
+        opacity: 0.018 + Math.random() * 0.038,
+        size: 10 + Math.floor(Math.random() * 5),
+      }))
+    }
+    const r = parseInt(color.slice(1,3),16)
+    const g = parseInt(color.slice(3,5),16)
+    const b = parseInt(color.slice(5,7),16)
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      particlesRef.current.forEach(p => {
+        ctx.font = `${p.size}px 'DM Mono', monospace`
+        ctx.fillStyle = `rgba(${r},${g},${b},${p.opacity})`
+        ctx.fillText(p.text, p.x, p.y)
+        p.y -= p.speed
+        if (p.y < -20) {
+          p.y = canvas.height + 20
+          p.x = Math.random() * canvas.width
+          p.text = PARTICLE_SYMBOLS[Math.floor(Math.random() * PARTICLE_SYMBOLS.length)]
+        }
+      })
+      rafRef.current = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [active, color])
+
+  return <canvas ref={canvasRef} className="sc-particles" />
+}
+
+function CinemaScene({ tool, index, total }) {
+  const ref = useRef(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current; if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisible(true) },
+      { threshold: 0.28 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  return (
+    <div ref={ref} className={`sc-scene${visible ? ' sc-visible' : ''}`}>
+      <div className="sc-ambient" style={{ background:`radial-gradient(ellipse 55% 70% at 68% 50%, ${tool.color}12 0%, transparent 68%)` }} />
+      <DataParticles color={tool.color} active={visible} />
+
+      <div className="sc-content">
+        {/* Left */}
+        <div className="sc-left">
+          <div className="sc-num-bg">{tool.num}</div>
+          <div className="sc-tag" style={{ color:tool.color, background:tool.color+'12', borderColor:tool.color+'30' }}>
+            {tool.tag}
+          </div>
+          <h2 className="sc-title">
+            {tool.name.split('\n').map((line, i, arr) => (
+              <span key={i}>{line}{i < arr.length-1 && <br/>}</span>
+            ))}
+          </h2>
+          <p className="sc-tagline" style={{ color:tool.color }}>{tool.tagline}</p>
+          <p className="sc-desc">{tool.desc}</p>
+          <div className="sc-stats">
+            {tool.stats.map((s, i) => (
+              <div key={i} className="sc-stat">
+                <span className="sc-stat-v" style={{ color:tool.color }}>{s.v}</span>
+                <span className="sc-stat-l">{s.l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right */}
+        <div className="sc-right">
+          <div className="sc-frame" style={{ '--sc-fc': tool.color }}>
+            <div className="sc-frame-top-accent" style={{ background:`linear-gradient(90deg, transparent, ${tool.color}60, transparent)` }} />
+            <div className="sc-frame-chrome">
+              <div className="sc-frame-dots">
+                <span style={{background:'#ff5f57'}}/><span style={{background:'#febc2e'}}/><span style={{background:'#28c840'}}/>
+              </div>
+              <span className="sc-frame-url">cryptoterminal.app/{tool.id}</span>
+              <span className="sc-frame-live"><span className="bm-pulse-dot" style={{background:tool.color}}/>LIVE</span>
+            </div>
+            <div className="sc-frame-body">
+              {tool.mini}
+            </div>
+            <div className="sc-frame-glow" style={{ background:`radial-gradient(ellipse at 50% 110%, ${tool.color}22, transparent 65%)` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Side progress indicator */}
+      <div className="sc-progress">
+        <span className="sc-prog-label">{tool.num}/{String(total).padStart(2,'0')}</span>
+        <div className="sc-prog-track">
+          <div className="sc-prog-fill" style={{ height:`${((index+1)/total)*100}%`, background:tool.color }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ScrollCinema() {
+  return (
+    <div className="sc-root">
+      {CINEMA_TOOLS.map((tool, idx) => (
+        <CinemaScene key={tool.id} tool={tool} index={idx} total={CINEMA_TOOLS.length} />
+      ))}
+    </div>
+  )
+}
+
 // ── FAQ ───────────────────────────────────────────────────────────────────────
 function FaqItem({ q, a }) {
   const [open, setOpen] = useState(false)
@@ -1469,10 +2385,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="ld3-hero-r">
-          <div className="ld3-term-shell">
-            <div className="ld3-term-glow" />
-            <TerminalPreview />
-          </div>
+          <HeroVisual />
         </div>
       </section>
 
@@ -1481,25 +2394,29 @@ export default function LandingPage() {
         <Marquee items={MARQUEE_ITEMS} />
       </div>
 
-      {/* ── Feature Showcase ── */}
-      <section id="features" className="ld3-section fl-section">
+      {/* ── Scroll Cinema ── */}
+      <section id="features" className="sc-section">
         <div className="ld3-inner">
           <div className="ld3-section-hd">
             <h2 className="ld3-h2">{t('tools_title')}</h2>
             <p className="ld3-hsub">{t('tools_sub')}</p>
           </div>
-          <FeatureShowcase />
         </div>
+        <ScrollCinema />
       </section>
 
-      {/* ── All tools ── */}
-      <section className="ld3-section ld3-section-alt tc2-section">
+      {/* ── App Showcase (scroll-pinned) ── */}
+      <AppShowcase />
+
+      {/* ── Token Ticker ── */}
+      <section className="ld3-section ld3-section-alt tt-section">
         <div className="ld3-inner">
           <div className="ld3-section-hd">
-            <h2 className="ld3-h2">13 tools. <span className="tc2-title-em">One terminal.</span></h2>
-            <p className="ld3-hsub">No switching tabs. No missed signals. Everything in one place.</p>
+            <h2 className="ld3-h2">Every tool you need. <span className="tc2-title-em">All in one place.</span></h2>
+            <p className="ld3-hsub">13 professional-grade modules. Live data. Zero tab-switching.</p>
           </div>
-          <CardStack items={STACK_ITEMS} autoAdvance intervalMs={3500} />
+          <TokenTicker />
+          <FeatureShowcase />
         </div>
       </section>
 
@@ -1519,10 +2436,12 @@ export default function LandingPage() {
             <span className="ld3-save">{t('billing_save')}</span>
           </div>
           <div className="ld3-price-grid">
+            {/* ── Free card ── */}
             <TiltCard className="ld3-pcard">
               <div className="ld3-pcard-tier">{t('free_tier')}</div>
               <div className="ld3-pcard-price">$0 <span>/ {t('free_period')}</span></div>
               <p className="ld3-pcard-desc">{t('free_desc')}</p>
+              <div className="ld3-pcard-divider" />
               <ul className="ld3-pcard-feats">
                 {FREE_FEATURES.map((f,i) => (
                   <li key={i}>
@@ -1536,6 +2455,7 @@ export default function LandingPage() {
               </button>
             </TiltCard>
 
+            {/* ── Pro card ── */}
             <TiltCard className="ld3-pcard ld3-pcard-pro">
               <div className="ld3-pcard-glow" />
               <div className="ld3-pcard-topline" />
@@ -1546,6 +2466,7 @@ export default function LandingPage() {
               </div>
               {billingYearly && <div className="ld3-billed">{t('billed_yearly')}</div>}
               <p className="ld3-pcard-desc">{t('pro_desc')}</p>
+              <div className="ld3-pcard-divider" />
               <ul className="ld3-pcard-feats pro">
                 {PRO_FEATURES.map((f,i) => (
                   <li key={i}>

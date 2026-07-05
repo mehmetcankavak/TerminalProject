@@ -42,6 +42,7 @@ import AdminPage from './pages/AdminPage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
 import NotFoundPage from './pages/NotFoundPage'
+import OnboardingModal from './components/OnboardingModal'
 
 // Pro-only pages
 const PRO_PAGES = new Set([
@@ -269,6 +270,8 @@ function TerminalApp() {
           </div>
         </div>
       )}
+
+      <OnboardingModal />
 
       <div className="main-content">
         {showUpgradedBanner && (

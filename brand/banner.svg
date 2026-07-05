@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500">
+  <defs>
+    <radialGradient id="bgGlow" cx="30%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#0d1f1a"/>
+      <stop offset="100%" stop-color="#050e0b"/>
+    </radialGradient>
+    <radialGradient id="spotLeft" cx="25%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#00d992" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#00d992" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spotRight" cx="80%" cy="50%" r="30%">
+      <stop offset="0%" stop-color="#00d992" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#00d992" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="gBlur">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1500" height="500" fill="url(#bgGlow)"/>
+  <rect width="1500" height="500" fill="url(#spotLeft)"/>
+  <rect width="1500" height="500" fill="url(#spotRight)"/>
+
+  <!-- Grid -->
+  <g stroke="#00d992" stroke-opacity="0.05" stroke-width="1">
+    <line x1="0" y1="100" x2="1500" y2="100"/>
+    <line x1="0" y1="200" x2="1500" y2="200"/>
+    <line x1="0" y1="300" x2="1500" y2="300"/>
+    <line x1="0" y1="400" x2="1500" y2="400"/>
+    <line x1="150" y1="0" x2="150" y2="500"/>
+    <line x1="300" y1="0" x2="300" y2="500"/>
+    <line x1="450" y1="0" x2="450" y2="500"/>
+    <line x1="600" y1="0" x2="600" y2="500"/>
+    <line x1="750" y1="0" x2="750" y2="500"/>
+    <line x1="900" y1="0" x2="900" y2="500"/>
+    <line x1="1050" y1="0" x2="1050" y2="500"/>
+    <line x1="1200" y1="0" x2="1200" y2="500"/>
+    <line x1="1350" y1="0" x2="1350" y2="500"/>
+  </g>
+
+  <!-- Chart line (right side) -->
+  <polyline points="900,380 960,340 1020,355 1080,290 1140,260 1200,230 1260,245 1320,190 1380,160 1440,140 1500,120"
+    fill="none" stroke="#00d992" stroke-width="2" stroke-opacity="0.3"/>
+  <polyline points="900,380 960,340 1020,355 1080,290 1140,260 1200,230 1260,245 1320,190 1380,160 1440,140 1500,120"
+    fill="none" stroke="#00d992" stroke-width="6" stroke-opacity="0.08"/>
+
+  <!-- Candlesticks (right side) -->
+  <g opacity="0.25">
+    <line x1="980" y1="300" x2="980" y2="390" stroke="#00d992" stroke-width="1.5"/>
+    <rect x="972" y="318" width="16" height="42" rx="2" fill="#00d992"/>
+    <line x1="1020" y1="285" x2="1020" y2="372" stroke="#ff3b5c" stroke-width="1.5"/>
+    <rect x="1012" y="300" width="16" height="46" rx="2" fill="#ff3b5c"/>
+    <line x1="1060" y1="260" x2="1060" y2="350" stroke="#00d992" stroke-width="1.5"/>
+    <rect x="1052" y="274" width="16" height="48" rx="2" fill="#00d992"/>
+    <line x1="1100" y1="240" x2="1100" y2="328" stroke="#00d992" stroke-width="1.5"/>
+    <rect x="1092" y="252" width="16" height="44" rx="2" fill="#00d992"/>
+    <line x1="1140" y1="255" x2="1140" y2="340" stroke="#ff3b5c" stroke-width="1.5"/>
+    <rect x="1132" y="268" width="16" height="40" rx="2" fill="#ff3b5c"/>
+    <line x1="1180" y1="218" x2="1180" y2="308" stroke="#00d992" stroke-width="1.5"/>
+    <rect x="1172" y="230" width="16" height="46" rx="2" fill="#00d992"/>
+    <line x1="1220" y1="195" x2="1220" y2="280" stroke="#00d992" stroke-width="1.5"/>
+    <rect x="1212" y="208" width="16" height="42" rx="2" fill="#00d992"/>
+  </g>
+
+  <!-- Vertical divider -->
+  <line x1="750" y1="60" x2="750" y2="440" stroke="#00d992" stroke-opacity="0.08" stroke-width="1"/>
+
+  <!-- Left side: Logo + Brand -->
+  <!-- Bracket left -->
+  <text x="115" y="290" font-family="'Courier New', monospace" font-size="120" font-weight="300" fill="#00d992" text-anchor="middle" opacity="0.4">[</text>
+
+  <!-- TT -->
+  <text x="290" y="295" font-family="'Courier New', monospace" font-size="130" font-weight="700" fill="#00d992" text-anchor="middle" letter-spacing="-6">TT</text>
+
+  <!-- Bracket right -->
+  <text x="465" y="290" font-family="'Courier New', monospace" font-size="120" font-weight="300" fill="#00d992" text-anchor="middle" opacity="0.4">]</text>
+
+  <!-- Brand name -->
+  <text x="115" y="360" font-family="'Courier New', monospace" font-size="22" font-weight="400" fill="#00d992" letter-spacing="10" opacity="0.9">TRADING  TERMINAL</text>
+
+  <!-- Tagline -->
+  <text x="115" y="400" font-family="'Courier New', monospace" font-size="13" fill="#00d992" letter-spacing="3" opacity="0.45">NEWS · SIGNALS · EXECUTION</text>
+
+  <!-- Top label -->
+  <text x="115" y="148" font-family="'Courier New', monospace" font-size="11" fill="#00d992" letter-spacing="4" opacity="0.35">@TradeTerminal_</text>
+
+  <!-- Corner accents -->
+  <path d="M20 80 L20 20 L80 20" fill="none" stroke="#00d992" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  <path d="M1420 20 L1480 20 L1480 80" fill="none" stroke="#00d992" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  <path d="M20 420 L20 480 L80 480" fill="none" stroke="#00d992" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  <path d="M1420 480 L1480 480 L1480 420" fill="none" stroke="#00d992" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Live indicator -->
+  <circle cx="1460" cy="40" r="5" fill="#00d992" opacity="0.9"/>
+  <circle cx="1460" cy="40" r="10" fill="none" stroke="#00d992" stroke-width="1" opacity="0.3"/>
+  <text x="1444" y="44" font-family="'Courier New', monospace" font-size="11" fill="#00d992" text-anchor="end" letter-spacing="2" opacity="0.6">LIVE</text>
+
+  <!-- Bottom border -->
+  <line x1="0" y1="498" x2="1500" y2="498" stroke="#00d992" stroke-opacity="0.15" stroke-width="1"/>
+</svg>

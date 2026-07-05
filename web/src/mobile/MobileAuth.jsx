@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { haptic } from '../capacitor'
 import LogoTT from '../components/LogoTT'
 import { registerPlugin } from '@capacitor/core'
+import { API_BASE } from '../config'
 
 const GoogleAuth = registerPlugin('GoogleAuth')
 
@@ -15,6 +16,27 @@ export default function MobileAuth({ onSuccess }) {
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [connStatus, setConnStatus] = useState('checking')
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      let normal = '', nocors = ''
+      try {
+        const r = await fetch(`${API_BASE}/auth/me`, { method: 'GET' })
+        normal = `ok:${r.status}`
+      } catch (e) {
+        normal = `err:${e.name}`
+      }
+      try {
+        await fetch(`${API_BASE}/auth/me`, { method: 'GET', mode: 'no-cors' })
+        nocors = 'ok'
+      } catch (e) {
+        nocors = `err:${e.name}`
+      }
+      setConnStatus(`normal:${normal} | no-cors:${nocors}`)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [])
 
   const switchTab = (t) => { setTab(t); setError(''); haptic('light') }
 
@@ -52,7 +74,8 @@ export default function MobileAuth({ onSuccess }) {
       onSuccess?.()
     } catch (err) {
       haptic('light')
-      setError(err.message || 'Authentication failed')
+      console.error('AUTH_ERR', err.name, err.message, 'URL:', API_BASE)
+      setError(`${err.name}: ${err.message || 'Authentication failed'} | ${API_BASE}`)
     } finally {
       setLoading(false)
     }
@@ -150,6 +173,10 @@ export default function MobileAuth({ onSuccess }) {
             <a href="/forgot-password">Forgot password?</a>
           </div>
         )}
+
+        <div style={{fontSize:9,color:'#555',marginTop:8,wordBreak:'break-all',textAlign:'center',fontFamily:'monospace'}}>
+          {API_BASE} · {connStatus}
+        </div>
 
         <div className="m-auth-divider">
           <span className="m-auth-divider-line" />

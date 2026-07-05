@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { API_BASE } from '../config'
+import FeatureSpotlight from './FeatureSpotlight'
 
 // Honest data architecture:
 //   • Global 24H total + per-coin breakdown → CMC public liquidation API (no key, real numbers, 3min refresh)
@@ -182,6 +183,12 @@ export default function LiquidationsStream() {
 
   return (
     <div className="liq-page">
+
+      <FeatureSpotlight
+        featureKey="liquidations"
+        title="Likidasyonlar Akışı"
+        description="Binance, OKX ve Bybit'ten anlık long/short likidasyon verilerini takip edin. Büyük likidasyon dalgaları kısa vadeli trend dönüşlerini işaret edebilir."
+      />
 
       {/* Header */}
       <div className="liq-page-header">

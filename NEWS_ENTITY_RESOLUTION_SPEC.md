@@ -81,7 +81,6 @@ class MentionedAsset(BaseModel):
     tradable_symbols: list[str] = Field(default_factory=list)
     matched_text: str | None = None
 
-
 class NormalizedNews(BaseModel):
     ...
     related_symbols: list[str] = Field(default_factory=list)  # backward compatibility

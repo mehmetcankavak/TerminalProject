@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 import { useWebSocket } from '../hooks/useWebSocket'
+import FeatureSpotlight from './FeatureSpotlight'
 
 const API   = `${API_BASE}/api/smart-money`
 const HL_WS = 'wss://api.hyperliquid.xyz/ws'
@@ -1011,6 +1012,12 @@ export default function SmartMoney() {
 
       {/* Left panel — list */}
       <div style={{ flex: selected ? '0 0 420px' : '1 1 auto', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: selected ? '1px solid rgba(255,255,255,0.06)' : 'none', minWidth: 0 }}>
+
+        <FeatureSpotlight
+          featureKey="smart-money"
+          title="Smart Money Takibi"
+          description="Hyperliquid'in en karlı trader'larını gerçek zamanlı izleyin. Pozisyon açılış/kapanışlarını takip edin ve copy-trade özelliğiyle işlemlerine eşlik edin."
+        />
 
         {/* Header */}
         <div style={{ padding: '18px 24px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>

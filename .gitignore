@@ -17,3 +17,9 @@ node_modules/
 .idea/
 .vscode/
 migration/
+.env.local
+.env.*.local
+*.railway-backup
+railway_dump.sql
+.claude/
+mobile/
