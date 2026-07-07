@@ -10,6 +10,18 @@ permissions:
   contents: read
 
 jobs:
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for leaked secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -29,7 +41,7 @@ jobs:
         run: pytest
 
   build-and-push:
-    needs: test
+    needs: [test, secrets-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -48,7 +60,7 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push image
+      - name: Build image
         env:
           REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           REPOSITORY: cryptoterminal
@@ -57,6 +69,22 @@ jobs:
           docker build --build-arg VITE_API_URL= \
             -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
             -t $REGISTRY/$REPOSITORY:latest .
+
+      - name: Scan image for critical vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.ecr-login.outputs.registry }}/cryptoterminal:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Push image
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          REPOSITORY: cryptoterminal
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
           docker push $REGISTRY/$REPOSITORY:latest
 
@@ -74,19 +102,54 @@ jobs:
           role-to-assume: arn:aws:iam::002478776638:role/github-actions-cryptoterminal
           aws-region: eu-north-1
 
-      - name: Deploy to EC2 via SSM
+      - name: Deploy to EC2 via SSM (with health check + rollback)
         run: |
+          cat > deploy_remote.sh <<'SCRIPT'
+          set -euo pipefail
+          cd /home/ec2-user/app
+
+          aws ecr get-login-password --region eu-north-1 | \
+            docker login --username AWS --password-stdin 002478776638.dkr.ecr.eu-north-1.amazonaws.com
+
+          # Currently running app image, so we can roll back to it if the new one fails its health check
+          PREV_ID=$(docker inspect --format='{{.Image}}' "$(docker compose ps -q app)" 2>/dev/null || echo "")
+
+          docker compose pull
+          docker compose up -d
+          docker compose restart nginx
+
+          HEALTHY=""
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost/healthz > /dev/null; then
+              HEALTHY="1"
+              echo "Health check OK (attempt $i)"
+              break
+            fi
+            echo "Health check attempt $i failed, retrying..."
+            sleep 3
+          done
+
+          if [ -z "$HEALTHY" ]; then
+            echo "Health check failed after deploy — rolling back"
+            if [ -n "$PREV_ID" ]; then
+              docker tag "$PREV_ID" 002478776638.dkr.ecr.eu-north-1.amazonaws.com/cryptoterminal:latest
+              docker compose up -d
+              docker compose restart nginx
+            else
+              echo "No previous image found, cannot roll back"
+            fi
+            exit 1
+          fi
+
+          docker image prune -f
+          SCRIPT
+
+          ENCODED=$(base64 -w0 deploy_remote.sh)
+
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids i-0c737514120893e20 \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[
-              "cd /home/ec2-user/app",
-              "aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 002478776638.dkr.ecr.eu-north-1.amazonaws.com",
-              "docker compose pull",
-              "docker compose up -d",
-              "docker compose restart nginx",
-              "docker image prune -f"
-            ]' \
+            --parameters "{\"commands\":[\"echo $ENCODED | base64 -d > /tmp/deploy.sh\", \"bash /tmp/deploy.sh\"]}" \
             --region eu-north-1 \
             --query 'Command.CommandId' --output text)
 
@@ -104,6 +167,6 @@ jobs:
           cat result.json
           STATUS=$(jq -r '.Status' result.json)
           if [ "$STATUS" != "Success" ]; then
-            echo "Deploy failed with status: $STATUS"
+            echo "Deploy failed with status: $STATUS (rollback was attempted on the instance if a previous image existed)"
             exit 1
           fi
