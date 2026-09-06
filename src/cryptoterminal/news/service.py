@@ -289,8 +289,12 @@ class NewsService:
     async def _adapter_loop(self, adapter: NewsAdapter, interval: int) -> None:
         """Her adapter bağımsız döngüde çalışır — diğerlerini beklemez."""
         source_key = adapter.source_name()
-        # Başlangıçta son 2 saatin haberlerini göster, daha eskisini atla
-        last_check: datetime = datetime.now(timezone.utc) - timedelta(hours=2)
+        # Başlangıçta son 24 saati geri doldur. 2 saatlik pencere sakin günlerde
+        # boş kalıyordu: bu kaynaklar günde ~10 haber üretiyor, dolayısıyla her
+        # restart sonrası panel yeni bir haber çıkana kadar ölü görünüyordu.
+        # Geri doldurulan eski haberler alarm/bildirim tetiklemez — frontend
+        # yalnızca 5 dakikadan yeni haberler için uyarı veriyor (wsHandlers.js).
+        last_check: datetime = datetime.now(timezone.utc) - timedelta(hours=24)
 
         # İlk fetch başlatma anında — gecikme olmasın.
         # NOT: last_check fetch ÖNCE alınır, aksi halde fetch süresince yayınlanan
