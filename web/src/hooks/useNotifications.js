@@ -18,11 +18,11 @@ export function useNotifications() {
 
     // Açılışta izin zaten verilmişse otomatik aç
     useEffect(() => {
-        if (Notification.permission === 'granted') setNotifEnabled(true)
+        if ('Notification' in window && Notification.permission === 'granted') setNotifEnabled(true)
     }, [])
 
     const sendNotif = useCallback((title, body) => {
-        if (Notification.permission !== 'granted') return
+        if (!('Notification' in window) || Notification.permission !== 'granted') return
         const opts = { body, icon: '/favicon.svg', badge: '/favicon.svg', silent: false }
         if (swRegRef.current) {
             swRegRef.current.showNotification(title, opts)
@@ -33,6 +33,7 @@ export function useNotifications() {
 
     const toggleNotif = useCallback(async () => {
         if (notifEnabled) { setNotifEnabled(false); return }
+        if (!('Notification' in window)) return
         if (Notification.permission === 'granted') { setNotifEnabled(true); return }
         const perm = await Notification.requestPermission()
         if (perm === 'granted') setNotifEnabled(true)

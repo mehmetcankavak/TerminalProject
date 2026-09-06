@@ -865,7 +865,7 @@ export default function SmartMoney() {
     const id = ++alertIdRef.current
     const alert = { id, ...data, ts: Date.now() }
     setAlerts(prev => [alert, ...prev].slice(0, 3))
-    if (Notification.permission === 'granted') {
+    if ('Notification' in window && Notification.permission === 'granted') {
       const icons = { open: '▲', close: '▼', change: '↕' }
       new Notification(`${icons[data.type] || '•'} ${data.traderName}`, {
         body: data.message, tag: `sm-${data.addr}-${data.coin}`, silent: false,
