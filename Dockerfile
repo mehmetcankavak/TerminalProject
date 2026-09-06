@@ -2,7 +2,7 @@
 FROM node:20-alpine AS frontend
 WORKDIR /app/web
 COPY web/package*.json ./
-RUN npm install --legacy-peer-deps --silent
+RUN npm install --legacy-peer-deps
 COPY web/src/ ./src/
 COPY web/public/ ./public/
 COPY web/index.html web/vite.config.js ./
