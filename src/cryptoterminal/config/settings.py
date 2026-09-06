@@ -37,11 +37,20 @@ class Settings(BaseSettings):
         return [s.strip() for s in self.watchlist_raw.split(",") if s.strip()]
 
     # News
-    news_sources: str = "cryptopanic"
+    # NOT: cryptopanic burada varsayılan OLAMAZ — v2 endpoint kaldırıldığından
+    # adapter no-op (bkz. news/cryptopanic.py) ve _build_adapters'a hiç eklenmiyor.
+    # Varsayılan olarak bırakılırsa geriye sadece listeleme/duyuru gibi nadir
+    # kaynaklar kalıyor ve akış sessizce boş görünüyor.
+    news_sources: str = "rss"
     news_poll_interval_seconds: int = 15
     cryptopanic_api_key: str = ""
     cryptopanic_filter: str = "hot"
-    rss_feeds: str = ""
+    rss_feeds: str = (
+        "https://www.coindesk.com/arc/outboundfeeds/rss/,"
+        "https://cointelegraph.com/rss,"
+        "https://decrypt.co/feed,"
+        "https://www.theblock.co/rss.xml"
+    )
     twitter_accounts: str = ""  # comma-separated @handles (Nitter polling)
     twitter_bearer_token: str = ""  # Twitter API v2 Bearer Token (Filtered Stream)
 
