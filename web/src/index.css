@@ -188,6 +188,12 @@ body {
 .app-layout {
   display: flex;
   height: 100vh;
+  /* iOS Safari: 100vh ignores the browser chrome, so the bottom gets cut off */
+  height: 100dvh;
+  /* index.html uses viewport-fit=cover — keep the shell clear of the status bar */
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   overflow: hidden;
 }
 
@@ -1035,6 +1041,8 @@ body {
 
 .main-content {
   flex: 1;
+  /* without this a flex item keeps min-width:auto and wide tables push it past the viewport */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -3337,6 +3345,7 @@ body {
   display: flex;
   overflow: hidden;
   min-height: 0;
+  min-width: 0;
 }
 
 /* ─── News Panel ─── */
@@ -3872,6 +3881,61 @@ body {
   white-space: nowrap;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   TERMINAL — narrow viewports
+   The shell is desktop-first: fixed-height panes inside overflow:hidden,
+   and .nt-main splits into two side-by-side columns. Under ~900px that
+   leaves each column ~170px, so panes get clipped instead of laid out.
+   Stack them and let the terminal scroll vertically instead.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .nt-layout {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Scroll the stats sideways rather than clipping them at 30px */
+  .nt-topbar {
+    height: auto;
+    min-height: 30px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .nt-topbar::-webkit-scrollbar { display: none; }
+
+  /* Stack the news feed above the chart/console column */
+  .nt-main {
+    flex-direction: column;
+    flex: none;
+    overflow: visible;
+  }
+  .nt-news {
+    width: 100%;
+    max-height: 45vh;
+    border-right: none;
+    border-bottom: 1px solid var(--border-0);
+  }
+  .nt-right {
+    flex: none;
+    overflow: visible;
+  }
+
+  /* flex:1 collapses to zero height once the column scrolls */
+  .nt-chart {
+    flex: none;
+    height: 55vh;
+    min-height: 320px;
+  }
+}
+
+@media (max-width: 640px) {
+  .nt-news { max-height: 40vh; }
+  .nt-chart { height: 50vh; min-height: 260px; }
+  .nt-log { height: 60px; }
+  .hl-pf-bottom-section { padding: 0 10px; }
+  .hl-pf-tabs { gap: 14px; }
+}
 
 .terminal-layout {
   display: flex;
