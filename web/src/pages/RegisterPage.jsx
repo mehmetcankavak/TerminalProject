@@ -1,31 +1,11 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import AuthLayout from '../components/AuthLayout'
+import { Eye, EyeOff } from 'lucide-react'
 import GoogleAuthButton from '../components/GoogleAuthButton'
 import { useAuth } from '../context/AuthContext'
+import { useLang } from '../context/LangContext'
 import { API_BASE } from '../config'
-
-const PERKS = [
-  { icon: 'liq',   label: 'Liquidation Stream',   desc: 'Real-time long/short liquidations' },
-  { icon: 'whale', label: 'Whale Alerts',          desc: 'Instant large transfer detection' },
-  { icon: 'smart', label: 'Smart Money',           desc: 'Copy top Hyperliquid traders' },
-  { icon: 'fund',  label: 'Funding Rate',          desc: 'Live rates across all exchanges' },
-  { icon: 'alert', label: 'Custom Alerts',         desc: 'Price and condition triggers' },
-]
-
-function PerkIcon({ type }) {
-  const paths = {
-    liq:   <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
-    whale: <><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></>,
-    smart: <><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 100 4h4a2 2 0 110 4H8"/><line x1="12" y1="6" x2="12" y2="18"/></>,
-    fund:  <><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></>,
-    alert: <><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>,
-  }
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {paths[type]}
-    </svg>
-  )
-}
 
 function PasswordStrength({ password }) {
   if (!password.length) return null
@@ -43,7 +23,7 @@ function PasswordStrength({ password }) {
     <div className="reg-pw-strength">
       <div className="reg-pw-bars">
         {[0,1,2,3].map(i => (
-          <div key={i} className="reg-pw-seg" style={{ background: i < score ? color : 'rgba(255,255,255,.08)' }} />
+          <div key={i} className="reg-pw-seg" style={{ background: i < score ? color : '#e4e6df' }} />
         ))}
       </div>
       <span className="reg-pw-label" style={{ color }}>{label}</span>
@@ -53,10 +33,11 @@ function PasswordStrength({ password }) {
 
 export default function RegisterPage() {
   const { login, googleLogin } = useAuth()
+  const { lang } = useLang()
+  const copy = (en, tr) => lang === 'tr' ? tr : en
   const navigate  = useNavigate()
   const hasGoogle = !!import.meta.env.VITE_GOOGLE_CLIENT_ID
   const [searchParams] = useSearchParams()
-  const pageRef = useRef(null)
 
   const [name,            setName]            = useState('')
   const [email,           setEmail]           = useState('')
@@ -67,17 +48,11 @@ export default function RegisterPage() {
   const [loading,         setLoading]         = useState(false)
   const [showPass,        setShowPass]        = useState(false)
 
-  const handlePointerMove = (e) => {
-    const rect = pageRef.current?.getBoundingClientRect(); if (!rect) return
-    pageRef.current.style.setProperty('--mx', `${e.clientX - rect.left}px`)
-    pageRef.current.style.setProperty('--my', `${e.clientY - rect.top}px`)
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (password !== confirmPassword) { setError('Passwords do not match'); return }
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return }
+    if (password !== confirmPassword) { setError(copy('Passwords do not match', 'Şifreler eşleşmiyor')); return }
+    if (password.length < 8) { setError(copy('Password must be at least 8 characters', 'Şifre en az 8 karakter olmalı')); return }
     setLoading(true)
     try {
       const res  = await fetch(`${API_BASE}/auth/register`, {
@@ -98,60 +73,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div ref={pageRef} className="lp2-root" onMouseMove={handlePointerMove}>
-      <div className="lp2-bg-grid" />
-      <div className="lp2-bg-orb lp2-bg-orb-1" />
-      <div className="lp2-bg-orb lp2-bg-orb-2" />
-      <div className="lp2-spotlight" />
-
-      {/* Nav */}
-      <nav className="lp2-nav">
-        <Link to="/" className="lp2-nav-logo">
-          <span className="lp2-bracket">[</span>TT<span className="lp2-bracket">]</span>
-          <span className="lp2-nav-wordmark">TRADING TERMINAL</span>
-        </Link>
-        <Link to="/login" className="lp2-nav-cta">Sign In</Link>
-      </nav>
-
-      <main className="lp2-split reg-split">
-        {/* LEFT - brand panel */}
-        <div className="lp2-left">
-          <div className="lp2-left-inner">
-            <div className="lp2-eyebrow">
-              <span className="lp2-pulse" />
-              PROFESSIONAL TRADING TOOLS
-            </div>
-
-            <h1 className="lp2-headline">
-              Join the Pro<br />
-              <span className="lp2-headline-accent">Trading Community.</span>
-            </h1>
-
-            <p className="lp2-subtext">
-              Access real-time liquidations, whale alerts, smart money tracking and AI analysis. Everything serious traders need.
-            </p>
-
-            {/* Feature perks */}
-            <div className="reg-perks">
-              {PERKS.map(p => (
-                <div key={p.icon} className="reg-perk">
-                  <div className="reg-perk-icon"><PerkIcon type={p.icon} /></div>
-                  <div>
-                    <div className="reg-perk-label">{p.label}</div>
-                    <div className="reg-perk-desc">{p.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="reg-free-note">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Free plan available. No credit card required.
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT - form */}
+    <AuthLayout register>
         <div className="lp2-right">
           <div className="lp2-card-shell">
             <div className="lp2-card">
@@ -159,8 +81,8 @@ export default function RegisterPage() {
 
               <div className="lp2-card-header">
                 <div className="lp2-card-eyebrow">GET STARTED</div>
-                <h2 className="lp2-card-title">Create Account</h2>
-                <p className="lp2-card-sub">Join thousands of professional traders</p>
+                <h1 className="lp2-card-title">{copy('Create Account', 'Hesap oluştur')}</h1>
+                <p className="lp2-card-sub">{copy('Your next move starts here.', 'Sıradaki hamlen burada başlıyor.')}</p>
               </div>
 
               {/* Plan selector */}
@@ -168,31 +90,35 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   className={`reg-plan ${selectedPlan === 'free' ? 'active' : ''}`}
+                  aria-pressed={selectedPlan === 'free'}
                   onClick={() => setSelectedPlan('free')}
                 >
                   <div className="reg-plan-name">FREE</div>
                   <div className="reg-plan-price">$0</div>
-                  <div className="reg-plan-desc">Basic access</div>
+                  <div className="reg-plan-desc">{copy('Basic access', 'Temel erişim')}</div>
                 </button>
                 <button
                   type="button"
                   className={`reg-plan reg-plan-pro ${selectedPlan === 'pro' ? 'active-pro' : ''}`}
+                  aria-pressed={selectedPlan === 'pro'}
                   onClick={() => setSelectedPlan('pro')}
                 >
                   <div className="reg-plan-badge">RECOMMENDED</div>
                   <div className="reg-plan-name pro">PRO</div>
                   <div className="reg-plan-price pro">$39<span>/mo</span></div>
-                  <div className="reg-plan-desc">Full terminal access</div>
+                  <div className="reg-plan-desc">{copy('Billed $468 yearly', 'Yıllık $468 olarak faturalanır')}</div>
                 </button>
               </div>
 
               <form className="lp2-form" onSubmit={handleSubmit}>
                 <div className="lp2-field">
-                  <label className="lp2-label">
-                    DISPLAY NAME <span style={{ opacity:.4, fontSize:'8px' }}>(OPTIONAL)</span>
+                  <label className="lp2-label" htmlFor="auth-name">
+                    {copy('Display name', 'Görünen ad')} <span>({copy('optional', 'isteğe bağlı')})</span>
                   </label>
                   <input
                     className="lp2-input"
+                    id="auth-name"
+                    autoComplete="nickname"
                     type="text"
                     placeholder="e.g. Trader Mike"
                     value={name}
@@ -203,9 +129,11 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="lp2-field">
-                  <label className="lp2-label">EMAIL</label>
+                  <label className="lp2-label" htmlFor="auth-email">{copy('EMAIL', 'E-posta')}</label>
                   <input
                     className={`lp2-input${error ? ' lp2-input-error' : ''}`}
+                    id="auth-email"
+                    autoComplete="email"
                     type="email"
                     placeholder="trader@example.com"
                     value={email}
@@ -215,31 +143,31 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="lp2-field">
-                  <label className="lp2-label">PASSWORD</label>
+                  <label className="lp2-label" htmlFor="auth-password">{copy('PASSWORD', 'Şifre')}</label>
                   <div className="lp2-input-wrap">
                     <input
                       className={`lp2-input lp2-input-padded${error ? ' lp2-input-error' : ''}`}
+                      id="auth-password"
+                      autoComplete="new-password"
                       type={showPass ? 'text' : 'password'}
                       placeholder="Min. 8 characters"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       required
                     />
-                    <button type="button" className="lp2-pass-eye" onClick={() => setShowPass(p => !p)}>
-                      {showPass ? (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                      ) : (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      )}
+                    <button type="button" className="lp2-pass-eye" onClick={() => setShowPass(p => !p)} aria-label={showPass ? copy('Hide password', 'Şifreyi gizle') : copy('Show password', 'Şifreyi göster')}>
+                      {showPass ? <EyeOff /> : <Eye />}
                     </button>
                   </div>
                   <PasswordStrength password={password} />
                 </div>
 
                 <div className="lp2-field">
-                  <label className="lp2-label">CONFIRM PASSWORD</label>
+                  <label className="lp2-label" htmlFor="auth-confirm">{copy('CONFIRM PASSWORD', 'Şifreyi doğrula')}</label>
                   <input
                     className={`lp2-input${error ? ' lp2-input-error' : ''}`}
+                    id="auth-confirm"
+                    autoComplete="new-password"
                     type="password"
                     placeholder="Repeat password"
                     value={confirmPassword}
@@ -249,7 +177,7 @@ export default function RegisterPage() {
                 </div>
 
                 {error && (
-                  <div className="lp2-error">
+                  <div className="lp2-error" role="alert">
                     <span className="lp2-error-dot" />
                     {error}
                   </div>
@@ -257,14 +185,14 @@ export default function RegisterPage() {
 
                 <button
                   type="submit"
-                  className={`lp2-btn${loading ? ' lp2-btn-loading' : ''}${selectedPlan === 'pro' ? ' lp2-btn-pro-variant' : ''}`}
+                  className={`lp2-btn${loading ? ' lp2-btn-loading' : ''}`}
                   disabled={loading}
                 >
                   {loading ? (
                     <span className="lp2-spinner" />
                   ) : (
                     <>
-                      <span>{selectedPlan === 'pro' ? 'CREATE ACCOUNT & UPGRADE' : 'CREATE FREE ACCOUNT'}</span>
+                      <span>{selectedPlan === 'pro' ? copy('Create account & upgrade', 'Hesap oluştur ve yükselt') : copy('Create free account', 'Ücretsiz hesap oluştur')}</span>
                       <span className="lp2-btn-icon">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                       </span>
@@ -277,7 +205,7 @@ export default function RegisterPage() {
                 <>
                   <div className="lp2-divider">
                     <span className="lp2-divider-line" />
-                    <span className="lp2-divider-text">or continue with</span>
+                    <span className="lp2-divider-text">{copy('or continue with', 'veya şununla devam et')}</span>
                     <span className="lp2-divider-line" />
                   </div>
                   <GoogleAuthButton
@@ -295,18 +223,13 @@ export default function RegisterPage() {
               )}
 
               <div className="lp2-footer">
-                <span className="lp2-footer-text">Already have an account?</span>
-                <Link to="/login" className="lp2-footer-link">Sign in</Link>
+                <span className="lp2-footer-text">{copy('Already have an account?', 'Zaten hesabın var mı?')}</span>
+                <Link to="/login" className="lp2-footer-link">{copy('Sign in', 'Giriş yap')}</Link>
               </div>
             </div>
           </div>
 
-          <div className="lp2-security-note">
-            <span className="lp2-security-dot" />
-            256-bit encrypted connection
-          </div>
         </div>
-      </main>
-    </div>
+    </AuthLayout>
   )
 }
