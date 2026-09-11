@@ -75,7 +75,7 @@ export default function LandingPage() {
           <button className="ct-button ct-hero-cta" onClick={open}>{copy('Explore the terminal', 'Terminali keşfet')}<ArrowRight size={18} /></button>
         </div>
         <figure className="ct-monitor">
-          <img src="/images/landing-concept.png" alt={copy('CryptoTerminal product concept showing news, a Bitcoin chart, watchlist and paper order risk checks.', 'Haberler, Bitcoin grafiği, izleme listesi ve sanal emir risk kontrollerini gösteren CryptoTerminal ürün konsepti.')} fetchPriority="high" />
+          <img src="/images/monitor-hd.png" alt={copy('CryptoTerminal product concept showing news, a Bitcoin chart, watchlist and paper order risk checks.', 'Haberler, Bitcoin grafiği, izleme listesi ve sanal emir risk kontrollerini gösteren CryptoTerminal ürün konsepti.')} fetchPriority="high" />
         </figure>
       </section>
 

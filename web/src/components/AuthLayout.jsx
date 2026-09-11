@@ -22,7 +22,7 @@ export default function AuthLayout({ children, register = false }) {
             <h2>{tr ? <>Haberdar ol. <br />Kontrol sende.</> : <>Stay informed. <br />Stay in control.</>}</h2>
             <span>{tr ? 'Haberler, piyasa analizi ve işlemler. Hepsi bir arada.' : 'News, market context and trading. All in one place.'}</span>
           </div>
-          <figure className="ct-auth-monitor"><img src="/images/landing-concept.png" alt={tr ? 'CryptoTerminal ürün önizlemesi' : 'CryptoTerminal product preview'} /></figure>
+          <figure className="ct-auth-monitor"><img src="/images/monitor-hd.png" alt={tr ? 'CryptoTerminal ürün önizlemesi' : 'CryptoTerminal product preview'} /></figure>
           <Link className="ct-auth-back" to="/"><ArrowLeft size={16} />{tr ? 'Ana sayfaya dön' : 'Back to home'}</Link>
         </aside>
         <section className="ct-auth-content">

@@ -16,7 +16,7 @@
 .ct-auth-brand h2{font-family:Georgia,'Times New Roman',serif;font-size:58px;font-weight:400;line-height:1.08;margin:0 0 20px}
 .ct-auth-brand-copy>span{display:block;font-size:16px;line-height:1.6;max-width:340px;color:#394528}
 .ct-auth-monitor{position:relative;aspect-ratio:971/552;width:100%;overflow:hidden;margin:36px 0 20px}
-.ct-auth-monitor img{position:absolute;top:-52.17%;left:0;width:100%;height:auto;max-width:none}
+.ct-auth-monitor img{position:absolute;top:0;left:0;width:100%;height:auto;max-width:none}
 .ct-auth-back{display:flex;align-items:center;gap:10px;font-size:12px;margin:12px 48px 0}
 .ct-auth-content{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px 44px;min-width:0}
 .ct-auth .lp2-right{width:100%;max-width:420px;padding:0;display:block;animation:none}

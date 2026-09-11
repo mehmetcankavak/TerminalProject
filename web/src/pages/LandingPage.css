@@ -22,9 +22,9 @@
 .ct-hero-copy h2{font-size:30px;line-height:1.25;font-weight:400;margin:12px 0 5px}
 .ct-hero-copy p{font-size:18px;margin:0;color:#303824}
 .ct-hero-cta{margin-top:22px}
-/* Preserve the approved monitor artwork without baking navigation or copy into the page. */
+/* Dedicated artwork keeps the monitor crisp without cropping the page mockup. */
 .ct-monitor{position:relative;width:min(1060px,100%);aspect-ratio:971 / 552;margin:16px auto 0;overflow:hidden}
-.ct-monitor img{position:absolute;width:100%;height:auto;max-width:none;left:0;top:-52.17%;display:block}
+.ct-monitor img{position:absolute;width:100%;height:auto;max-width:none;left:0;top:0;display:block}
 .ct-news{padding:42px 0 55px;color:#fafbf8;background:var(--ink)}
 .ct-section-heading{text-align:center;margin-bottom:36px}
 .ct-section-heading h2,.ct-closing h2{font-family:Georgia,'Times New Roman',serif;font-size:48px;font-weight:400;line-height:1.15;margin:0 0 8px}
