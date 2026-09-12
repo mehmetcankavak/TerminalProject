@@ -185,8 +185,8 @@ function TerminalApp() {
 
   const PAGE_TITLES = {
     'alert-monitoring':     { title: 'Alert Monitoring',      sub: 'Triggered Alerts History' },
-    'dashboard':            { title: 'Trading Terminal (Beta)', sub: 'Beta Version' },
-    'terminal':             { title: 'Trading Terminal',      sub: 'News + Trade Execution' },
+    'dashboard':            { title: 'Dashboard',             sub: 'Overview' },
+    'terminal':             { title: 'Terminal',              sub: 'News + Trade Execution' },
     'system-alerts':        { title: 'System Alerts',         sub: 'Manage Notifications' },
     'spot-markets':         { title: 'Markets',               sub: 'Hyperliquid Perps' },
     'etf':                  { title: 'ETF Data',              sub: 'BTC & ETH ETFs · Yahoo Finance' },

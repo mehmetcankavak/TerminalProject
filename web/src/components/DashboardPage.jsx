@@ -132,12 +132,12 @@ function Watchlist({ tickers, meta, list, setList }) {
   const suggestions = input ? Object.keys(meta).filter(s => s.startsWith(input.toUpperCase())).slice(0, 6) : []
   const rows = list.filter(s => !query || s.includes(query.toUpperCase().trim()) || meta[s]?.name?.toLowerCase().includes(query.toLowerCase().trim()))
   return (
-    <div className="ws-card">
+    <div className="ws-card db-watch">
       <div className="ws-card-head">
         <h3 className="ws-h3">Watchlist</h3>
         <div className="ws-row">
           <button className="ws-btn ws-btn-sm ws-btn-icon" title={adding ? 'Close' : 'Add coin'} onClick={() => setAdding(v => !v)}>{adding ? <X size={15} /> : <Plus size={15} />}</button>
-          <div className="ws-search" style={{ width: 190 }}><Search size={13} /><input className="ws-input ws-input-sm" placeholder="Search symbols..." value={query} onChange={e => setQuery(e.target.value)} /></div>
+          <div className="ws-search" style={{ width: 190 }}><Search size={13} /><input className="ws-input ws-input-sm" aria-label="Search watchlist" placeholder="Search symbols..." value={query} onChange={e => setQuery(e.target.value)} /></div>
         </div>
       </div>
       {adding && (

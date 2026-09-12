@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 import { useWebSocket } from '../hooks/useWebSocket'
-import FeatureSpotlight from './FeatureSpotlight'
+import { UserPlus, UserMinus, Copy, Search, ChevronDown, BarChart3, BarChart2, TrendingUp, Users } from 'lucide-react'
+import AssetLogo from './AssetLogo'
 
 const API   = `${API_BASE}/api/smart-money`
 const HL_WS = 'wss://api.hyperliquid.xyz/ws'
@@ -123,32 +124,138 @@ function useTraderWatcher(followed, onAlert, onCopyTrade) {
 }
 
 /* ── Alert Banner ─────────────────────────────────────────────────────────── */
+
+/* ── Alert banner ─────────────────────────────────────────────────────────── */
 function AlertBanner({ alerts, onDismiss }) {
   if (!alerts.length) return null
   const a = alerts[0]
-  const colors = { open: '#00e87a', close: '#f43f5e', change: '#f59e0b', error: '#f59e0b' }
-  const icons  = { open: '▲', close: '▼', change: '↕', error: '⚠' }
-  const color  = colors[a.type] || '#00e87a'
+  const cls = a.type === 'open' ? 'ws-note-ok' : a.type === 'close' ? 'ws-note-err' : 'ws-note-warn'
   return (
-    <div style={{
-      position: 'fixed', top: 64, left: 16, right: 16, zIndex: 9999,
-      background: 'var(--bg-2)', border: `1px solid ${color}33`,
-      borderLeft: `3px solid ${color}`, borderRadius: 12,
-      padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-    }}>
-      <span style={{ fontSize: 16, color: workspaceTextColor(color) }}>{icons[a.type]}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ct-ink, #fff)", marginBottom: 1 }}>{a.traderName}</div>
-        <div style={{ fontSize: 11, color: "var(--ct-subtle, #888)", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {a.message}
+    <div className={`ws-note ${cls} smx-banner`}>
+      <div className="ws-flex-1"><b>{a.traderName}</b> · {a.message}</div>
+      {alerts.length > 1 && <span className="ws-small">+{alerts.length - 1}</span>}
+      <button className="ws-iconbtn" onClick={() => onDismiss(a.id)}>✕</button>
+    </div>
+  )
+}
+
+/* ── Follow / copy modal ──────────────────────────────────────────────────── */
+function CopyModal({ trader, onClose, onSave }) {
+  const [budget, setBudget] = useState('500')
+  const [ratio, setRatio] = useState('1')
+  const [autoClose, setAutoClose] = useState(true)
+  const [copyEnabled, setCopyEnabled] = useState(false)
+  if (!trader) return null
+  return (
+    <div className="ws-modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="ws-modal">
+        <div className="ws-modal-head"><div><h3 className="ws-h3">Follow Trader</h3><div className="ws-muted ws-small ws-mono">{trader.displayName} · {shortAddr(trader.address)}</div></div></div>
+        <div className="ws-modal-body ws-form">
+          <div className="ws-field"><label>Max budget (USD)</label><input className="ws-input ws-mono" type="number" value={budget} onChange={e => setBudget(e.target.value)} /><span className="ws-muted ws-xs">Maximum total margin for this trader</span></div>
+          <div className="ws-field"><label>Size ratio (%)</label><input className="ws-input ws-mono" type="number" value={ratio} onChange={e => setRatio(e.target.value)} /><span className="ws-muted ws-xs">% of the trader's position size · 1% → $50 for a $5K trade</span></div>
+          <div className="ws-setting-row ws-setting-row-2"><div className="ws-setting-key">Auto close<small>Close the position when the trader closes</small></div><button type="button" className={`ws-toggle ${autoClose ? 'on' : ''}`} onClick={() => setAutoClose(v => !v)} /></div>
+          <div className="ws-setting-row ws-setting-row-2"><div className="ws-setting-key">Auto copy trade<small>Send an order on every position change</small></div><button type="button" className={`ws-toggle ${copyEnabled ? 'on' : ''}`} onClick={() => setCopyEnabled(v => !v)} /></div>
+          {copyEnabled && <div className="ws-note ws-note-warn">Auto copy trade sends orders on every position change. Test in Paper Mode first.</div>}
+          <div className="ws-row" style={{ justifyContent: 'flex-end' }}>
+            <button className="ws-btn" onClick={onClose}>Cancel</button>
+            <button className="ws-btn ws-btn-primary" onClick={() => onSave({ budget: parseFloat(budget) || 500, ratio: parseFloat(ratio) || 1, autoClose, copyEnabled })}>Start Following</button>
+          </div>
         </div>
       </div>
-      {alerts.length > 1 && (
-        <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ct-subtle, #666)", marginRight: 4 }}>+{alerts.length - 1}</span>
-      )}
-      <button onClick={() => onDismiss(a.id)}
-        style={{ background: 'none', border: 'none', color: "var(--ct-subtle, #555)", fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+    </div>
+  )
+}
+
+/* ── Trader detail (bottom card) ──────────────────────────────────────────── */
+function TraderDetail({ trader, followed, followedSettings, onFollow, copyLogs, token }) {
+  const [positions, setPositions] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState('positions')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!token || !trader) return
+    setLoading(true)
+    const headers = { Authorization: `Bearer ${token}` }
+    const pull = () => fetch(`${API}/positions/${trader.address}`, { headers }).then(r => r.json()).then(d => { setPositions(d); setLoading(false) }).catch(() => setLoading(false))
+    pull()
+    const id = setInterval(pull, 15000)
+    return () => clearInterval(id)
+  }, [trader, token])
+
+  const list = positions?.positions || []
+  const totalValue = list.reduce((s, p) => s + (p.notional || 0), 0)
+  const unreal = list.reduce((s, p) => s + (p.unrealized_pnl || 0), 0)
+  const winRate = trader.win_rate != null ? (trader.win_rate <= 1 ? trader.win_rate * 100 : trader.win_rate) : null
+  const copyAddr = () => { navigator.clipboard?.writeText(trader.address).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }).catch(() => {}) }
+
+  return (
+    <div className="ws-card ws-mt-16">
+      <div className="ws-card-head"><h3 className="ws-h3">Trader Details</h3>{followed && <span className={`ws-badge ${followedSettings?.copyEnabled ? 'ws-badge-warn' : 'ws-badge-pos'}`}>{followedSettings?.copyEnabled ? 'Copying' : 'Following'}</span>}</div>
+      <div className="smx-detail">
+        <div className="smx-detail-main">
+          <div className="ws-row-between" style={{ alignItems: 'flex-start' }}>
+            <div className="ws-row" style={{ gap: 14 }}>
+              <span className="smx-avatar"><Users size={22} strokeWidth={1.6} /></span>
+              <div>
+                <div className="ws-strong" style={{ fontSize: 19 }}>{trader.displayName}</div>
+                <div className="ws-row ws-mono ws-muted ws-small" style={{ gap: 6 }}>{shortAddr(trader.address)} <button className="ws-iconbtn" style={{ width: 22, height: 22 }} onClick={copyAddr} title="Copy address"><Copy size={12} /></button>{copied && <span className="ws-pos ws-xs">copied</span>}</div>
+              </div>
+            </div>
+            <button className={`ws-btn ${followed ? '' : 'ws-btn-primary'}`} onClick={() => onFollow(trader)}>{followed ? <><UserMinus size={15} /> Unfollow</> : <><UserPlus size={15} /> Follow</>}</button>
+          </div>
+          <div className="smx-detail-stats">
+            {[['Total PnL', fmtUSD(trader.pnl_alltime), trader.pnl_alltime >= 0], ['ROI', fmtPct(trader.roi_alltime), trader.roi_alltime >= 0], ['30d PnL', fmtUSD(trader.pnl_month), trader.pnl_month >= 0], ['Win Rate', winRate != null ? winRate.toFixed(1) + '%' : '—', null], ['Total Trades', trader.trades != null ? trader.trades : '—', null], ['Avg. Hold Time', trader.avg_hold != null ? trader.avg_hold : '—', null]].map(([k, v, up]) => (
+              <div key={k}><span>{k}</span><b className={up == null ? 'ws-ink' : up ? 'ws-pos' : 'ws-neg'}>{v}</b></div>
+            ))}
+          </div>
+        </div>
+        <div className="smx-detail-side">
+          <div className="ws-row-between"><span className="ws-text">Balance</span><b className="ws-mono ws-ink">{fmtUSD(trader.accountValue)}</b></div>
+          <div className="ws-row-between"><span className="ws-text">Total Value</span><b className="ws-mono ws-ink">{fmtUSD(totalValue)}</b></div>
+          <div className="ws-row-between"><span className="ws-text">Unrealized PnL</span><b className={`ws-mono ${unreal >= 0 ? 'ws-pos' : 'ws-neg'}`}>{unreal >= 0 ? '+' : ''}{fmtUSD(unreal)}</b></div>
+        </div>
+      </div>
+      <div className="ws-tabs" style={{ padding: '0 18px' }}>
+        <button className={`ws-tab ${tab === 'positions' ? 'active' : ''}`} onClick={() => setTab('positions')}>Current Positions ({list.length})</button>
+        <button className={`ws-tab ${tab === 'activity' ? 'active' : ''}`} onClick={() => setTab('activity')}>Copy Activity ({copyLogs.length})</button>
+      </div>
+      <div className="ws-table-wrap">
+        {tab === 'positions' ? (
+          <table className="ws-table ws-table-dense">
+            <thead><tr><th>Token</th><th className="ws-right">Amount</th><th className="ws-right">Entry Price</th><th className="ws-right">Current Price</th><th className="ws-right">Value (USD)</th><th className="ws-right">PnL</th><th className="ws-right">ROI</th><th className="ws-right">Share</th></tr></thead>
+            <tbody>
+              {loading ? <tr><td colSpan={8}><div className="ws-loading"><span className="ws-spinner" /> Loading positions…</div></td></tr>
+              : list.length === 0 ? <tr><td colSpan={8} className="ws-muted">No open positions</td></tr>
+              : list.map(p => {
+                const cur = p.mark_px || p.current_px || (p.entry_px && p.size ? p.entry_px * (1 + (p.unrealized_pnl || 0) / (p.notional || 1)) : null)
+                const roi = p.notional ? ((p.unrealized_pnl || 0) / p.notional) * 100 : null
+                return (
+                  <tr key={p.coin}>
+                    <td><div className="ws-asset"><span className="ws-asset-logo ws-asset-logo-sm"><AssetLogo symbol={p.coin} type="crypto" size={20} radius={10} /></span><span className="ws-asset-sym">{p.coin}</span><span className={`ws-badge ws-badge-sm ${p.side === 'LONG' ? 'ws-badge-pos' : 'ws-badge-neg'}`}>{p.side}{p.leverage ? ` ${p.leverage}x` : ''}</span></div></td>
+                    <td className="ws-right ws-num">{p.size != null ? Number(p.size).toLocaleString('en-US', { maximumFractionDigits: 4 }) : '—'}</td>
+                    <td className="ws-right ws-num">${fmtPrice(p.entry_px)}</td>
+                    <td className="ws-right ws-num">{cur ? '$' + fmtPrice(cur) : '—'}</td>
+                    <td className="ws-right ws-num ws-ink">{fmtUSD(p.notional)}</td>
+                    <td className={`ws-right ws-num ${(p.unrealized_pnl || 0) >= 0 ? 'ws-pos' : 'ws-neg'}`}>{(p.unrealized_pnl || 0) >= 0 ? '+' : ''}{fmtUSD(p.unrealized_pnl)}</td>
+                    <td className={`ws-right ws-num ${(roi || 0) >= 0 ? 'ws-pos' : 'ws-neg'}`}>{roi != null ? (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%' : '—'}</td>
+                    <td className="ws-right ws-num">{totalValue ? ((p.notional || 0) / totalValue * 100).toFixed(1) + '%' : '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <table className="ws-table ws-table-dense">
+            <thead><tr><th>Time</th><th>Trader</th><th>Action</th><th>Symbol</th><th>Detail</th><th>Status</th></tr></thead>
+            <tbody>
+              {copyLogs.length === 0 ? <tr><td colSpan={6} className="ws-muted">No copy trade activity yet</td></tr> : copyLogs.map(row => (
+                <tr key={row.id}><td className="ws-mono ws-muted">{new Date(row.ts).toLocaleTimeString('en-US', { hour12: false })}</td><td className="ws-ink">{row.traderName}</td><td>{row.action === 'open' ? 'Open' : 'Close'}</td><td className="ws-ink">{row.symbol}</td><td className="ws-mono ws-muted">{row.detail}</td><td><span className={`ws-badge ${row.status === 'ok' ? 'ws-badge-pos' : row.status === 'error' ? 'ws-badge-neg' : row.status === 'skip' ? '' : 'ws-badge-warn'}`}>{row.status}</span></td></tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }
@@ -485,285 +592,6 @@ function WhaleInsightsSheet({ open, onClose, token }) {
 }
 
 /* ── Copy Modal ───────────────────────────────────────────────────────────── */
-function CopyModal({ trader, onClose, onSave }) {
-  const [budget,      setBudget]      = useState('500')
-  const [ratio,       setRatio]       = useState('1')
-  const [autoClose,   setAutoClose]   = useState(true)
-  const [copyEnabled, setCopyEnabled] = useState(false)
-
-  if (!trader) return null
-  return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{
-      position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-    }}>
-      <div style={{ background: 'var(--bg-2)', border: "1px solid var(--ct-line, rgba(255,255,255,0.08))", borderRadius: 16, width: '100%', maxWidth: 440, padding: '24px' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ct-ink, #fff)", marginBottom: 2 }}>Follow Trader</div>
-        <div style={{ fontSize: 12, color: "var(--ct-subtle, #888)", marginBottom: 20 }}>{trader.displayName} · {shortAddr(trader.address)}</div>
-
-        {[
-          { label: 'MAX BUDGET (USD)', value: budget, setter: setBudget, hint: 'Maximum total margin for this trader' },
-          { label: 'SIZE RATIO (%)', value: ratio, setter: setRatio, hint: '% of trader position size · 1% → $50 for a $5K trade' },
-        ].map(f => (
-          <div key={f.label} style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: "var(--ct-muted, #aaa)", fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>{f.label}</div>
-            <input type="number" value={f.value} onChange={e => f.setter(e.target.value)} style={{
-              width: '100%', background: "var(--ct-wash, rgba(255,255,255,0.04))", border: "1px solid var(--ct-line, rgba(255,255,255,0.08))",
-              borderRadius: 8, padding: '10px 12px', color: "var(--ct-ink, #fff)", fontSize: 14, fontWeight: 700,
-              fontFamily: 'var(--font-mono)', boxSizing: 'border-box', outline: 'none',
-            }} />
-            <div style={{ fontSize: 11, color: "var(--ct-subtle, #555)", marginTop: 4 }}>{f.hint}</div>
-          </div>
-        ))}
-
-        <div style={{ background: "var(--ct-wash, rgba(255,255,255,0.03))", border: "1px solid var(--ct-line, rgba(255,255,255,0.06))", borderRadius: 12, padding: '4px 0', marginBottom: 14 }}>
-          {[
-            { label: 'Auto Close', sub: 'Close position when trader closes', val: autoClose, set: setAutoClose, color: '#00e87a' },
-            { label: 'Auto Copy Trade', sub: 'Send order on position change', val: copyEnabled, set: setCopyEnabled, color: '#f59e0b' },
-          ].map((tog, i) => (
-            <div key={tog.label}>
-              {i > 0 && <div style={{ height: 1, background: "var(--ct-wash, rgba(255,255,255,0.04))", margin: '0 14px' }} />}
-              <div onClick={() => tog.set(v => !v)} style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', cursor: 'pointer' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ct-ink, #fff)" }}>{tog.label}</div>
-                  <div style={{ fontSize: 11, color: "var(--ct-subtle, #555)", marginTop: 1 }}>{tog.sub}</div>
-                </div>
-                <div style={{ width: 44, height: 26, borderRadius: 13, position: 'relative', background: tog.val ? tog.color : "var(--ct-wash, rgba(255,255,255,0.1))", transition: 'background 0.2s' }}>
-                  <div style={{ position: 'absolute', top: 3, left: tog.val ? 21 : 3, width: 20, height: 20, borderRadius: '50%', background: "var(--ct-surface, #fff)", transition: 'left 0.2s' }} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {copyEnabled && (
-          <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '10px 12px', fontSize: 11, color: "var(--ct-warning, #f59e0b)", marginBottom: 14, lineHeight: 1.5 }}>
-            ⚠ Auto copy trade sends orders on every position change. Test in Paper Mode first.
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: "1px solid var(--ct-line, rgba(255,255,255,0.08))", background: 'transparent', color: "var(--ct-muted, #aaa)", fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-          <button
-            onClick={() => onSave({ budget: parseFloat(budget) || 500, ratio: parseFloat(ratio) || 1, autoClose, copyEnabled })}
-            style={{ flex: 2, padding: '12px 0', borderRadius: 10, border: 'none', background: '#00e87a', color: "var(--ct-ink, #000)", fontSize: 13, fontWeight: 800, cursor: 'pointer', letterSpacing: 0.5 }}>
-            START FOLLOWING
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ── Position Card ────────────────────────────────────────────────────────── */
-function PositionCard({ pos }) {
-  const isLong = pos.side === 'LONG'
-  const pnlUp  = (pos.unrealized_pnl || 0) >= 0
-  return (
-    <div style={{ background: "var(--ct-wash, rgba(255,255,255,0.03))", border: "1px solid var(--ct-line, rgba(255,255,255,0.06))", borderRadius: 12, padding: '12px 14px', marginBottom: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: "var(--ct-ink, #fff)" }}>{pos.coin}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5, background: isLong ? 'rgba(0,232,122,0.12)' : 'rgba(244,63,94,0.12)', color: workspaceTextColor(isLong ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
-            {pos.side}{pos.leverage ? ` · ${pos.leverage}x` : ''}
-          </span>
-        </div>
-        <span style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(pnlUp ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
-          {pnlUp ? '+' : ''}{fmtUSD(pos.unrealized_pnl)}
-        </span>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: "var(--ct-muted, #aaa)", fontFamily: 'var(--font-mono)' }}>
-        <span>Entry ${fmtPrice(pos.entry_px)}</span>
-        <span>Size {fmtUSD(pos.notional)}</span>
-        {pos.liq_px && <span style={{ color: "var(--ct-negative, #f43f5e)" }}>Liq ${fmtPrice(pos.liq_px)}</span>}
-      </div>
-    </div>
-  )
-}
-
-/* ── Trader Card (list item) ──────────────────────────────────────────────── */
-function TraderCard({ trader, followed, followedSettings, onSelect, onFollow }) {
-  const pnl    = trader.pnl_alltime
-  const roi    = trader.roi_alltime
-  const month  = trader.pnl_month
-  const copying = followedSettings?.copyEnabled
-
-  return (
-    <div className="ct-trader-row" onClick={() => onSelect(trader)} style={{
-      padding: '14px 24px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))",
-      background: 'var(--bg-0)', cursor: 'pointer',
-      transition: 'background 0.15s',
-    }}
-      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-0)'}
-    >
-      <div className="ct-trader-identity" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: "var(--ct-wash, rgba(255,255,255,0.05))", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <img src="https://coin-images.coingecko.com/coins/images/50882/large/hyperliquid.jpg?1729431300"
-            alt="HL" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:12px;font-weight:800;color:#555">◈</span>' }}
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ct-ink, #fff)", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{trader.displayName}</span>
-            {followed && (
-              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.8, padding: '1px 5px', borderRadius: 3, flexShrink: 0, background: copying ? 'rgba(245,158,11,0.15)' : 'rgba(0,232,122,0.12)', color: workspaceTextColor(copying ? "var(--ct-warning, #f59e0b)" : "var(--ct-positive, #00e87a)") }}>
-                {copying ? 'COPYING' : '● LIVE'}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 10, color: "var(--ct-subtle, #555)", fontFamily: 'var(--font-mono)', marginTop: 1 }}>
-            {shortAddr(trader.address)} · {fmtUSD(trader.accountValue)}
-          </div>
-        </div>
-        <button onClick={e => { e.stopPropagation(); onFollow(trader) }} style={{
-          flexShrink: 0, padding: '6px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
-          background: followed ? 'rgba(244,63,94,0.1)' : 'rgba(0,232,122,0.1)',
-          color: workspaceTextColor(followed ? "var(--ct-negative, #f43f5e)" : "var(--ct-positive, #00e87a)"), fontSize: 12, fontWeight: 700,
-        }}>
-          {followed ? '✕' : '★ Follow'}
-        </button>
-      </div>
-      <div className="ct-trader-metrics" style={{ display: 'flex', gap: 6 }}>
-        {[
-          { label: 'PnL', val: fmtUSD(pnl),   up: pnl >= 0   },
-          { label: 'ROI', val: fmtPct(roi),    up: roi >= 0   },
-          { label: '30d', val: fmtUSD(month),  up: month >= 0 },
-        ].map(s => (
-          <div key={s.label} style={{ flex: 1, background: "var(--ct-wash, rgba(255,255,255,0.03))", borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: "var(--ct-subtle, #666)", fontWeight: 600, marginBottom: 3 }}>{s.label}</div>
-            <div style={{ fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(s.up ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>{s.val}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ── Trader Detail ────────────────────────────────────────────────────────── */
-function TraderDetail({ trader, followed, followedSettings, onBack, onFollow, copyLogs }) {
-  const { token }   = useAuth()
-  const [positions, setPositions] = useState(null)
-  const [loading,   setLoading]   = useState(true)
-  const [tab,       setTab]       = useState('positions')
-  const isFollowed = !!followed
-  const isCopying  = followedSettings?.copyEnabled
-
-  useEffect(() => {
-    if (!token || !trader) return
-    setLoading(true)
-    const headers = { Authorization: `Bearer ${token}` }
-    fetch(`${API}/positions/${trader.address}`, { headers })
-      .then(r => r.json())
-      .then(data => { setPositions(data); setLoading(false) })
-      .catch(() => setLoading(false))
-    const id = setInterval(() => {
-      fetch(`${API}/positions/${trader.address}`, { headers })
-        .then(r => r.json()).then(data => setPositions(data)).catch(() => {})
-    }, 15000)
-    return () => clearInterval(id)
-  }, [trader, token])
-
-  return (
-    <div style={{ background: 'var(--bg-1)', borderLeft: "1px solid var(--ct-line, rgba(255,255,255,0.06))", display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.06))", flexShrink: 0 }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: "var(--ct-muted, #aaa)", fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1 }}>‹</button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 800, color: "var(--ct-ink, #fff)" }}>{trader.displayName}</span>
-            {isFollowed && (
-              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, padding: '2px 6px', borderRadius: 4, background: isCopying ? 'rgba(245,158,11,0.15)' : 'rgba(0,232,122,0.12)', color: workspaceTextColor(isCopying ? "var(--ct-warning, #f59e0b)" : "var(--ct-positive, #00e87a)") }}>
-                {isCopying ? '● COPYING' : '● LIVE'}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 10, color: "var(--ct-subtle, #555)", fontFamily: 'var(--font-mono)', marginTop: 1 }}>{shortAddr(trader.address)}</div>
-        </div>
-        <button onClick={() => onFollow(trader)} style={{
-          padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-          background: isFollowed ? 'rgba(244,63,94,0.1)' : 'rgba(0,232,122,0.1)',
-          color: workspaceTextColor(isFollowed ? "var(--ct-negative, #f43f5e)" : "var(--ct-positive, #00e87a)"), fontSize: 12, fontWeight: 700,
-        }}>
-          {isFollowed ? '✕ Unfollow' : '★ Follow'}
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div style={{ padding: '14px 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.05))", flexShrink: 0 }}>
-        <div style={{ fontSize: 10, color: "var(--ct-subtle, #555)", fontWeight: 700, letterSpacing: 1.5, marginBottom: 4 }}>ACCOUNT VALUE</div>
-        <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'var(--font-mono)', color: "var(--ct-ink, #fff)", marginBottom: 12 }}>{fmtUSD(trader.accountValue)}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-          {[
-            { label: 'All-time PnL', val: fmtUSD(trader.pnl_alltime), up: trader.pnl_alltime >= 0 },
-            { label: 'ROI',          val: fmtPct(trader.roi_alltime),  up: trader.roi_alltime >= 0 },
-            { label: '30d PnL',      val: fmtUSD(trader.pnl_month),   up: trader.pnl_month >= 0 },
-          ].map(s => (
-            <div key={s.label} style={{ background: "var(--ct-wash, rgba(255,255,255,0.03))", border: "1px solid var(--ct-line, rgba(255,255,255,0.05))", borderRadius: 10, padding: '8px 10px' }}>
-              <div style={{ fontSize: 9, color: "var(--ct-subtle, #555)", fontWeight: 600, marginBottom: 3 }}>{s.label}</div>
-              <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(s.up ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>{s.val}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 20, padding: '0 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.05))", flexShrink: 0 }}>
-        {[
-          ['positions', `Positions${positions?.positions ? ` (${positions.positions.length})` : ''}`],
-          ['activity',  `Copy Activity (${copyLogs.length})`],
-        ].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)} style={{
-            background: 'none', border: 'none', padding: '10px 0',
-            borderBottom: tab === key ? '2px solid #00e87a' : '2px solid transparent',
-            color: workspaceTextColor(tab === key ? "var(--ct-ink, #fff)" : "var(--ct-subtle, #555)"), fontSize: 12, fontWeight: 700, cursor: 'pointer',
-          }}>{label}</button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
-        {tab === 'positions' && (
-          loading ? (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: "var(--ct-subtle, #555)", fontSize: 13 }}>Loading positions…</div>
-          ) : !positions?.positions?.length ? (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: "var(--ct-subtle, #555)", fontSize: 13 }}>No open positions</div>
-          ) : (
-            positions.positions.map(pos => <PositionCard key={pos.coin} pos={pos} />)
-          )
-        )}
-
-        {tab === 'activity' && (
-          copyLogs.length === 0 ? (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: "var(--ct-subtle, #555)", fontSize: 13 }}>No copy trade activity yet</div>
-          ) : (
-            copyLogs.map(row => {
-              const statusColor = row.status === 'ok' ? '#00e87a' : row.status === 'error' ? '#f43f5e' : row.status === 'skip' ? '#888' : '#f59e0b'
-              return (
-                <div key={row.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))", alignItems: 'flex-start' }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor, marginTop: 4, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: "var(--ct-ink, #fff)", fontWeight: 600 }}>{row.traderName} · {row.symbol} · {row.action === 'open' ? 'Open' : 'Close'}</div>
-                    <div style={{ fontSize: 11, color: "var(--ct-subtle, #555)", marginTop: 2, fontFamily: 'var(--font-mono)' }}>{row.detail}</div>
-                  </div>
-                  <div style={{ fontSize: 10, color: "var(--ct-subtle, #555)", fontFamily: 'var(--font-mono)' }}>
-                    {new Date(row.ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </div>
-                </div>
-              )
-            })
-          )
-        )}
-
-        <div style={{ fontSize: 9, color: "var(--ct-subtle, #444)", textAlign: 'center', marginTop: 12, fontFamily: 'var(--font-mono)' }}>
-          Updates every 15s · Hyperliquid Mainnet
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /* ── Main Component ───────────────────────────────────────────────────────── */
 export default function SmartMoney() {
   const { token }     = useAuth()
@@ -772,7 +600,10 @@ export default function SmartMoney() {
   const [selected,   setSelected]   = useState(null)
   const [search,     setSearch]     = useState('')
   const [sortBy,     setSortBy]     = useState('accountValue')
-  const [showSort,   setShowSort]   = useState(false)
+  const [view,       setView]       = useState('flow')
+  const [fillToken,  setFillToken]  = useState('ALL')
+  const [fillMin,    setFillMin]    = useState(0)
+  const [fillWindow, setFillWindow] = useState(86400000)
   const [activeTab,  setActiveTab]  = useState('all')
   const [copyModal,  setCopyModal]  = useState(null)
   const [insightsOpen, setInsightsOpen] = useState(false)
@@ -988,7 +819,6 @@ export default function SmartMoney() {
     setCopyModal(null)
   }, [followed, copyModal, persistFollowed])
 
-  const sortLabels = { accountValue: 'Account Value', pnl_alltime: 'All-time PnL', pnl_month: '30d PnL', roi_alltime: 'ROI' }
   const followedCount = Object.keys(followed).length
 
   const displayed = traders
@@ -1004,190 +834,115 @@ export default function SmartMoney() {
       if (sortBy === 'accountValue') return b.accountValue - a.accountValue
       return b.pnl_alltime - a.pnl_alltime
     })
-
   const liveOn = (sentiment && (sentiment.longCount + sentiment.shortCount > 0)) || recentFills.length > 0
+  const uniqueWhales = new Set(recentFills.map(f => f.address)).size
+  const netFlow = (sentiment?.longVol || 0) - (sentiment?.shortVol || 0)
+  const current = selected || displayed[0] || null
+  const filteredFills = recentFills
+    .filter(f => fillToken === 'ALL' || (f.coin_label || f.coin) === fillToken)
+    .filter(f => (f.size_usd || 0) >= fillMin)
+    .filter(f => !fillWindow || (Date.now() - (f.ts || 0)) <= fillWindow)
+  const tokens = [...new Set(recentFills.map(f => f.coin_label || f.coin))].sort()
+  const fmtTime = ts => ts ? new Date(ts).toTimeString().slice(0, 8) : '—'
+  const clock = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + new Date().toTimeString().slice(0, 8) + ' UTC'
 
   return (
-    <div className="ct-smart-page" data-tab={activeTab} style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--bg-0)', position: 'relative' }}>
+    <div className="ws-page">
       <AlertBanner alerts={alerts} onDismiss={id => setAlerts(prev => prev.filter(a => a.id !== id))} />
 
-      <section className="ct-smart-feed">
-        <h2>Recent Whale Fills</h2>
-        <WhaleCompass sentiment={sentiment} onOpen={() => setInsightsOpen(true)} />
-        <div className="ct-smart-feed-table">
-          <table>
-            <thead><tr><th>Trader</th><th>Asset</th><th>Direction</th><th>Value</th><th>Price</th></tr></thead>
-            <tbody>
-              {recentFills.map(f => (
-                <tr key={`${f.address}:${f.oid}`}>
-                  <td title={f.address}>{f.name || shortAddr(f.address)}</td>
-                  <td>{f.coin_label || f.coin}</td>
-                  <td>{f.dir || '—'}</td>
-                  <td>{fmtUSD(f.size_usd)}</td>
-                  <td>{fmtPrice(f.px)}</td>
-                </tr>
-              ))}
-              {!recentFills.length && <tr><td colSpan={5}>{followedCount ? 'No live trades yet from followed traders.' : 'No traders followed yet'}</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Left panel — list */}
-      <div className="ct-smart-list" style={{ flex: selected ? '0 0 420px' : '1 1 auto', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: selected ? "1px solid var(--ct-line, rgba(255,255,255,0.06))" : 'none', minWidth: 0 }}>
-
-        <FeatureSpotlight
-          featureKey="smart-money"
-          title="Smart Money Takibi"
-          description="Hyperliquid'in en karlı trader'larını gerçek zamanlı izleyin. Pozisyon açılış/kapanışlarını takip edin ve copy-trade özelliğiyle işlemlerine eşlik edin."
-        />
-
-        {/* Header */}
-        <div style={{ padding: '18px 24px 0', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.06))", flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span onClick={() => setShowSort(v => !v)} style={{ fontSize: 18, fontWeight: 800, color: "var(--ct-ink, #fff)", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  Smart Money
-                  <span style={{ fontSize: 10, color: "var(--ct-subtle, #555)", transform: showSort ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: "var(--ct-subtle, #555)", marginTop: 2 }}>
-                Hyperliquid · {traders.length} traders{followedCount > 0 && <span style={{ color: "var(--ct-positive, #00e87a)", marginLeft: 6 }}>● {followedCount} following</span>}
-              </div>
-
-              {showSort && (
-                <>
-                  <div onClick={() => setShowSort(false)} style={{ position: 'fixed', inset: 0, zIndex: 39 }} />
-                  <div style={{ position: 'absolute', top: 48, left: 0, background: 'var(--bg-2)', border: "1px solid var(--ct-line, rgba(255,255,255,0.08))", borderRadius: 12, padding: 6, zIndex: 40, boxShadow: '0 10px 40px rgba(0,0,0,0.7)', minWidth: 170 }}>
-                    {Object.entries(sortLabels).map(([key, label]) => (
-                      <div key={key} onClick={() => { setSortBy(key); setShowSort(false) }} style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: 'pointer', color: workspaceTextColor(sortBy === key ? "var(--ct-positive, #00e87a)" : "var(--ct-muted, #aaa)"), background: sortBy === key ? 'rgba(0,232,122,0.08)' : 'transparent' }}>
-                        {label}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: "var(--ct-wash, rgba(255,255,255,0.04))", borderRadius: 10, padding: '8px 12px', border: "1px solid var(--ct-line, rgba(255,255,255,0.06))", marginBottom: 12 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--ct-subtle, #555)", flexShrink: 0 }}>
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-            </svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search traders…" autoCorrect="off" autoCapitalize="off" spellCheck={false}
-              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: "var(--ct-ink, #fff)", fontSize: 13, fontFamily: 'var(--font-mono)' }} />
-            {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: "var(--ct-subtle, #555)", cursor: 'pointer', padding: 0, fontSize: 13 }}>✕</button>}
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display: 'flex', gap: 20 }}>
-            {[
-              ['all',       `All (${traders.length})`,     false],
-              ['following', `Following (${followedCount})`, false],
-              ['live',      `Live (${recentFills.length})`, true],
-            ].map(([key, label, isLive]) => (
-              <button key={key} onClick={() => setActiveTab(key)} style={{
-                background: 'none', border: 'none', padding: '8px 0',
-                borderBottom: activeTab === key ? '2px solid #00e87a' : '2px solid transparent',
-                color: workspaceTextColor(activeTab === key ? "var(--ct-ink, #fff)" : "var(--ct-subtle, #555)"),
-                fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-              }}>
-                {isLive && (
-                  <span style={{ width: 6, height: 6, borderRadius: 3, background: liveOn ? '#00e87a' : "var(--ct-inset, #444)", boxShadow: liveOn ? '0 0 6px #00e87a' : 'none' }} />
-                )}
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {activeTab === 'live' ? (
-            <>
-              <div style={{ paddingTop: 16 }}>
-                <WhaleCompass sentiment={sentiment} onOpen={() => setInsightsOpen(true)} />
-              </div>
-              {recentFills.length === 0 ? (
-                <div style={{ padding: '40px 24px', textAlign: 'center', color: "var(--ct-subtle, #555)", fontSize: 13, lineHeight: 1.6 }}>
-                  {followedCount === 0
-                    ? 'Personal feed empty. The sentiment above covers all tracked whales. Follow a trader to see their live trades here.'
-                    : 'No live trades yet from followed traders. New orders appear instantly.'}
-                </div>
-              ) : (
-                <div style={{ padding: '4px 24px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {recentFills.map(f => {
-                    const isLong  = (f.dir || '').toLowerCase().includes('long')
-                    const isOpen  = (f.dir || '').toLowerCase().startsWith('open')
-                    const tone    = isLong ? '#00e87a' : '#f43f5e'
-                    const age     = Math.max(0, Math.floor((Date.now() - (f.ts || 0)) / 1000))
-                    const ageStr  = age < 60 ? `${age}s` : age < 3600 ? `${Math.floor(age / 60)}m` : `${Math.floor(age / 3600)}h`
-                    return (
-                      <div key={`${f.address}:${f.oid}`} style={{
-                        display: 'grid', gridTemplateColumns: '1fr auto', gap: 10,
-                        background: "var(--ct-wash, rgba(255,255,255,0.03))",
-                        border: `1px solid ${isOpen ? 'rgba(0,232,122,0.15)' : 'rgba(255,255,255,0.06)'}`,
-                        borderLeft: `3px solid ${tone}`, borderRadius: 10, padding: '10px 12px',
-                      }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ct-ink, #fff)", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</div>
-                          <div style={{ fontSize: 11, color: workspaceTextColor(tone), fontWeight: 700, marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-                            {f.dir || (isLong ? 'BUY' : 'SELL')} · {f.coin_label || f.coin}
-                            {f.closed_pnl != null && (
-                              <span style={{ color: workspaceTextColor(f.closed_pnl >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)"), marginLeft: 6 }}>
-                                {f.closed_pnl >= 0 ? '+' : ''}{fmtUSD(f.closed_pnl)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: workspaceTextColor(tone) }}>{fmtUSD(f.size_usd)}</div>
-                          <div style={{ fontSize: 10, color: "var(--ct-subtle, #555)", marginTop: 2 }}>@ {fmtPrice(f.px)} · {ageStr}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </>
-          ) : loading ? (
-            <div style={{ padding: '80px 0', textAlign: 'center', color: "var(--ct-subtle, #555)", fontSize: 13 }}>Loading…</div>
-          ) : displayed.length === 0 ? (
-            <div style={{ padding: '60px 20px', textAlign: 'center', color: "var(--ct-subtle, #555)", fontSize: 13 }}>
-              {activeTab === 'following' ? 'No traders followed yet' : 'No traders found'}
-            </div>
-          ) : (
-            displayed.map(t => (
-              <TraderCard
-                key={t.address}
-                trader={t}
-                followed={!!followed[t.address]}
-                followedSettings={followed[t.address] || null}
-                onSelect={setSelected}
-                onFollow={handleFollow}
-              />
-            ))
-          )}
-        </div>
+      <div className="ws-page-head" style={{ marginBottom: 0 }}>
+        <div className="ws-page-head-left"><h1 className="ws-title">Smart Money</h1></div>
+        <div className="ws-page-head-right"><span className="ws-meta-stamp">{clock}</span></div>
+      </div>
+      <div className="ws-tabs ws-tabs-caps ws-mb-16">
+        {[['flow', 'Flow'], ['positions', 'Positions']].map(([k, l]) => <button key={k} className={`ws-tab ${view === k ? 'active' : ''}`} onClick={() => setView(k)}>{l}</button>)}
       </div>
 
-      {/* Right panel — detail */}
-      {selected && (
-        <div className="ct-smart-detail" style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <TraderDetail
-            trader={selected}
-            followed={!!followed[selected.address]}
-            followedSettings={followed[selected.address] || null}
-            onBack={() => setSelected(null)}
-            onFollow={handleFollow}
-            copyLogs={copyLogs}
-          />
-        </div>
+      {view === 'positions' ? (
+        <div className="ws-card"><div className="ws-card-body"><button className="ws-btn ws-btn-primary" onClick={() => setInsightsOpen(true)}>Open whale positioning</button><p className="ws-muted ws-mt-8">Aggregated long / short positioning across tracked whales, with the sentiment breakdown.</p></div></div>
+      ) : (
+        <>
+          <div className="ws-grid ws-grid-4">
+            {[['Total Buy Flow (24h)', fmtUSD(sentiment?.longVol), true, `${sentiment?.longCount || 0} buys`, BarChart3], ['Total Sell Flow (24h)', fmtUSD(sentiment?.shortVol), false, `${sentiment?.shortCount || 0} sells`, BarChart2], ['Net Flow (24h)', (netFlow >= 0 ? '+' : '-') + fmtUSD(Math.abs(netFlow)), netFlow >= 0, sentiment?.verdict || '—', TrendingUp], ['Unique Whales (24h)', uniqueWhales || traders.length, null, `${followedCount} following`, Users]].map(([label, val, up, sub, Icon]) => (
+              <div key={label} className="ws-kpi" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div><div className="ws-kpi-label" style={{ fontSize: 14 }}>{label}</div><div className={`ws-kpi-value ws-kpi-mono ${up == null ? '' : up ? 'ws-pos' : 'ws-neg'}`} style={{ fontSize: 26, fontWeight: 600 }}>{sentiment || label.startsWith('Unique') ? val : '—'}</div><div className={`ws-kpi-sub ${up == null ? 'ws-muted' : up ? 'ws-pos' : 'ws-neg'}`}>{sub}</div></div>
+                <Icon size={24} strokeWidth={1.5} className={up == null ? 'ws-subtle' : up ? 'ws-pos' : 'ws-neg'} />
+              </div>
+            ))}
+          </div>
+
+          <div className="smx-grid ws-mt-16">
+            <div className="ws-card">
+              <div className="ws-card-head" style={{ flexWrap: 'wrap', gap: 8 }}>
+                <h3 className="ws-h3">Recent Whale Fills</h3>
+                <div className="ws-row">
+                  <div className="ws-inline-select" style={{ height: 32, fontSize: 12 }}>{fillToken === 'ALL' ? 'All Tokens' : fillToken}<ChevronDown size={13} /><select value={fillToken} onChange={e => setFillToken(e.target.value)}><option value="ALL">All Tokens</option>{tokens.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                  <div className="ws-inline-select" style={{ height: 32, fontSize: 12 }}>{fillMin ? '$' + (fillMin / 1e6).toFixed(0) + 'M+' : 'Any size'}<ChevronDown size={13} /><select value={fillMin} onChange={e => setFillMin(Number(e.target.value))}>{[[0, 'Any size'], [100000, '$100K+'], [1000000, '$1M+'], [5000000, '$5M+']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+                  <div className="ws-inline-select" style={{ height: 32, fontSize: 12 }}>{fillWindow ? 'Last ' + fillWindow / 3600000 + 'h' : 'All time'}<ChevronDown size={13} /><select value={fillWindow} onChange={e => setFillWindow(Number(e.target.value))}>{[[3600000, 'Last 1h'], [14400000, 'Last 4h'], [86400000, 'Last 24h'], [0, 'All time']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+                </div>
+              </div>
+              <div className="ws-table-wrap">
+                <table className="ws-table ws-table-dense">
+                  <thead><tr><th>Time (UTC)</th><th>Token</th><th>Side</th><th className="ws-right">Amount</th><th className="ws-right">Value (USD)</th><th className="ws-right">Price</th><th>Wallet</th></tr></thead>
+                  <tbody>
+                    {filteredFills.length === 0 ? <tr><td colSpan={7}><div className="ws-empty" style={{ padding: '30px 16px' }}><div className="ws-empty-title">{liveOn ? 'No fills match these filters.' : 'Waiting for live whale fills…'}</div><div className="ws-empty-sub">Fills from tracked Hyperliquid whales stream in over the WS.</div></div></td></tr>
+                    : filteredFills.slice(0, 12).map(f => {
+                      const buy = /long|buy|open/i.test(f.dir || f.side || '') && !/close/i.test(f.dir || '')
+                      return (
+                        <tr key={`${f.address}:${f.oid}`} className="ws-table-click" onClick={() => { const t = traders.find(x => x.address === f.address); if (t) setSelected(t) }}>
+                          <td className="ws-mono ws-text">{fmtTime(f.ts)}</td>
+                          <td><div className="ws-asset"><span className="ws-asset-logo ws-asset-logo-sm"><AssetLogo symbol={String(f.coin || '').replace(/-PERP$/, '')} type="crypto" size={18} radius={9} /></span><span className="ws-asset-sym">{f.coin_label || f.coin}</span></div></td>
+                          <td className={`ws-bold ${buy ? 'ws-pos' : 'ws-neg'}`}>{buy ? 'Buy' : 'Sell'}</td>
+                          <td className="ws-right ws-num">{f.sz != null ? Number(f.sz).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—'}</td>
+                          <td className="ws-right ws-num ws-ink">{'$' + Math.round(f.size_usd || 0).toLocaleString('en-US')}</td>
+                          <td className="ws-right ws-num">${fmtPrice(f.px)}</td>
+                          <td className="ws-mono ws-muted">{shortAddr(f.address)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="ws-card smx-traders">
+              <div className="ws-card-head" style={{ flexWrap: 'wrap', gap: 8 }}>
+                <h3 className="ws-h3">Tracked Traders</h3>
+                <div className="ws-row">
+                  <div className="ws-search" style={{ width: 170 }}><Search size={13} /><input className="ws-input ws-input-sm" placeholder="Search traders…" value={search} onChange={e => setSearch(e.target.value)} /></div>
+                  <div className="ws-seg ws-seg-sm">{[['all', 'All'], ['following', `Following (${followedCount})`]].map(([k, l]) => <button key={k} className={activeTab === k ? 'active' : ''} onClick={() => setActiveTab(k)}>{l}</button>)}</div>
+                </div>
+              </div>
+              <div className="ws-table-wrap">
+                <table className="ws-table ws-table-dense">
+                  <thead><tr><th>#</th><th>Trader</th><th>Wallet Address</th><th className="ws-right"><span className="ws-th-sort" onClick={() => setSortBy('pnl_alltime')}>PnL (All)</span></th><th className="ws-right"><span className="ws-th-sort" onClick={() => setSortBy('roi_alltime')}>ROI</span></th><th className="ws-right"><span className="ws-th-sort" onClick={() => setSortBy('pnl_month')}>30d PnL</span></th><th className="ws-right">Follow</th></tr></thead>
+                  <tbody>
+                    {loading ? <tr><td colSpan={7}><div className="ws-loading"><span className="ws-spinner" /> Loading leaderboard…</div></td></tr>
+                    : displayed.length === 0 ? <tr><td colSpan={7} className="ws-muted">{activeTab === 'following' ? 'No traders followed yet' : 'No traders found'}</td></tr>
+                    : displayed.slice(0, 10).map((t, i) => {
+                      const isF = !!followed[t.address]
+                      return (
+                        <tr key={t.address} className={`ws-table-click ${current?.address === t.address ? 'lsr-row-active' : ''}`} onClick={() => setSelected(t)}>
+                          <td className="ws-muted">{i + 1}</td>
+                          <td className="ws-ink ws-bold">{t.displayName}</td>
+                          <td className="ws-mono ws-text">{shortAddr(t.address)}</td>
+                          <td className={`ws-right ws-num ${t.pnl_alltime >= 0 ? 'ws-pos' : 'ws-neg'}`}>{fmtUSD(t.pnl_alltime)}</td>
+                          <td className={`ws-right ws-num ${t.roi_alltime >= 0 ? 'ws-pos' : 'ws-neg'}`}>{fmtPct(t.roi_alltime)}</td>
+                          <td className={`ws-right ws-num ${t.pnl_month >= 0 ? 'ws-pos' : 'ws-neg'}`}>{fmtUSD(t.pnl_month)}</td>
+                          <td className="ws-right"><button className={`ws-btn ws-btn-xs ${isF ? 'ws-btn-primary' : ''}`} onClick={e => { e.stopPropagation(); handleFollow(t) }}>{isF ? <><UserMinus size={12} /> Following</> : <><UserPlus size={12} /> Follow</>}</button></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {current && <TraderDetail trader={current} followed={!!followed[current.address]} followedSettings={followed[current.address] || null} onFollow={handleFollow} copyLogs={copyLogs} token={token} />}
+        </>
       )}
 
-      {/* Modals */}
       {copyModal && <CopyModal trader={copyModal} onClose={() => setCopyModal(null)} onSave={handleSaveCopy} />}
       <WhaleInsightsSheet open={insightsOpen} onClose={() => setInsightsOpen(false)} token={token} />
     </div>

@@ -7,16 +7,14 @@ import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 import { COINS } from '../constants/terminal'
 import TerminalNewsFeed from './TerminalNewsFeed'
-import TerminalCoinBar from './TerminalCoinBar'
 import TerminalBottomTabs from './TerminalBottomTabs'
 import ShortcutsModal from './modals/ShortcutsModal'
 import ConnectHLModal from './modals/ConnectHLModal'
 import ConnectBinanceModal from './modals/ConnectBinanceModal'
 import { COINS as DEFAULT_COINS } from '../constants/terminal'
 
-import TopStatusBar from './terminal/TopStatusBar'
 import QuickAlertsPanel from './terminal/QuickAlertsPanel'
-import BracketOrderPanel from './terminal/BracketOrderPanel'
+import OrderPanel from './terminal/OrderPanel'
 import CommandConsole from './terminal/CommandConsole'
 import ChartPanel from './terminal/ChartPanel'
 import { createWsMessageHandler } from './terminal/wsHandlers'
@@ -476,57 +474,39 @@ export default function TerminalPage() {
 
     return (
         <>
-        <div className="nt-layout">
-            {/* ═══ TOP STATUS BAR ═══ */}
-            <TopStatusBar
-                balance={balance}
-                freeMargin={freeMargin}
-                marginUsed={marginUsed}
-                hlSpot={hlSpot}
-                token={token}
-                addLog={addLog}
-                onTransferDone={() => fetchStatus({ silent: true })}
-                unrealizedTotal={unrealizedTotal}
-                realizedToday={realizedToday}
-                connect={connect}
-                confirmDisconnect={confirmDisconnect}
-                exchangeConnecting={exchangeConnecting}
-                exchangeConnected={exchangeConnected}
-                exchangeStatusLabel={exchangeStatusLabel}
-                soundOn={soundOn}
-                setSoundOn={setSoundOn}
-                notifEnabled={notifEnabled}
-                toggleNotif={toggleNotif}
-                showShortcuts={showShortcuts}
-                setShowShortcuts={setShowShortcuts}
-                leverages={leverages}
-                setLeverages={setLeverages}
-                levInputs={levInputs}
-                setLevInputs={setLevInputs}
-                showLevSettings={showLevSettings}
-                setShowLevSettings={setShowLevSettings}
-                tradeBalance={tradeBalance}
-                setTradeBalance={setTradeBalance}
-                balInput={balInput}
-                setBalInput={setBalInput}
-                showBalSettings={showBalSettings}
-                setShowBalSettings={setShowBalSettings}
-            />
-
-            {/* ═══ COIN QUICK-TRADE BAR ═══ */}
-            <TerminalCoinBar
-                COINS={COINS}
-                tickers={tickers}
-                chartSymbol={chartSymbol}
-                setChartSymbol={setChartSymbol}
-                leverages={leverages}
-                tradeBalance={tradeBalance}
-                sendOrder={sendOrder}
-                staleSymbols={staleSymbols}
-            />
+        <div className="nt-layout ws-terminal">
+            {/* ═══ HEADER ═══ */}
+            <div className="tm-head">
+                <h1 className="ws-title ws-title-md">Terminal</h1>
+                <div className="tm-stats">
+                    <div><span>Equity</span><b>${(balance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
+                    <div><span>Free Margin</span><b>${(freeMargin ?? balance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
+                    <div><span>Margin Used</span><b>${(marginUsed ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
+                    <div><span>Unrealized PnL</span><b className={unrealizedTotal >= 0 ? 'ws-pos' : 'ws-neg'}>{unrealizedTotal >= 0 ? '+' : '-'}${Math.abs(unrealizedTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({balance ? ((unrealizedTotal / balance) * 100).toFixed(2) : '0.00'}%)</b></div>
+                </div>
+                <div className="tm-head-right">
+                    <span className={`ws-badge ${exchangeConnected ? 'ws-badge-pos' : 'ws-badge-lime'}`}>{exchangeConnected ? 'LIVE' : exchangeConnecting ? 'CONNECTING' : 'PAPER MODE'}</span>
+                    <div className="ws-inline-select" style={{ minWidth: 200 }}>
+                        {exchangeConnected ? (connect.tradingMode === 'LIVE_BINANCE' ? 'Binance · connected' : 'Hyperliquid · connected') : 'Connect Exchange'}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 'auto' }}><polyline points="6 9 12 15 18 9" /></svg>
+                        <select value="" onChange={e => {
+                            const v = e.target.value
+                            if (v === 'hl') connect.setShowHlModal(true)
+                            else if (v === 'bnb') connect.setShowBnbModal(true)
+                            else if (v === 'disconnect') confirmDisconnect(connect.tradingMode === 'LIVE_BINANCE' ? 'Binance' : 'Hyperliquid', () => (connect.tradingMode === 'LIVE_BINANCE' ? connect.disconnectBinance?.() : connect.disconnectHL?.()))
+                        }}>
+                            <option value="">Connect Exchange</option>
+                            <option value="hl">Hyperliquid</option>
+                            <option value="bnb">Binance Futures</option>
+                            {exchangeConnected && <option value="disconnect">Disconnect</option>}
+                        </select>
+                    </div>
+                    <button className="ws-btn ws-btn-icon" title="Shortcuts" onClick={() => setShowShortcuts(true)}>?</button>
+                </div>
+            </div>
 
             {/* ═══ MAIN AREA ═══ */}
-            <div className="nt-main">
+            <div className="nt-main tm-main">
                 <TerminalNewsFeed
                     news={news}
                     newsHealth={newsHealth}
@@ -542,60 +522,7 @@ export default function TerminalPage() {
                     wsConnected={connected}
                 />
 
-                <div className="nt-right">
-                    <div className="ct-terminal-alerts"><QuickAlertsPanel
-                        quickAlerts={quickAlerts}
-                        quickAlertsCollapsed={quickAlertsCollapsed}
-                        setQuickAlertsCollapsed={setQuickAlertsCollapsed}
-                        quickAlertCoin={quickAlertCoin}
-                        setQuickAlertCoin={setQuickAlertCoin}
-                        quickAlertDirection={quickAlertDirection}
-                        setQuickAlertDirection={setQuickAlertDirection}
-                        quickAlertPrice={quickAlertPrice}
-                        setQuickAlertPrice={setQuickAlertPrice}
-                        quickAlertBusy={quickAlertBusy}
-                        quickAlertAction={quickAlertAction}
-                        setQuickAlertAction={setQuickAlertAction}
-                        quickAlertActionAmount={quickAlertActionAmount}
-                        setQuickAlertActionAmount={setQuickAlertActionAmount}
-                        quickAlertActionLev={quickAlertActionLev}
-                        setQuickAlertActionLev={setQuickAlertActionLev}
-                        createQuickAlert={createQuickAlert}
-                        deleteQuickAlert={deleteQuickAlert}
-                        recentAlerts={recentAlerts}
-                    /></div>
-                    {/* ─── Bracket Order Panel ─── */}
-                    <div className="ct-terminal-bracket"><BracketOrderPanel
-                        bracketMode={bracketMode}
-                        setBracketMode={setBracketMode}
-                        bracketTP={bracketTP}
-                        setBracketTP={setBracketTP}
-                        bracketSL={bracketSL}
-                        setBracketSL={setBracketSL}
-                        bracketRisk={bracketRisk}
-                        setBracketRisk={setBracketRisk}
-                        curPrice={tickers[chartSymbol]?.last_price}
-                        tradeBalance={tradeBalance}
-                    /></div>
-
-                    {/* ─── Command Input + Autocomplete ─── */}
-                    <div className="ct-terminal-console"><CommandConsole
-                        input={input}
-                        setInput={setInput}
-                        inputRef={inputRef}
-                        onKeyDown={onKeyDown}
-                        handleSubmit={handleSubmit}
-                        cmdLoading={cmdLoading}
-                        filteredCmds={filteredCmds}
-                        symbolMatches={symbolMatches}
-                        tickers={tickers}
-                        inputParts={_inputParts}
-                        logs={logs}
-                        logRef={logRef}
-                        setLogs={setLogs}
-                    /></div>
-
-                    {/* ─── Chart ─── */}
+                <div className="nt-right tm-center">
                     <ChartPanel
                         chartSymbol={chartSymbol}
                         setChartSymbol={setChartSymbol}
@@ -622,35 +549,88 @@ export default function TerminalPage() {
                         setSlInputs={setSlInputs}
                         executeCommand={executeCommand}
                     />
+                    <TerminalBottomTabs
+                        token={token}
+                        activeTab={activeTab}
+                        fetchTab={fetchTab}
+                        fetchOpenOrdersSilently={fetchOpenOrdersSilently}
+                        tabLoading={tabLoading}
+                        posEntries={posEntries}
+                        openOrders={openOrders}
+                        tradeHistory={tradeHistory}
+                        fundingHistory={fundingHistory}
+                        balances={balances}
+                        tickers={tickers}
+                        editingTPSL={editingTPSL}
+                        setEditingTPSL={setEditingTPSL}
+                        focusedSL={focusedSL}
+                        setFocusedSL={setFocusedSL}
+                        slInputs={slInputs}
+                        setSlInputs={setSlInputs}
+                        focusedTP={focusedTP}
+                        setFocusedTP={setFocusedTP}
+                        tpInputs={tpInputs}
+                        setTpInputs={setTpInputs}
+                        setPositions={setPositions}
+                        addLog={addLog}
+                    />
+                    <div className="tm-console">
+                        <div className="tm-console-head"><span className="ws-h4"><span className="ws-mono">&gt;_</span> Command Console</span><div className="ws-row"><button className="ws-link ws-small" onClick={() => setLogs([])}>Clear</button></div></div>
+                        <CommandConsole
+                            input={input}
+                            setInput={setInput}
+                            inputRef={inputRef}
+                            onKeyDown={onKeyDown}
+                            handleSubmit={handleSubmit}
+                            cmdLoading={cmdLoading}
+                            filteredCmds={filteredCmds}
+                            symbolMatches={symbolMatches}
+                            tickers={tickers}
+                            inputParts={_inputParts}
+                            logs={logs}
+                            logRef={logRef}
+                            setLogs={setLogs}
+                        />
+                    </div>
+                </div>
+
+                <div className="tm-order">
+                    <OrderPanel
+                        chartSymbol={chartSymbol}
+                        tickers={tickers}
+                        tradeBalance={tradeBalance}
+                        leverages={leverages}
+                        sendOrder={sendOrder}
+                        cmdLoading={cmdLoading}
+                        bracketTP={bracketTP}
+                        setBracketTP={setBracketTP}
+                        bracketSL={bracketSL}
+                        setBracketSL={setBracketSL}
+                        setBracketMode={setBracketMode}
+                    />
+                    <QuickAlertsPanel
+                        quickAlerts={quickAlerts}
+                        quickAlertsCollapsed={quickAlertsCollapsed}
+                        setQuickAlertsCollapsed={setQuickAlertsCollapsed}
+                        quickAlertCoin={quickAlertCoin}
+                        setQuickAlertCoin={setQuickAlertCoin}
+                        quickAlertDirection={quickAlertDirection}
+                        setQuickAlertDirection={setQuickAlertDirection}
+                        quickAlertPrice={quickAlertPrice}
+                        setQuickAlertPrice={setQuickAlertPrice}
+                        quickAlertBusy={quickAlertBusy}
+                        quickAlertAction={quickAlertAction}
+                        setQuickAlertAction={setQuickAlertAction}
+                        quickAlertActionAmount={quickAlertActionAmount}
+                        setQuickAlertActionAmount={setQuickAlertActionAmount}
+                        quickAlertActionLev={quickAlertActionLev}
+                        setQuickAlertActionLev={setQuickAlertActionLev}
+                        createQuickAlert={createQuickAlert}
+                        deleteQuickAlert={deleteQuickAlert}
+                        recentAlerts={recentAlerts}
+                    />
                 </div>
             </div>
-
-            {/* ═══ BOTTOM TABS ═══ */}
-            <TerminalBottomTabs
-                token={token}
-                activeTab={activeTab}
-                fetchTab={fetchTab}
-                fetchOpenOrdersSilently={fetchOpenOrdersSilently}
-                tabLoading={tabLoading}
-                posEntries={posEntries}
-                openOrders={openOrders}
-                tradeHistory={tradeHistory}
-                fundingHistory={fundingHistory}
-                balances={balances}
-                tickers={tickers}
-                editingTPSL={editingTPSL}
-                setEditingTPSL={setEditingTPSL}
-                focusedSL={focusedSL}
-                setFocusedSL={setFocusedSL}
-                slInputs={slInputs}
-                setSlInputs={setSlInputs}
-                focusedTP={focusedTP}
-                setFocusedTP={setFocusedTP}
-                tpInputs={tpInputs}
-                setTpInputs={setTpInputs}
-                setPositions={setPositions}
-                addLog={addLog}
-            />
         </div>
 
         {/* ═══ MODALS ═══ */}
