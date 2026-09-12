@@ -75,7 +75,7 @@ export default function TransferButton({ token, hlTestnet, spotBalance, onDone, 
             disabled={busy}
             title={`Spot bakiye: $${spotBalance.toFixed(2)} — perp'e taşı (MetaMask main wallet imzası gerek)`}
             style={{
-                background: '#f5a62318', color: '#f5a623',
+                background: '#f5a62318', color: "var(--ct-warning, #f5a623)",
                 border: '1px solid #f5a62355',
                 borderRadius: 4, padding: '2px 8px',
                 fontSize: 10, fontWeight: 700, letterSpacing: '.05em',

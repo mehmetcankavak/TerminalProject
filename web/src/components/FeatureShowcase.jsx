@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useRef } from 'react'
 import { useLang } from '../context/LangContext'
 
@@ -45,7 +46,7 @@ function LiquidationFeed() {
         {visible.map((item, i) => (
           <div key={i} className={`showcase-liq-row ${i === 0 ? 'showcase-liq-new' : ''}`}>
             <span className="showcase-sym">{item.sym}</span>
-            <span className="showcase-side" style={{ color: item.color }}>{item.side}</span>
+            <span className="showcase-side" style={{ color: workspaceTextColor(item.color) }}>{item.side}</span>
             <span className="showcase-amt">{item.amt}</span>
             <span className="showcase-exch">{item.exch}</span>
           </div>
@@ -53,11 +54,11 @@ function LiquidationFeed() {
       </div>
       <div className="showcase-totals">
         <div className="showcase-total-item">
-          <span style={{ color: '#ef4444' }}>1h LONG</span>
+          <span style={{ color: "var(--ct-negative, #ef4444)" }}>1h LONG</span>
           <span>$124.3M</span>
         </div>
         <div className="showcase-total-item">
-          <span style={{ color: '#00d992' }}>1h SHORT</span>
+          <span style={{ color: "var(--ct-positive, #00d992)" }}>1h SHORT</span>
           <span>$89.7M</span>
         </div>
         <div className="showcase-total-item">
@@ -97,7 +98,7 @@ function FundingTable() {
             <tr key={row.sym}>
               <td className="showcase-sym">{row.sym}</td>
               {[row.binance, row.okx, row.bybit, row.hype].map((v, i) => (
-                <td key={i} style={{ color: v.startsWith('+') ? '#00d992' : v.startsWith('-') && v !== '-' ? '#ef4444' : 'var(--text-3)' }}>
+                <td key={i} style={{ color: workspaceTextColor(v.startsWith('+') ? "var(--ct-positive, #00d992)" : v.startsWith('-') && v !== '-' ? "var(--ct-negative, #ef4444)" : 'var(--text-3)') }}>
                   {v}
                 </td>
               ))}
@@ -141,7 +142,7 @@ function WhaleFeed() {
         {visible.map((item, i) => (
           <div key={i} className={`showcase-liq-row ${i === 0 ? 'showcase-liq-new' : ''}`}>
             <span className="showcase-sym">{item.sym}</span>
-            <span className="showcase-side" style={{ color: item.dir === 'SELL' ? '#ef4444' : '#00d992' }}>{item.dir}</span>
+            <span className="showcase-side" style={{ color: workspaceTextColor(item.dir === 'SELL' ? "var(--ct-negative, #ef4444)" : "var(--ct-positive, #00d992)") }}>{item.dir}</span>
             <span className="showcase-amt">{item.amt}</span>
             <span className="showcase-exch">{item.from}</span>
             <span style={{ color: 'var(--text-3)', fontSize: 10, marginLeft: 'auto' }}>{item.age}</span>
@@ -174,7 +175,7 @@ function AlertsPanel() {
             <span style={{ color: 'var(--text-2)', fontSize: 10 }}>{row.cond}</span>
             <span className="showcase-amt">{row.target}</span>
             <span className="showcase-side" style={{
-              color: row.triggered ? '#00d992' : 'var(--text-3)',
+              color: workspaceTextColor(row.triggered ? "var(--ct-positive, #00d992)" : 'var(--text-3)'),
               fontSize: 9, fontWeight: 700, letterSpacing: '.06em'
             }}>
               {row.triggered ? 'TRIGGERED' : 'WATCHING'}
@@ -212,7 +213,7 @@ function SmartMoneyPanel() {
               style={{
                 fontSize: 9,
                 letterSpacing: '.06em',
-                color: row.action === 'COPYING' ? '#00d992' : 'var(--text-2)',
+                color: workspaceTextColor(row.action === 'COPYING' ? "var(--ct-positive, #00d992)" : 'var(--text-2)'),
                 fontWeight: 700
               }}
             >
@@ -220,7 +221,7 @@ function SmartMoneyPanel() {
             </span>
             <span className="showcase-amt">{row.sym} {row.side}</span>
             <span className="showcase-exch">{row.size}</span>
-            <span style={{ color: '#00d992', fontSize: 10, marginLeft: 'auto' }}>{row.roi}</span>
+            <span style={{ color: "var(--ct-positive, #00d992)", fontSize: 10, marginLeft: 'auto' }}>{row.roi}</span>
           </div>
         ))}
       </div>
@@ -230,7 +231,7 @@ function SmartMoneyPanel() {
           <span>3</span>
         </div>
         <div className="showcase-total-item">
-          <span style={{ color: '#00d992' }}>30D ROI AVG</span>
+          <span style={{ color: "var(--ct-positive, #00d992)" }}>30D ROI AVG</span>
           <span>+241.8%</span>
         </div>
         <div className="showcase-total-item">
@@ -276,7 +277,7 @@ function TerminalOpsPanel() {
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 10,
-                color: line.startsWith('$') ? 'var(--text-1)' : '#00d992',
+                color: workspaceTextColor(line.startsWith('$') ? 'var(--text-1)' : "var(--ct-positive, #00d992)"),
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -294,7 +295,7 @@ function TerminalOpsPanel() {
           <span>buy · sell · tp · sl</span>
         </div>
         <div className="showcase-total-item">
-          <span style={{ color: '#00d992' }}>LATENCY</span>
+          <span style={{ color: "var(--ct-positive, #00d992)" }}>LATENCY</span>
           <span>&lt;50ms</span>
         </div>
         <div className="showcase-total-item">

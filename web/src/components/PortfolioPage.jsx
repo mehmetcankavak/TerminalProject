@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { API_BASE } from '../config'
 import { useAuth } from '../context/AuthContext'
@@ -167,7 +168,7 @@ function StatCard({ label, value, tone }) {
   return (
     <div className="pfx-stat-card">
       <div className="pfx-stat-label">{label}</div>
-      <div className="pfx-stat-val" style={tone ? { color: tone } : {}}>{value}</div>
+      <div className="pfx-stat-val" style={tone ? { color: workspaceTextColor(tone) } : {}}>{value}</div>
     </div>
   )
 }
@@ -177,7 +178,7 @@ function PerfRow({ label, value, tone }) {
   return (
     <div className="pfx-perf-row">
       <span className="pfx-perf-label">{label}</span>
-      <span className="pfx-perf-val" style={tone ? { color: tone } : {}}>{value}</span>
+      <span className="pfx-perf-val" style={tone ? { color: workspaceTextColor(tone) } : {}}>{value}</span>
     </div>
   )
 }
@@ -349,17 +350,16 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* ── Hero ── */}
-      <div className="pfx-hero">
+      {/* Account summary stays separate from the chart tool. */}
         <div className="pfx-equity-row">
           <div>
             <div className="pfx-equity-label">TOTAL EQUITY</div>
             <div className="pfx-equity-val">{fmtUsd(balance)}</div>
             <div className="pfx-equity-pnl">
-              <span style={{ color: isUp ? '#00e87a' : '#f43f5e' }}>
+              <span style={{ color: workspaceTextColor(isUp ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
                 {isUp ? '+' : ''}{fmtUsd(rangePnl)}
               </span>
-              <span className="pfx-equity-pct" style={{ color: isUp ? '#00e87a' : '#f43f5e' }}>
+              <span className="pfx-equity-pct" style={{ color: workspaceTextColor(isUp ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
                 ({isUp ? '+' : ''}{((rangePnl / Math.max(Math.abs(balance - rangePnl), 1)) * 100).toFixed(2)}%)
               </span>
               <span className="pfx-equity-range">{RANGES.find(r => r.key === range)?.label}</span>
@@ -382,6 +382,15 @@ export default function PortfolioPage() {
           </div>
         </div>
 
+      <div className="pfx-hero">
+        <div className="ct-equity-toolbar">
+          <h2>PnL History</h2>
+          <div className="pfx-range-tabs">
+            {RANGES.map(r => (
+              <button key={r.key} className={`pfx-range-tab ${range === r.key ? 'active' : ''}`} onClick={() => setRange(r.key)}>{r.label}</button>
+            ))}
+          </div>
+        </div>
         {/* Chart */}
         <div className="pfx-chart-wrap"
           onMouseMove={e => {
@@ -395,18 +404,6 @@ export default function PortfolioPage() {
           <EquityChart points={chartPoints} isUp={isUp} />
         </div>
 
-        {/* Range selector */}
-        <div className="pfx-range-tabs">
-          {RANGES.map(r => (
-            <button
-              key={r.key}
-              className={`pfx-range-tab ${range === r.key ? 'active' : ''}`}
-              onClick={() => setRange(r.key)}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ── Stats Grid ── */}

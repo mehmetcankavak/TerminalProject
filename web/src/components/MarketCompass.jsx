@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
 
@@ -43,10 +44,10 @@ function MasterGauge({ data }) {
       <div className="mco-master-hdr">
         <span className="mco-section-label">MASTER COMPASS · ALL SIGNALS</span>
         <div className="mco-master-score">
-          <span className="mco-score-num" style={{ color: tone }}>
+          <span className="mco-score-num" style={{ color: workspaceTextColor(tone) }}>
             {score >= 0 ? '+' : ''}{score.toFixed(2)}
           </span>
-          <span className="mco-verdict-lbl" style={{ color: tone }}>{data.verdict}</span>
+          <span className="mco-verdict-lbl" style={{ color: workspaceTextColor(tone) }}>{data.verdict}</span>
         </div>
       </div>
 
@@ -66,7 +67,7 @@ function MasterGauge({ data }) {
       <div className="mco-conf-row">
         <div className="mco-conf-cell">
           <div className="mco-conf-label">CONSENSUS</div>
-          <div className="mco-conf-val" style={{ color: confColor }}>
+          <div className="mco-conf-val" style={{ color: workspaceTextColor(confColor) }}>
             {data.confidence_label}
           </div>
         </div>
@@ -74,10 +75,10 @@ function MasterGauge({ data }) {
         <div className="mco-conf-cell">
           <div className="mco-conf-label">AGREE / DIVERGE</div>
           <div className="mco-conf-val">
-            <span style={{ color: '#00e87a' }}>{data.agree_count}</span>
-            <span style={{ color: '#444' }}> / </span>
-            <span style={{ color: '#f43f5e' }}>{data.diverge_count}</span>
-            <span style={{ color: '#444', fontSize: 11, marginLeft: 3 }}>/ {data.total_components}</span>
+            <span style={{ color: "var(--ct-positive, #00e87a)" }}>{data.agree_count}</span>
+            <span style={{ color: "var(--ct-subtle, #444)" }}> / </span>
+            <span style={{ color: "var(--ct-negative, #f43f5e)" }}>{data.diverge_count}</span>
+            <span style={{ color: "var(--ct-subtle, #444)", fontSize: 11, marginLeft: 3 }}>/ {data.total_components}</span>
           </div>
         </div>
         <div className="mco-conf-divider" />
@@ -109,10 +110,10 @@ function ComponentRow({ id, comp, weight }) {
           <div className="mco-comp-note">{meta?.note}</div>
         </div>
         <div className="mco-comp-right">
-          <div className="mco-comp-score" style={{ color: tone }}>
+          <div className="mco-comp-score" style={{ color: workspaceTextColor(tone) }}>
             {available ? (score >= 0 ? '+' : '') + score.toFixed(2) : '—'}
           </div>
-          <div className="mco-comp-verdict" style={{ color: tone }}>
+          <div className="mco-comp-verdict" style={{ color: workspaceTextColor(tone) }}>
             {available ? comp.verdict : 'NO DATA'}
           </div>
         </div>
@@ -140,9 +141,9 @@ function WatchItem({ w }) {
   return (
     <div className="mco-watch-item">
       <button className="mco-watch-btn" onClick={() => setOpen(v => !v)}>
-        <span className="mco-watch-chevron" style={{ color: tone }}>{open ? '▾' : '▸'}</span>
+        <span className="mco-watch-chevron" style={{ color: workspaceTextColor(tone) }}>{open ? '▾' : '▸'}</span>
         <div className="mco-watch-info">
-          <div className="mco-watch-title" style={{ color: tone }}>{w.title}</div>
+          <div className="mco-watch-title" style={{ color: workspaceTextColor(tone) }}>{w.title}</div>
           <div className="mco-watch-hook">{w.hook}</div>
         </div>
         <div className="mco-watch-progress-bar">
@@ -192,10 +193,10 @@ function AdvisorCard({ advisor }) {
         borderColor: tone + '33',
       }}>
         <div className="mco-setup-hdr">
-          <span className="mco-setup-badge" style={{ color: tone }}>MARKET SETUP</span>
+          <span className="mco-setup-badge" style={{ color: workspaceTextColor(tone) }}>MARKET SETUP</span>
           <span className="mco-setup-key">{s.key}</span>
         </div>
-        <div className="mco-setup-title" style={{ color: tone }}>{s.title}</div>
+        <div className="mco-setup-title" style={{ color: workspaceTextColor(tone) }}>{s.title}</div>
         <div className="mco-setup-msg">{s.message}</div>
 
         {s.reasons?.length > 0 && (
@@ -301,7 +302,7 @@ function BacktestSection() {
                               {!s.samples
                                 ? <div className="mco-bt-cell-empty">—</div>
                                 : <>
-                                  <div className="mco-bt-cell-ret" style={{ color: tone }}>
+                                  <div className="mco-bt-cell-ret" style={{ color: workspaceTextColor(tone) }}>
                                     {ret >= 0 ? '+' : ''}{ret?.toFixed(2)}%
                                   </div>
                                   <div className="mco-bt-cell-win">
@@ -379,7 +380,6 @@ export default function MarketCompass() {
       ) : (
         <>
           <MasterGauge data={data} />
-          <AdvisorCard advisor={data.advisor} />
 
           <div className="mco-components">
             <div className="mco-components-hdr">
@@ -393,6 +393,7 @@ export default function MarketCompass() {
             })}
           </div>
 
+          <AdvisorCard advisor={data.advisor} />
           <BacktestSection />
         </>
       )}

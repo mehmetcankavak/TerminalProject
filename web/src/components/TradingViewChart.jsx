@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { isLightWorkspace } from '../utils/workspaceTheme'
 
 const INTERVAL_MAP = {
   '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30',
@@ -39,6 +40,7 @@ export default function TradingViewChart({ symbol = 'BTCUSDT', interval = '15m' 
 
     const create = () => {
       if (!containerRef.current || !window.TradingView) return
+      const light = isLightWorkspace(containerRef.current)
       if (widgetRef.current) {
         try { widgetRef.current.remove() } catch {}
         widgetRef.current = null
@@ -50,10 +52,10 @@ export default function TradingViewChart({ symbol = 'BTCUSDT', interval = '15m' 
         symbol:             tvSymbol,
         interval:           tvInterval,
         container_id:       containerId,
-        theme:              'dark',
+        theme:              light ? 'light' : 'dark',
         style:              '1',
         locale:             'en',
-        toolbar_bg:         '#000000',
+        toolbar_bg:         light ? '#ffffff' : '#000000',
         enable_publishing:  false,
         allow_symbol_change: false,
         save_image:         false,
@@ -63,13 +65,13 @@ export default function TradingViewChart({ symbol = 'BTCUSDT', interval = '15m' 
         details:            false,
         hotlist:            false,
         calendar:           false,
-        backgroundColor:    '#000000',
-        gridColor:          'rgba(255,255,255,0.05)',
+        backgroundColor:    light ? '#ffffff' : '#000000',
+        gridColor:          light ? '#edf0ee' : 'rgba(255,255,255,0.05)',
         overrides: {
-          'paneProperties.background':     '#000000',
+          'paneProperties.background':     light ? '#ffffff' : '#000000',
           'paneProperties.backgroundType': 'solid',
-          'scalesProperties.textColor':    '#8b9eb7',
-          'scalesProperties.lineColor':    '#1a1a1a',
+          'scalesProperties.textColor':    light ? '#58665e' : '#8b9eb7',
+          'scalesProperties.lineColor':    light ? '#d4dcd6' : '#1a1a1a',
         },
         studies_overrides: {},
         disabled_features: ['header_symbol_search', 'symbol_search_hot_key'],
@@ -88,6 +90,6 @@ export default function TradingViewChart({ symbol = 'BTCUSDT', interval = '15m' 
   }, [symbol, interval])
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', background: '#000' }} />
+    <div ref={containerRef} style={{ width: '100%', height: '100%', background: "var(--ct-surface, #000)" }} />
   )
 }

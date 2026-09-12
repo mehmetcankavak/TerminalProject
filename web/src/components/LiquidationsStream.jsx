@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useCallback } from 'react'
 import { API_BASE } from '../config'
 import FeatureSpotlight from './FeatureSpotlight'
@@ -47,7 +48,7 @@ function LiqSentiment({ stats, h1Pressure }) {
     <div className="liq-sentiment-wrap">
       <div className="liq-sentiment-top">
         <div className="liq-section-hdr">SENTIMENT · LIQUIDATION · 24H</div>
-        <div className="liq-sentiment-verdict" style={{ color: tone }}>
+        <div className="liq-sentiment-verdict" style={{ color: workspaceTextColor(tone) }}>
           <span className="liq-sentiment-score">{score >= 0 ? '+' : ''}{score.toFixed(2)}</span>
           <span className="liq-sentiment-label">{verdict}</span>
         </div>
@@ -68,18 +69,18 @@ function LiqSentiment({ stats, h1Pressure }) {
 
       <div className="liq-sub-cards">
         <div className="liq-sub-card" style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.15)' }}>
-          <div className="liq-sub-card-title" style={{ color: '#f43f5e' }}>LONG LIQ</div>
+          <div className="liq-sub-card-title" style={{ color: "var(--ct-negative, #f43f5e)" }}>LONG LIQ</div>
           <div className="liq-sub-card-value">{fmtM(longL)}</div>
           <div className="liq-sub-card-note">longs flushed</div>
         </div>
         <div className="liq-sub-card" style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)' }}>
-          <div className="liq-sub-card-title" style={{ color: '#00e87a' }}>SHORT LIQ</div>
+          <div className="liq-sub-card-title" style={{ color: "var(--ct-positive, #00e87a)" }}>SHORT LIQ</div>
           <div className="liq-sub-card-value">{fmtM(shortL)}</div>
           <div className="liq-sub-card-note">shorts squeezed</div>
         </div>
-        <div className="liq-sub-card" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="liq-sub-card-title" style={{ color: '#aaa' }}>DOMINANT</div>
-          <div className="liq-sub-card-value" style={{ color: tone, fontSize: 13 }}>{dominant}</div>
+        <div className="liq-sub-card" style={{ background: "var(--ct-wash, rgba(255,255,255,0.03))", border: "1px solid var(--ct-line, rgba(255,255,255,0.06))" }}>
+          <div className="liq-sub-card-title" style={{ color: "var(--ct-muted, #aaa)" }}>DOMINANT</div>
+          <div className="liq-sub-card-value" style={{ color: workspaceTextColor(tone), fontSize: 13 }}>{dominant}</div>
           <div className="liq-sub-card-note">
             {longL > 0 && shortL > 0
               ? (longL > shortL ? (longL / shortL).toFixed(1) + 'x long' : (shortL / longL).toFixed(1) + 'x short')
@@ -87,7 +88,7 @@ function LiqSentiment({ stats, h1Pressure }) {
           </div>
         </div>
         <div className="liq-sub-card" style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)' }}>
-          <div className="liq-sub-card-title" style={{ color: '#fbbf24' }}>1H PRESSURE</div>
+          <div className="liq-sub-card-title" style={{ color: "var(--ct-warning, #fbbf24)" }}>1H PRESSURE</div>
           <div className="liq-sub-card-value">{fmtM(h1Pressure)}</div>
           <div className="liq-sub-card-note">last hour pace</div>
         </div>
@@ -106,8 +107,8 @@ function PeriodCard({ label, total, long, short, active, onClick }) {
         <div className="liq-period-bar-fill" style={{ width: longPct + '%' }} />
       </div>
       <div className="liq-period-bar-labels">
-        <span style={{ color: '#00e87a' }}>L {Math.round(longPct)}%</span>
-        <span style={{ color: '#f43f5e' }}>S {Math.round(100 - longPct)}%</span>
+        <span style={{ color: "var(--ct-positive, #00e87a)" }}>L {Math.round(longPct)}%</span>
+        <span style={{ color: "var(--ct-negative, #f43f5e)" }}>S {Math.round(100 - longPct)}%</span>
       </div>
     </button>
   )
@@ -125,8 +126,8 @@ function HotCoinRow({ rank, coin, long, short }) {
           <div className="liq-hot-bar-fill" style={{ width: longPct + '%' }} />
         </div>
         <div className="liq-hot-bar-subs">
-          <span style={{ color: '#00e87a' }}>Long {fmtM(long)}</span>
-          <span style={{ color: '#f43f5e' }}>Short {fmtM(short)}</span>
+          <span style={{ color: "var(--ct-positive, #00e87a)" }}>Long {fmtM(long)}</span>
+          <span style={{ color: "var(--ct-negative, #f43f5e)" }}>Short {fmtM(short)}</span>
         </div>
       </div>
       <div className="liq-hot-total">{fmtM(total)}</div>
@@ -137,9 +138,9 @@ function HotCoinRow({ rank, coin, long, short }) {
 function CardSkeleton() {
   return (
     <div className="liq-period-card">
-      <div style={{ height: 13, width: 24, borderRadius: 4, background: 'rgba(255,255,255,0.06)', marginBottom: 8 }} />
-      <div style={{ height: 16, width: 52, borderRadius: 4, background: 'rgba(255,255,255,0.08)', marginBottom: 9 }} />
-      <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.05)' }} />
+      <div style={{ height: 13, width: 24, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.06))", marginBottom: 8 }} />
+      <div style={{ height: 16, width: 52, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.08))", marginBottom: 9 }} />
+      <div style={{ height: 3, borderRadius: 2, background: "var(--ct-wash, rgba(255,255,255,0.05))" }} />
     </div>
   )
 }
@@ -203,8 +204,8 @@ export default function LiquidationsStream() {
             <div className="liq-page-24h-label">24H GLOBAL</div>
             <div className="liq-page-24h-total">{fmtM(total24)}</div>
             <div className="liq-page-24h-subs">
-              <span style={{ color: '#00e87a' }}>Long {fmtM(long24)}</span>
-              <span style={{ color: '#f43f5e' }}>Short {fmtM(short24)}</span>
+              <span style={{ color: "var(--ct-positive, #00e87a)" }}>Long {fmtM(long24)}</span>
+              <span style={{ color: "var(--ct-negative, #f43f5e)" }}>Short {fmtM(short24)}</span>
             </div>
           </div>
         )}

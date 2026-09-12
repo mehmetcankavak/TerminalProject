@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useCallback } from 'react'
 import { fetchVolumeMonitorFull, formatUSD } from '../services/api'
 
@@ -97,10 +98,10 @@ function VolumeSentiment({ sentiment, data }) {
       <div className="vmx-sentiment-hdr">
         <span className="vmx-section-label">SENTIMENT · VOLUME × PRICE · 24H</span>
         <div className="vmx-sentiment-score">
-          <span className="vmx-score-num" style={{ color: tone }}>
+          <span className="vmx-score-num" style={{ color: workspaceTextColor(tone) }}>
             {score >= 0 ? '+' : ''}{score.toFixed(2)}
           </span>
-          <span className="vmx-verdict" style={{ color: tone }}>{verdict}</span>
+          <span className="vmx-verdict" style={{ color: workspaceTextColor(tone) }}>{verdict}</span>
         </div>
       </div>
 
@@ -120,25 +121,25 @@ function VolumeSentiment({ sentiment, data }) {
       <div className="vmx-stat4-grid">
         <div className="vmx-stat-card buy">
           <div className="vmx-stat-label">BUY VOLUME</div>
-          <div className="vmx-stat-val" style={{ color: '#fff' }}>{formatUSD(bullVol)}</div>
+          <div className="vmx-stat-val" style={{ color: "var(--ct-ink, #fff)" }}>{formatUSD(bullVol)}</div>
           <div className="vmx-stat-sub">fiyat ↑ hacim</div>
         </div>
         <div className="vmx-stat-card sell">
-          <div className="vmx-stat-label" style={{ color: '#f43f5e' }}>SELL VOLUME</div>
-          <div className="vmx-stat-val" style={{ color: '#fff' }}>{formatUSD(bearVol)}</div>
+          <div className="vmx-stat-label" style={{ color: "var(--ct-negative, #f43f5e)" }}>SELL VOLUME</div>
+          <div className="vmx-stat-val" style={{ color: "var(--ct-ink, #fff)" }}>{formatUSD(bearVol)}</div>
           <div className="vmx-stat-sub">fiyat ↓ hacim</div>
         </div>
         <div className="vmx-stat-card buy-soft">
           <div className="vmx-stat-label">TOP BUY</div>
           <div className="vmx-stat-val">{topBuy ? topBuy.symbol : '—'}</div>
-          <div className="vmx-stat-sub" style={{ color: '#00e87a' }}>
+          <div className="vmx-stat-sub" style={{ color: "var(--ct-positive, #00e87a)" }}>
             {topBuy ? '+' + topBuy.priceChangePct.toFixed(2) + '%' : '—'}
           </div>
         </div>
         <div className="vmx-stat-card sell-soft">
-          <div className="vmx-stat-label" style={{ color: '#f43f5e' }}>TOP SELL</div>
+          <div className="vmx-stat-label" style={{ color: "var(--ct-negative, #f43f5e)" }}>TOP SELL</div>
           <div className="vmx-stat-val">{topSell ? topSell.symbol : '—'}</div>
-          <div className="vmx-stat-sub" style={{ color: '#f43f5e' }}>
+          <div className="vmx-stat-sub" style={{ color: "var(--ct-negative, #f43f5e)" }}>
             {topSell ? topSell.priceChangePct.toFixed(2) + '%' : '—'}
           </div>
         </div>
@@ -166,7 +167,7 @@ function MajorCard({ m }) {
         </div>
         <span className="vmx-major-ratio">{m.ratio.toFixed(1)}x</span>
       </div>
-      <div className="vmx-major-chg" style={{ color: tone }}>
+      <div className="vmx-major-chg" style={{ color: workspaceTextColor(tone) }}>
         {isUp ? '+' : ''}{m.priceChangePct.toFixed(2)}%
       </div>
       <div className="vmx-major-vol">{formatUSD(m.volume24h)}</div>

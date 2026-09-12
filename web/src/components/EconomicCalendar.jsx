@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { isLightWorkspace } from '../utils/workspaceTheme'
 
 export default function EconomicCalendar() {
   const containerRef = useRef(null)
@@ -11,7 +12,7 @@ export default function EconomicCalendar() {
     script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-events.js'
     script.async = true
     script.innerHTML = JSON.stringify({
-      colorTheme:       'dark',
+      colorTheme:       isLightWorkspace(containerRef.current) ? 'light' : 'dark',
       isTransparent:    true,
       width:            '100%',
       height:           '100%',

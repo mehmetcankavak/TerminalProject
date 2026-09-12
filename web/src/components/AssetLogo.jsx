@@ -182,8 +182,8 @@ export default function AssetLogo({ symbol, icon, type = 'stock', size = 36, rad
       borderRadius: radius,
       overflow: 'hidden',
       flexShrink: 0,
-      background: '#000',
-      border: '1px solid rgba(255,255,255,0.10)',
+      background: "var(--ct-surface, #000)",
+      border: "1px solid var(--ct-line, rgba(255,255,255,0.10))",
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -207,7 +207,7 @@ export default function AssetLogo({ symbol, icon, type = 'stock', size = 36, rad
           onError={() => setSourceIndex(i => i + 1)}
         />
       ) : (
-        <span style={{ color: '#f8fafc', fontSize: Math.max(9, Math.round(size * 0.28)), fontWeight: 800, fontFamily: 'var(--mono)' }}>{fallback}</span>
+        <span style={{ color: "var(--ct-ink, #f8fafc)", fontSize: Math.max(9, Math.round(size * 0.28)), fontWeight: 800, fontFamily: 'var(--mono)' }}>{fallback}</span>
       )}
     </div>
   )

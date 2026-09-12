@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import React, { useState, useCallback, useMemo } from 'react';
 import { API_BASE } from '../config';
 import { sendNewsToTelegram } from '../services/api';
@@ -294,7 +295,7 @@ export default function TerminalNewsFeed({
                         style={{
                             background: 'transparent',
                             border: 'none',
-                            color: showHealth ? 'var(--accent)' : 'var(--text-3)',
+                            color: workspaceTextColor(showHealth ? 'var(--accent)' : 'var(--text-3)'),
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
@@ -323,8 +324,8 @@ export default function TerminalNewsFeed({
             {showHealth && (
                 <div style={{
                     padding: '8px',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    background: 'rgba(255,255,255,0.015)',
+                    borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))",
+                    background: "var(--ct-wash, rgba(255,255,255,0.015))",
                 }}>
                     <div style={{
                         display: 'grid',
@@ -340,8 +341,8 @@ export default function TerminalNewsFeed({
                                     key={row.source_key}
                                     title={row.last_error || row.sample_source || row.source_key}
                                     style={{
-                                        border: '1px solid rgba(255,255,255,0.06)',
-                                        background: 'rgba(255,255,255,0.02)',
+                                        border: "1px solid var(--ct-line, rgba(255,255,255,0.06))",
+                                        background: "var(--ct-wash, rgba(255,255,255,0.02))",
                                         borderRadius: 6,
                                         padding: '6px 7px',
                                         minWidth: 0,
@@ -369,7 +370,7 @@ export default function TerminalNewsFeed({
                                             </span>
                                         </div>
                                         <span style={{
-                                            color: tier.color,
+                                            color: workspaceTextColor(tier.color),
                                             fontSize: 8,
                                             letterSpacing: '.08em',
                                             border: `1px solid ${tier.border}`,
@@ -384,7 +385,7 @@ export default function TerminalNewsFeed({
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, color: 'var(--text-3)', fontSize: 10 }}>
                                         <span>{row.events_1h || 0}/h</span>
                                         <span>{row.events_24h || 0}/24h</span>
-                                        <span style={{ color: lastLatency.color }}>
+                                        <span style={{ color: workspaceTextColor(lastLatency.color) }}>
                                             {row.avg_latency_ms == null ? 'n/a' : row.avg_latency_ms < 1000 ? `${Math.round(row.avg_latency_ms)}ms` : `${(row.avg_latency_ms / 1000).toFixed(1)}s`}
                                         </span>
                                     </div>
@@ -401,7 +402,7 @@ export default function TerminalNewsFeed({
                 display: 'flex',
                 gap: 6,
                 padding: '6px 8px 8px',
-                borderBottom: '1px solid rgba(255,255,255,0.04)',
+                borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))",
                 overflowX: 'auto',
                 scrollbarWidth: 'none',
             }}>
@@ -412,9 +413,9 @@ export default function TerminalNewsFeed({
                             key={filter.key}
                             onClick={() => setActiveFilter(filter.key)}
                             style={{
-                                border: active ? '1px solid rgba(0,217,146,0.28)' : '1px solid rgba(255,255,255,0.08)',
-                                background: active ? 'rgba(0,217,146,0.08)' : 'rgba(255,255,255,0.02)',
-                                color: active ? 'var(--accent)' : 'var(--text-3)',
+                                border: active ? '1px solid rgba(0,217,146,0.28)' : "1px solid var(--ct-line, rgba(255,255,255,0.08))",
+                                background: active ? 'rgba(0,217,146,0.08)' : "var(--ct-wash, rgba(255,255,255,0.02))",
+                                color: workspaceTextColor(active ? 'var(--accent)' : 'var(--text-3)'),
                                 fontSize: 9,
                                 letterSpacing: '.1em',
                                 padding: '4px 7px',
@@ -456,7 +457,7 @@ export default function TerminalNewsFeed({
                         <div key={n.id || i} className="nt-news-item" style={{ borderLeftColor: p.border, background: p.bg }}>
                             <div className="nt-news-left">
                                 <div className="nt-news-source-row">
-                                    <div className="nt-news-avatar" style={{ color: p.border }}>
+                                    <div className="nt-news-avatar" style={{ color: workspaceTextColor(p.border) }}>
                                         {(n.source || 'N').charAt(0).toUpperCase()}
                                     </div>
                                     <span className="nt-news-src">{(n.source || '').split('.')[0].replace('Cointelegraph', 'COINTELEGRAPH').replace('CoinDesk', 'COINDESK')}</span>
@@ -469,7 +470,7 @@ export default function TerminalNewsFeed({
                                         lineHeight: 1,
                                         padding: '3px 5px',
                                         borderRadius: 4,
-                                        color: eventType.color,
+                                        color: workspaceTextColor(eventType.color),
                                         border: `1px solid ${eventType.border}`,
                                         background: eventType.bg,
                                         letterSpacing: '.08em',
@@ -482,7 +483,7 @@ export default function TerminalNewsFeed({
                                         lineHeight: 1,
                                         padding: '3px 5px',
                                         borderRadius: 4,
-                                        color: tier.color,
+                                        color: workspaceTextColor(tier.color),
                                         border: `1px solid ${tier.border}`,
                                         background: tier.bg,
                                         letterSpacing: '.08em',
@@ -505,7 +506,7 @@ export default function TerminalNewsFeed({
                                     )}
                                 </div>
                                 <div className="nt-news-headline" style={{
-                                    color: '#fff',
+                                    color: "var(--ct-ink, #fff)",
                                     fontWeight: prio === 'HIGH' ? 500 : 400,
                                 }}>{n.headline}</div>
 
@@ -518,8 +519,8 @@ export default function TerminalNewsFeed({
                                                 borderRadius: 3, border: '1px solid',
                                                 borderColor: n.mentioned_assets?.[0]?.asset_type === 'equity' || n.mentioned_assets?.[0]?.asset_type === 'etf' ? '#b060ff' :
                                                              n.mentioned_assets?.[0]?.asset_type === 'commodity' || n.mentioned_assets?.[0]?.asset_type === 'index' ? '#e5a236' : '#00c8ff',
-                                                color: n.mentioned_assets?.[0]?.asset_type === 'equity' || n.mentioned_assets?.[0]?.asset_type === 'etf' ? '#b060ff' :
-                                                       n.mentioned_assets?.[0]?.asset_type === 'commodity' || n.mentioned_assets?.[0]?.asset_type === 'index' ? '#e5a236' : '#00c8ff',
+                                                color: workspaceTextColor(n.mentioned_assets?.[0]?.asset_type === 'equity' || n.mentioned_assets?.[0]?.asset_type === 'etf' ? '#b060ff' :
+                                                       n.mentioned_assets?.[0]?.asset_type === 'commodity' || n.mentioned_assets?.[0]?.asset_type === 'index' ? "var(--ct-warning, #e5a236)" : '#00c8ff'),
                                                 background: 'transparent',
                                             }}>
                                                 {n.primary_symbol || n.primary_asset_id}
@@ -529,8 +530,8 @@ export default function TerminalNewsFeed({
                                         {n.themes?.slice(0, 3).map(theme => (
                                             <span key={theme} style={{
                                                 fontSize: 10, padding: '1px 5px', borderRadius: 3,
-                                                background: 'rgba(255,255,255,0.05)', color: 'var(--text-3)',
-                                                border: '1px solid rgba(255,255,255,0.08)',
+                                                background: "var(--ct-wash, rgba(255,255,255,0.05))", color: 'var(--text-3)',
+                                                border: "1px solid var(--ct-line, rgba(255,255,255,0.08))",
                                             }}>{theme}</span>
                                         ))}
                                     </div>
@@ -544,17 +545,17 @@ export default function TerminalNewsFeed({
                                         padding: '2px 6px',
                                         borderRadius: 4,
                                     }}>
-                                        <span style={{ color: tier.color, fontSize: 9, letterSpacing: '.08em' }}>{tier.label}</span>
-                                        <span style={{ color: 'rgba(255,255,255,0.12)', fontSize: 9 }}>·</span>
-                                        <span style={{ color: latencySignal.color, fontSize: 9, letterSpacing: '.08em' }}>{latencySignal.label}</span>
+                                        <span style={{ color: workspaceTextColor(tier.color), fontSize: 9, letterSpacing: '.08em' }}>{tier.label}</span>
+                                        <span style={{ color: "var(--ct-subtle, rgba(255,255,255,0.12))", fontSize: 9 }}>·</span>
+                                        <span style={{ color: workspaceTextColor(latencySignal.color), fontSize: 9, letterSpacing: '.08em' }}>{latencySignal.label}</span>
                                     </div>
                                     {corroborationCount > 1 && (
                                         <div
                                             className="nt-news-pill"
                                             title={corroboratingSources.join(', ')}
                                             style={{
-                                                border: '1px solid rgba(255,255,255,0.08)',
-                                                background: 'rgba(255,255,255,0.03)',
+                                                border: "1px solid var(--ct-line, rgba(255,255,255,0.08))",
+                                                background: "var(--ct-wash, rgba(255,255,255,0.03))",
                                             }}
                                         >
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: '-1px' }}>
@@ -655,11 +656,11 @@ export default function TerminalNewsFeed({
                                                         <span
                                                             className="nt-news-trade-sym"
                                                             style={{
-                                                                color: primaryAsset.asset_type === 'commodity' || primaryAsset.asset_type === 'index'
-                                                                    ? '#e5a236'
+                                                                color: workspaceTextColor(primaryAsset.asset_type === 'commodity' || primaryAsset.asset_type === 'index'
+                                                                    ? "var(--ct-warning, #e5a236)"
                                                                     : primaryAsset.asset_type === 'equity' || primaryAsset.asset_type === 'etf'
                                                                         ? '#b060ff'
-                                                                        : 'var(--accent)',
+                                                                        : 'var(--accent)'),
                                                             }}
                                                         >
                                                             ${n.primary_symbol || n.primary_asset_id}
@@ -723,7 +724,7 @@ export default function TerminalNewsFeed({
                                                                 fontSize: 9, padding: '2px 5px', borderRadius: 3,
                                                                 border: `1px solid ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.1)'}`,
                                                                 background: isActive ? 'rgba(0,200,255,0.08)' : 'transparent',
-                                                                color: isActive ? 'var(--accent)' : 'var(--text-3)',
+                                                                color: workspaceTextColor(isActive ? 'var(--accent)' : 'var(--text-3)'),
                                                                 cursor: 'pointer', whiteSpace: 'nowrap',
                                                             }}
                                                         >

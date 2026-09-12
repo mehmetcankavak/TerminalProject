@@ -1,5 +1,7 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createChart, CrosshairMode, CandlestickSeries, HistogramSeries } from 'lightweight-charts'
+import { workspaceChartOptions } from '../utils/workspaceTheme'
 import { API_BASE } from '../config'
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -71,7 +73,7 @@ function CoinLogo({ cmcId, sym, size = 28 }) {
         width: size, height: size, borderRadius: '50%',
         background: symColor(sym || '?'),
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: Math.floor(size * 0.35), fontWeight: 700, color: '#fff', flexShrink: 0,
+        fontSize: Math.floor(size * 0.35), fontWeight: 700, color: "var(--ct-ink, #fff)", flexShrink: 0,
       }}>{(sym || '?').slice(0, 3)}</span>
     )
   }
@@ -109,7 +111,7 @@ function GlobalStatsBar({ global: g, fearGreed }) {
         <div key={i} className="cmcx-stat-item">
           <span className="cmcx-stat-label">{item.label}</span>
           <div className="cmcx-stat-val-row">
-            <span className="cmcx-stat-value" style={item.color ? { color: item.color } : {}}>
+            <span className="cmcx-stat-value" style={item.color ? { color: workspaceTextColor(item.color) } : {}}>
               {item.value}
               {item.label2 && <span className="cmcx-stat-sublabel"> {item.label2}</span>}
             </span>
@@ -202,6 +204,7 @@ function CoinCandleChart({ symbol, loading }) {
       crosshair: { mode: CrosshairMode.Normal },
       handleScroll: true, handleScale: true,
     })
+    chart.applyOptions(workspaceChartOptions(containerRef.current))
     const cs = chart.addSeries(CandlestickSeries, {
       upColor: '#00d992', downColor: '#ff3b5c', borderVisible: false,
       wickUpColor: '#00d992', wickDownColor: '#ff3b5c',
@@ -336,7 +339,7 @@ function CoinDetailModal({ coin, onClose }) {
             {price > 0 && (
               <div style={{ marginLeft: 8 }}>
                 <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-0)', fontFamily: 'var(--font-mono)' }}>{fmtPrice(price)}</div>
-                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: isUp ? 'var(--accent)' : 'var(--danger)' }}>{fmtChg(coin.chg24h)}</div>
+                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: workspaceTextColor(isUp ? 'var(--accent)' : 'var(--danger)') }}>{fmtChg(coin.chg24h)}</div>
               </div>
             )}
           </div>
@@ -400,8 +403,8 @@ function CoinDetailModal({ coin, onClose }) {
             <div className="stx-stat-item"><span>24s Hacim</span><strong>{fmtLarge(coin.vol24h)}</strong></div>
             <div className="stx-stat-item"><span>Dolaşım Arzı</span><strong>{fmtSupply(coin.supply, sym)}</strong></div>
             <div className="stx-stat-item"><span>Maks Arz</span><strong>{coin.maxSup > 0 ? fmtSupply(coin.maxSup, sym) : '∞'}</strong></div>
-            <div className="stx-stat-item"><span>1s Değişim</span><strong style={{ color: (coin.chg1h || 0) >= 0 ? 'var(--accent)' : 'var(--danger)' }}>{fmtChg(coin.chg1h) || '—'}</strong></div>
-            <div className="stx-stat-item"><span>7g Değişim</span><strong style={{ color: (coin.chg7d || 0) >= 0 ? 'var(--accent)' : 'var(--danger)' }}>{fmtChg(coin.chg7d) || '—'}</strong></div>
+            <div className="stx-stat-item"><span>1s Değişim</span><strong style={{ color: workspaceTextColor((coin.chg1h || 0) >= 0 ? 'var(--accent)' : 'var(--danger)') }}>{fmtChg(coin.chg1h) || '—'}</strong></div>
+            <div className="stx-stat-item"><span>7g Değişim</span><strong style={{ color: workspaceTextColor((coin.chg7d || 0) >= 0 ? 'var(--accent)' : 'var(--danger)') }}>{fmtChg(coin.chg7d) || '—'}</strong></div>
           </div>
         </div>
 
@@ -592,7 +595,7 @@ export default function MarketsPage() {
   const TH = ({ k, children, r, c: center }) => (
     <th className={`cmcx-th${r ? ' r' : ''}${center ? ' c' : ''}`}
       onClick={() => k && handleSort(k)}
-      style={{ cursor: k ? 'pointer' : 'default', color: sortKey === k ? 'var(--text-1)' : undefined }}
+      style={{ cursor: k ? 'pointer' : 'default', color: workspaceTextColor(sortKey === k ? 'var(--text-1)' : undefined) }}
     >
       {children}{k && <SortIcon k={k} />}
     </th>

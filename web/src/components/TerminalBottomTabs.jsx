@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import React from 'react';
 import { API_BASE } from '../config';
 
@@ -73,19 +74,19 @@ function ClosePositionModal({ modal, tickers, onClose, onConfirmMarket, onConfir
                     boxShadow: '0 24px 80px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.03)',
                     borderRadius: 18,
                     padding: 22,
-                    color: '#d8e5e1',
+                    color: "var(--ct-ink, #d8e5e1)",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
                     <div>
-                        <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: '#6c908b', marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: "var(--ct-subtle, #6c908b)", marginBottom: 10 }}>
                             Position Exit
                         </div>
-                        <div style={{ fontSize: 28, lineHeight: 1.05, fontWeight: 600, color: '#eef7f4', marginBottom: 8 }}>
+                        <div style={{ fontSize: 28, lineHeight: 1.05, fontWeight: 600, color: "var(--ct-ink, #eef7f4)", marginBottom: 8 }}>
                             {title}
                         </div>
-                        <div style={{ fontSize: 12, color: '#8ea4a0', maxWidth: 320 }}>
+                        <div style={{ fontSize: 12, color: "var(--ct-muted, #8ea4a0)", maxWidth: 320 }}>
                             {subtitle}
                         </div>
                     </div>
@@ -95,9 +96,9 @@ function ClosePositionModal({ modal, tickers, onClose, onConfirmMarket, onConfir
                             width: 28,
                             height: 28,
                             borderRadius: 999,
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            background: 'rgba(255,255,255,0.03)',
-                            color: '#97aba7',
+                            border: "1px solid var(--ct-line, rgba(255,255,255,0.08))",
+                            background: "var(--ct-wash, rgba(255,255,255,0.03))",
+                            color: "var(--ct-muted, #97aba7)",
                             cursor: 'pointer',
                             fontSize: 16,
                             lineHeight: 1,
@@ -114,25 +115,25 @@ function ClosePositionModal({ modal, tickers, onClose, onConfirmMarket, onConfir
                         ['Size', `${quantity.toFixed(quantity >= 1 ? 3 : 4)} ${symbol.replace('USDT', '')}`],
                         ['Position Value', `${fmt(notional)} USDC`],
                     ].map(([label, value]) => (
-                        <div key={label} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12 }}>
-                            <div style={{ fontSize: 10, color: '#6f8581', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>{label}</div>
-                            <div style={{ fontSize: 14, color: '#e4efec', fontWeight: 600 }}>{value}</div>
+                        <div key={label} style={{ padding: '12px 14px', background: "var(--ct-wash, rgba(255,255,255,0.02))", border: "1px solid var(--ct-line, rgba(255,255,255,0.05))", borderRadius: 12 }}>
+                            <div style={{ fontSize: 10, color: "var(--ct-subtle, #6f8581)", textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>{label}</div>
+                            <div style={{ fontSize: 14, color: "var(--ct-ink, #e4efec)", fontWeight: 600 }}>{value}</div>
                         </div>
                     ))}
                 </div>
 
                 {mode === 'limit' ? (
                     <div style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 10, color: '#6f8581', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Limit Price</div>
+                        <div style={{ fontSize: 10, color: "var(--ct-subtle, #6f8581)", textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Limit Price</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                             <input
                                 value={limitPrice}
                                 onChange={(e) => setLimitPrice(e.target.value)}
                                 placeholder="Price (USDC)"
                                 style={{
-                                    background: 'rgba(255,255,255,0.03)',
-                                    border: '1px solid rgba(255,255,255,0.08)',
-                                    color: '#eef7f4',
+                                    background: "var(--ct-wash, rgba(255,255,255,0.03))",
+                                    border: "1px solid var(--ct-line, rgba(255,255,255,0.08))",
+                                    color: "var(--ct-ink, #eef7f4)",
                                     borderRadius: 12,
                                     padding: '13px 14px',
                                     fontSize: 14,
@@ -146,7 +147,7 @@ function ClosePositionModal({ modal, tickers, onClose, onConfirmMarket, onConfir
                                     borderRadius: 12,
                                     border: '1px solid rgba(121, 223, 209, 0.2)',
                                     background: 'rgba(121, 223, 209, 0.08)',
-                                    color: accent,
+                                    color: workspaceTextColor(accent),
                                     padding: '0 14px',
                                     cursor: 'pointer',
                                     fontSize: 11,
@@ -158,7 +159,7 @@ function ClosePositionModal({ modal, tickers, onClose, onConfirmMarket, onConfir
                                 Mid
                             </button>
                         </div>
-                        <div style={{ marginTop: 10, fontSize: 11, color: '#829894' }}>
+                        <div style={{ marginTop: 10, fontSize: 11, color: "var(--ct-muted, #829894)" }}>
                             Market close tam aktif. Limit close command backend’i sonraki adımda bağlanacak.
                         </div>
                     </div>
@@ -166,8 +167,8 @@ function ClosePositionModal({ modal, tickers, onClose, onConfirmMarket, onConfir
                     <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 12, background: 'linear-gradient(180deg, rgba(121, 223, 209, 0.08) 0%, rgba(121, 223, 209, 0.03) 100%)', border: '1px solid rgba(121, 223, 209, 0.12)' }}>
                         <div style={{ fontSize: 11, color: '#8ecdc1', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>Execution</div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-                            <span style={{ color: '#d7e6e2' }}>Reference Price</span>
-                            <strong style={{ color: '#eef7f4' }}>{lastPrice ? fmt(lastPrice, 3) : '—'}</strong>
+                            <span style={{ color: "var(--ct-ink, #d7e6e2)" }}>Reference Price</span>
+                            <strong style={{ color: "var(--ct-ink, #eef7f4)" }}>{lastPrice ? fmt(lastPrice, 3) : '—'}</strong>
                         </div>
                     </div>
                 )}
@@ -178,9 +179,9 @@ function ClosePositionModal({ modal, tickers, onClose, onConfirmMarket, onConfir
                         style={{
                             flex: '0 0 auto',
                             borderRadius: 12,
-                            border: '1px solid rgba(255,255,255,0.08)',
+                            border: "1px solid var(--ct-line, rgba(255,255,255,0.08))",
                             background: 'transparent',
-                            color: '#93a8a4',
+                            color: "var(--ct-muted, #93a8a4)",
                             padding: '13px 16px',
                             cursor: 'pointer',
                             fontSize: 12,
@@ -213,7 +214,7 @@ function ClosePositionModal({ modal, tickers, onClose, onConfirmMarket, onConfir
                             background: mode === 'market'
                                 ? 'linear-gradient(180deg, rgba(121, 223, 209, 0.95) 0%, rgba(101, 204, 189, 0.9) 100%)'
                                 : 'linear-gradient(180deg, rgba(121, 223, 209, 0.14) 0%, rgba(121, 223, 209, 0.08) 100%)',
-                            color: mode === 'market' ? '#042825' : '#8fd2c6',
+                            color: workspaceTextColor(mode === 'market' ? "var(--ct-ink, #042825)" : '#8fd2c6'),
                             padding: '13px 18px',
                             cursor: 'pointer',
                             fontSize: 13,
@@ -323,7 +324,7 @@ export default function TerminalBottomTabs({
                 {activeTab === 'positions' && posEntries.length > 0 && (
                     <button 
                         className="nt-close-all-btn"
-                        style={{ marginLeft: 12, padding: '2px 8px', background: 'transparent', color: '#ff3b5c', border: '1px solid rgba(255,59,92,0.3)', borderRadius: 4, cursor: 'pointer', fontSize: 11, transition: 'all 0.2s', alignSelf: 'center' }}
+                        style={{ marginLeft: 12, padding: '2px 8px', background: 'transparent', color: "var(--ct-negative, #ff3b5c)", border: '1px solid rgba(255,59,92,0.3)', borderRadius: 4, cursor: 'pointer', fontSize: 11, transition: 'all 0.2s', alignSelf: 'center' }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,59,92,0.1)'; e.currentTarget.style.borderColor = '#ff3b5c' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(255,59,92,0.3)' }}
                         onClick={() => {
@@ -337,7 +338,7 @@ export default function TerminalBottomTabs({
 
             <div className="hl-pf-table-wrapper" style={{ minHeight: collapsed ? 0 : 180, display: collapsed ? 'none' : undefined }}>
                 {tabLoading && (
-                    <div style={{ padding: '32px 16px', textAlign: 'center', color: '#4e4d49', fontSize: 12 }}>Loading...</div>
+                    <div style={{ padding: '32px 16px', textAlign: 'center', color: "var(--ct-subtle, #4e4d49)", fontSize: 12 }}>Loading...</div>
                 )}
 
                 {/* ── BALANCES ── */}
@@ -346,14 +347,14 @@ export default function TerminalBottomTabs({
                         <thead><tr><th>Asset</th><th>Total</th><th>Available</th><th>Margin Used</th><th>Unrealized PnL</th></tr></thead>
                         <tbody>
                             {!balances ? (
-                                <tr><td colSpan="5" style={{ textAlign: 'center', color: '#4e4d49', padding: '32px 16px' }}>No balance data</td></tr>
+                                <tr><td colSpan="5" style={{ textAlign: 'center', color: "var(--ct-subtle, #4e4d49)", padding: '32px 16px' }}>No balance data</td></tr>
                             ) : (
                                 <tr>
-                                    <td><strong style={{ color: '#e8e6e3' }}>USDC</strong></td>
+                                    <td><strong style={{ color: "var(--ct-ink, #e8e6e3)" }}>USDC</strong></td>
                                     <td>${fmt(balances.account_value)}</td>
-                                    <td style={{ color: '#00d992' }}>${fmt(balances.withdrawable)}</td>
-                                    <td style={{ color: '#f5a623' }}>${fmt(balances.total_margin_used)}</td>
-                                    <td style={{ color: balances.unrealized_pnl >= 0 ? '#00d992' : '#ff3b5c' }}>
+                                    <td style={{ color: "var(--ct-positive, #00d992)" }}>${fmt(balances.withdrawable)}</td>
+                                    <td style={{ color: "var(--ct-warning, #f5a623)" }}>${fmt(balances.total_margin_used)}</td>
+                                    <td style={{ color: workspaceTextColor(balances.unrealized_pnl >= 0 ? "var(--ct-positive, #00d992)" : "var(--ct-negative, #ff3b5c)") }}>
                                         {balances.unrealized_pnl >= 0 ? '+' : ''}${fmt(balances.unrealized_pnl)}
                                     </td>
                                 </tr>
@@ -376,7 +377,7 @@ export default function TerminalBottomTabs({
                         </thead>
                         <tbody>
                             {posEntries.length === 0 ? (
-                                <tr><td colSpan="11" style={{ textAlign: 'center', color: '#8b9eb7', padding: '32px 16px' }}>No open positions</td></tr>
+                                <tr><td colSpan="11" style={{ textAlign: 'center', color: "var(--ct-muted, #8b9eb7)", padding: '32px 16px' }}>No open positions</td></tr>
                             ) : posEntries.map(([sym, pos]) => {
                                 const longSide = isLongSide(pos.side);
                                 // mark_price: HL'nin oracle tabanlı fiyatı — borsayla birebir aynı
@@ -438,7 +439,7 @@ export default function TerminalBottomTabs({
                                                 <span style={{ color: 'var(--text-3)', fontSize: 12 }}>N/A</span>
                                             ) : (
                                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                                    <span style={{ color: liqDanger ? '#ff3b5c' : liqWarn ? '#f5a623' : '#ff3b5c', fontWeight: liqDanger ? 700 : 400 }}>
+                                                    <span style={{ color: workspaceTextColor(liqDanger ? "var(--ct-negative, #ff3b5c)" : liqWarn ? "var(--ct-warning, #f5a623)" : "var(--ct-negative, #ff3b5c)"), fontWeight: liqDanger ? 700 : 400 }}>
                                                         {fmt(liqPrice)}
                                                     </span>
                                                     {liqDistPct != null && (
@@ -446,8 +447,8 @@ export default function TerminalBottomTabs({
                                                             title={`Likidasyona ${liqDistPct.toFixed(1)}% mesafe`}
                                                             style={{
                                                                 fontSize: 9, padding: '1px 4px', borderRadius: 2,
-                                                                background: liqDanger ? 'rgba(255,59,92,0.15)' : liqWarn ? 'rgba(245,166,35,0.15)' : 'rgba(139,158,183,0.1)',
-                                                                color: liqDanger ? '#ff3b5c' : liqWarn ? '#f5a623' : 'var(--text-3)',
+                                                                background: liqDanger ? 'rgba(255,59,92,0.15)' : liqWarn ? 'rgba(245,166,35,0.15)' : "var(--ct-wash, rgba(139,158,183,0.1))",
+                                                                color: workspaceTextColor(liqDanger ? "var(--ct-negative, #ff3b5c)" : liqWarn ? "var(--ct-warning, #f5a623)" : 'var(--text-3)'),
                                                                 fontWeight: 700,
                                                             }}
                                                         >
@@ -459,7 +460,7 @@ export default function TerminalBottomTabs({
                                         </td>
                                         <td>
                                             ${marginDisplay.toFixed(2)}{' '}
-                                            <span className="hl-text-sub" style={{ color: marginMode === 'Isolated' ? '#f5a623' : 'var(--text-3)' }}>
+                                            <span className="hl-text-sub" style={{ color: workspaceTextColor(marginMode === 'Isolated' ? "var(--ct-warning, #f5a623)" : 'var(--text-3)') }}>
                                                 ({marginMode})
                                             </span>
                                         </td>
@@ -474,15 +475,15 @@ export default function TerminalBottomTabs({
                                                  onMouseLeave={e => e.currentTarget.style.background = editingTPSL === sym ? 'var(--bg-2)' : 'transparent'}
                                                  onClick={() => setEditingTPSL(sym)}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', fontSize: 11, lineHeight: 1.3 }}>
-                                                    <span style={{ color: (tpInputs[sym] || pos.take_profit) ? '#00d992' : 'var(--text-3)' }}>TP: {tpInputs[sym] || pos.take_profit || '—'}</span>
-                                                    <span style={{ color: (slInputs[sym] || pos.stop_loss) ? '#ff3b5c' : 'var(--text-3)' }}>SL: {slInputs[sym] || pos.stop_loss || '—'}</span>
+                                                    <span style={{ color: workspaceTextColor((tpInputs[sym] || pos.take_profit) ? "var(--ct-positive, #00d992)" : 'var(--text-3)') }}>TP: {tpInputs[sym] || pos.take_profit || '—'}</span>
+                                                    <span style={{ color: workspaceTextColor((slInputs[sym] || pos.stop_loss) ? "var(--ct-negative, #ff3b5c)" : 'var(--text-3)') }}>SL: {slInputs[sym] || pos.stop_loss || '—'}</span>
                                                 </div>
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                                             </div>
                                             {(tpPnl || slPnl) && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', fontSize: 10, lineHeight: 1.2, marginTop: 4, paddingLeft: 6 }}>
-                                                    {tpPnl && <span style={{ color: '#00d992' }}>+${Math.abs(tpPnl.usd).toFixed(2)}</span>}
-                                                    {slPnl && <span style={{ color: '#ff3b5c' }}>-${Math.abs(slPnl.usd).toFixed(2)}</span>}
+                                                    {tpPnl && <span style={{ color: "var(--ct-positive, #00d992)" }}>+${Math.abs(tpPnl.usd).toFixed(2)}</span>}
+                                                    {slPnl && <span style={{ color: "var(--ct-negative, #ff3b5c)" }}>-${Math.abs(slPnl.usd).toFixed(2)}</span>}
                                                 </div>
                                             )}
                                         </td>
@@ -499,20 +500,20 @@ export default function TerminalBottomTabs({
                         <thead><tr><th>Coin</th><th>Side</th><th>Type</th><th>Price</th><th>Size</th><th>Filled</th><th>Time</th><th>Action</th></tr></thead>
                         <tbody>
                             {openOrders.length === 0 ? (
-                                <tr><td colSpan="8" style={{ textAlign: 'center', color: '#4e4d49', padding: '32px 16px' }}>No open orders</td></tr>
+                                <tr><td colSpan="8" style={{ textAlign: 'center', color: "var(--ct-subtle, #4e4d49)", padding: '32px 16px' }}>No open orders</td></tr>
                             ) : openOrders.map((o, i) => (
                                 <tr key={i}>
                                     <td><strong>{o.symbol}</strong></td>
-                                    <td><span style={{ color: isLongSide(o.side) ? '#00d992' : '#ff3b5c' }}>{sideLabel(o.side)}</span></td>
-                                    <td style={{ color: '#8a8884' }}>{o.type}</td>
+                                    <td><span style={{ color: workspaceTextColor(isLongSide(o.side) ? "var(--ct-positive, #00d992)" : "var(--ct-negative, #ff3b5c)") }}>{sideLabel(o.side)}</span></td>
+                                    <td style={{ color: "var(--ct-subtle, #8a8884)" }}>{o.type}</td>
                                     <td>${fmt(o.price)}</td>
                                     <td>{o.quantity}</td>
-                                    <td style={{ color: '#4e4d49' }}>{o.filled?.toFixed(4) ?? '0'}</td>
-                                    <td style={{ color: '#4e4d49', fontSize: 11 }}>{o.timestamp ? new Date(o.timestamp).toLocaleTimeString() : '—'}</td>
+                                    <td style={{ color: "var(--ct-subtle, #4e4d49)" }}>{o.filled?.toFixed(4) ?? '0'}</td>
+                                    <td style={{ color: "var(--ct-subtle, #4e4d49)", fontSize: 11 }}>{o.timestamp ? new Date(o.timestamp).toLocaleTimeString() : '—'}</td>
                                     <td>
                                         <a 
                                             className="hl-action-link" 
-                                            style={{ color: '#ff3b5c' }} 
+                                            style={{ color: "var(--ct-negative, #ff3b5c)" }}
                                             onClick={() => { 
                                                 addLog(`$ cancel ${o.symbol}`, 'info'); 
                                                 fetch(`${API_BASE}/api/command`, { method: 'POST', headers: getAuthHeaders(token), body: JSON.stringify({ command: `cancel ${o.symbol} ${o.oid}` }) })
@@ -538,18 +539,18 @@ export default function TerminalBottomTabs({
                         <thead><tr><th>Coin</th><th>Side</th><th>Price</th><th>Size</th><th>Fee</th><th>Realized PnL</th><th>Time</th></tr></thead>
                         <tbody>
                             {tradeHistory.length === 0 ? (
-                                <tr><td colSpan="7" style={{ textAlign: 'center', color: '#4e4d49', padding: '32px 16px' }}>No trade history</td></tr>
+                                <tr><td colSpan="7" style={{ textAlign: 'center', color: "var(--ct-subtle, #4e4d49)", padding: '32px 16px' }}>No trade history</td></tr>
                             ) : tradeHistory.map((t, i) => (
                                 <tr key={i}>
                                     <td><strong>{t.symbol}</strong></td>
-                                    <td><span style={{ color: isLongSide(t.side) ? '#00d992' : '#ff3b5c' }}>{sideLabel(t.side)}</span></td>
+                                    <td><span style={{ color: workspaceTextColor(isLongSide(t.side) ? "var(--ct-positive, #00d992)" : "var(--ct-negative, #ff3b5c)") }}>{sideLabel(t.side)}</span></td>
                                     <td>${fmt(t.price)}</td>
                                     <td>{t.quantity}</td>
-                                    <td style={{ color: '#ff3b5c' }}>${fmt(t.fee, 4)}</td>
-                                    <td style={{ color: t.realized_pnl >= 0 ? '#00d992' : '#ff3b5c' }}>
+                                    <td style={{ color: "var(--ct-negative, #ff3b5c)" }}>${fmt(t.fee, 4)}</td>
+                                    <td style={{ color: workspaceTextColor(t.realized_pnl >= 0 ? "var(--ct-positive, #00d992)" : "var(--ct-negative, #ff3b5c)") }}>
                                         {t.realized_pnl >= 0 ? '+' : ''}${fmt(t.realized_pnl)}
                                     </td>
-                                    <td style={{ color: '#4e4d49', fontSize: 11 }}>{t.timestamp ? new Date(t.timestamp).toLocaleString() : '—'}</td>
+                                    <td style={{ color: "var(--ct-subtle, #4e4d49)", fontSize: 11 }}>{t.timestamp ? new Date(t.timestamp).toLocaleString() : '—'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -562,15 +563,15 @@ export default function TerminalBottomTabs({
                         <thead><tr><th>Coin</th><th>Funding Payment</th><th>Position Size</th><th>Time</th></tr></thead>
                         <tbody>
                             {fundingHistory.length === 0 ? (
-                                <tr><td colSpan="4" style={{ textAlign: 'center', color: '#4e4d49', padding: '32px 16px' }}>No funding history</td></tr>
+                                <tr><td colSpan="4" style={{ textAlign: 'center', color: "var(--ct-subtle, #4e4d49)", padding: '32px 16px' }}>No funding history</td></tr>
                             ) : fundingHistory.map((f, i) => (
                                 <tr key={i}>
                                     <td><strong>{f.symbol}</strong></td>
-                                    <td style={{ color: f.funding >= 0 ? '#00d992' : '#ff3b5c' }}>
+                                    <td style={{ color: workspaceTextColor(f.funding >= 0 ? "var(--ct-positive, #00d992)" : "var(--ct-negative, #ff3b5c)") }}>
                                         {f.funding >= 0 ? '+' : ''}${fmt(f.funding, 4)}
                                     </td>
                                     <td>{fmt(f.position_size, 4)}</td>
-                                    <td style={{ color: '#4e4d49', fontSize: 11 }}>{f.timestamp ? new Date(f.timestamp).toLocaleString() : '—'}</td>
+                                    <td style={{ color: "var(--ct-subtle, #4e4d49)", fontSize: 11 }}>{f.timestamp ? new Date(f.timestamp).toLocaleString() : '—'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -601,7 +602,7 @@ export default function TerminalBottomTabs({
                 const tpPnl = tpVal ? calcPnl(tpVal) : null;
 
                 return (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    <div style={{ position: 'fixed', inset: 0, background: "var(--ct-surface, rgba(0,0,0,0.85))", backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                          onClick={() => setEditingTPSL(null)}>
                         <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-0)', width: 420, borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.8)', padding: '24px', display: 'flex', flexDirection: 'column', color: 'var(--text-0)' }}
                              onClick={e => e.stopPropagation()}>
@@ -615,7 +616,7 @@ export default function TerminalBottomTabs({
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24, fontSize: 13 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span style={{ color: 'var(--text-3)' }}>Coin</span>
-                                    <span><span style={{ color: isLongSide(pos.side) ? '#00d992' : '#ff3b5c', paddingRight: 8, fontSize: 11 }}>{sideLabel(pos.side)} {leverage}x</span><strong>{sym.replace('USDT','')}</strong></span>
+                                    <span><span style={{ color: workspaceTextColor(isLongSide(pos.side) ? "var(--ct-positive, #00d992)" : "var(--ct-negative, #ff3b5c)"), paddingRight: 8, fontSize: 11 }}>{sideLabel(pos.side)} {leverage}x</span><strong>{sym.replace('USDT','')}</strong></span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span style={{ color: 'var(--text-3)' }}>Position</span>
@@ -639,19 +640,19 @@ export default function TerminalBottomTabs({
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>TP Price</div>
                                             <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-0)', borderRadius: 4, padding: '4px 8px', border: '1px solid transparent' }} onFocus={e => e.currentTarget.style.borderColor = '#00d992'} onBlur={e => e.currentTarget.style.borderColor = 'transparent'}>
-                                                <input style={{ flex: 1, background: 'transparent', border: 'none', color: '#00d992', fontSize: 14, outline: 'none', width: '100%', fontWeight: 500 }} type="number" placeholder="0.00" value={tpVal} onChange={e => setTpInputs(prev => ({ ...prev, [sym]: e.target.value }))} />
+                                                <input style={{ flex: 1, background: 'transparent', border: 'none', color: "var(--ct-positive, #00d992)", fontSize: 14, outline: 'none', width: '100%', fontWeight: 500 }} type="number" placeholder="0.00" value={tpVal} onChange={e => setTpInputs(prev => ({ ...prev, [sym]: e.target.value }))} />
                                             </div>
                                         </div>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Gain %</div>
                                             <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-0)', borderRadius: 4, padding: '4px 8px', justifyContent: 'space-between' }}>
-                                                <span style={{ color: '#00d992', fontSize: 14, fontWeight: 500 }}>{tpPnl ? tpPnl.pct.toFixed(2) : '--'}</span>
+                                                <span style={{ color: "var(--ct-positive, #00d992)", fontSize: 14, fontWeight: 500 }}>{tpPnl ? tpPnl.pct.toFixed(2) : '--'}</span>
                                                 <span style={{ color: 'var(--text-3)', fontSize: 11 }}>%</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, fontSize: 11, color: 'var(--text-2)' }}>
-                                        Expected profit: <span style={{ color: '#00d992', marginLeft: 4 }}>{tpPnl ? `$${Math.abs(tpPnl.usd).toFixed(2)} USDC` : '--'}</span>
+                                        Expected profit: <span style={{ color: "var(--ct-positive, #00d992)", marginLeft: 4 }}>{tpPnl ? `$${Math.abs(tpPnl.usd).toFixed(2)} USDC` : '--'}</span>
                                     </div>
                                 </div>
 
@@ -661,25 +662,25 @@ export default function TerminalBottomTabs({
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>SL Price</div>
                                             <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-0)', borderRadius: 4, padding: '4px 8px', border: '1px solid transparent' }} onFocus={e => e.currentTarget.style.borderColor = '#ff3b5c'} onBlur={e => e.currentTarget.style.borderColor = 'transparent'}>
-                                                <input style={{ flex: 1, background: 'transparent', border: 'none', color: '#ff3b5c', fontSize: 14, outline: 'none', width: '100%', fontWeight: 500 }} type="number" placeholder="0.00" value={slVal} onChange={e => setSlInputs(prev => ({ ...prev, [sym]: e.target.value }))} />
+                                                <input style={{ flex: 1, background: 'transparent', border: 'none', color: "var(--ct-negative, #ff3b5c)", fontSize: 14, outline: 'none', width: '100%', fontWeight: 500 }} type="number" placeholder="0.00" value={slVal} onChange={e => setSlInputs(prev => ({ ...prev, [sym]: e.target.value }))} />
                                             </div>
                                         </div>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Loss %</div>
                                             <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-0)', borderRadius: 4, padding: '4px 8px', justifyContent: 'space-between' }}>
-                                                <span style={{ color: '#ff3b5c', fontSize: 14, fontWeight: 500 }}>{slPnl ? slPnl.pct.toFixed(2) : '--'}</span>
+                                                <span style={{ color: "var(--ct-negative, #ff3b5c)", fontSize: 14, fontWeight: 500 }}>{slPnl ? slPnl.pct.toFixed(2) : '--'}</span>
                                                 <span style={{ color: 'var(--text-3)', fontSize: 11 }}>%</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, fontSize: 11, color: 'var(--text-2)' }}>
-                                        Expected loss: <span style={{ color: '#ff3b5c', marginLeft: 4 }}>{slPnl ? `-$${Math.abs(slPnl.usd).toFixed(2)} USDC` : '--'}</span>
+                                        Expected loss: <span style={{ color: "var(--ct-negative, #ff3b5c)", marginLeft: 4 }}>{slPnl ? `-$${Math.abs(slPnl.usd).toFixed(2)} USDC` : '--'}</span>
                                     </div>
                                 </div>
                             </div>
 
                             <button 
-                                style={{ width: '100%', padding: '12px', background: 'var(--accent)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 15, cursor: 'pointer', transition: 'background 0.2s', marginBottom: 16 }}
+                                style={{ width: '100%', padding: '12px', background: 'var(--accent)', color: "var(--ct-ink, #000)", border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 15, cursor: 'pointer', transition: 'background 0.2s', marginBottom: 16 }}
                                 onMouseEnter={e => e.currentTarget.style.background = '#00f5a4'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'var(--accent)'}
                                 onClick={() => {

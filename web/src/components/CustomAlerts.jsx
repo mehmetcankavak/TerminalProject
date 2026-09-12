@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
@@ -72,7 +73,7 @@ function AlertRow({ alert, currentPrice, onDelete }) {
   return (
     <div className={`ca2-row ${triggered ? 'ca2-row-triggered' : ''}`}>
       {/* Left accent bar */}
-      <div className="ca2-row-accent" style={{ background: triggered ? '#444' : tone }} />
+      <div className="ca2-row-accent" style={{ background: triggered ? "var(--ct-inset, #444)" : tone }} />
 
       {/* Coin */}
       <div className="ca2-row-coin">
@@ -104,7 +105,7 @@ function AlertRow({ alert, currentPrice, onDelete }) {
       {/* Distance */}
       <div className="ca2-row-dist">
         {dist !== null && !triggered && (
-          <span className="ca2-dist" style={{ color: distClose ? '#fbbf24' : 'var(--text-muted)' }}>
+          <span className="ca2-dist" style={{ color: workspaceTextColor(distClose ? "var(--ct-warning, #fbbf24)" : 'var(--text-muted)') }}>
             {dist > 0 ? '+' : ''}{dist.toFixed(2)}%
           </span>
         )}

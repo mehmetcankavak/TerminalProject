@@ -29,7 +29,7 @@ export default function TerminalCoinBar({
                             {isStale && (
                                 <span
                                     title="Fiyat feed'i 30sn+ güncellenmedi — emir verirken dikkatli olun"
-                                    style={{ background: '#f5a62322', color: '#f5a623', border: '1px solid #f5a62355', borderRadius: 3, padding: '0 4px', fontSize: 9, fontWeight: 700, letterSpacing: 1, marginLeft: 4 }}
+                                    style={{ background: '#f5a62322', color: "var(--ct-warning, #f5a623)", border: '1px solid #f5a62355', borderRadius: 3, padding: '0 4px', fontSize: 9, fontWeight: 700, letterSpacing: 1, marginLeft: 4 }}
                                 >STALE</span>
                             )}
                             <span className={`nt-coin-pct ${(pct || 0) >= 0 ? 'up' : 'dn'}`}>{fmtPct(pct)}</span>

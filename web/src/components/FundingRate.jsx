@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { API_BASE } from '../config'
 
@@ -190,7 +191,7 @@ function CountdownStrip({ data }) {
     <div style={{
       display: 'flex', gap: 8, padding: '14px 20px',
       overflowX: 'auto', flexWrap: 'nowrap', scrollbarWidth: 'none',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.06))",
     }}>
       {EXCHANGES.map(ex => {
         const remaining = msUntilNext(ex.interval)
@@ -201,7 +202,7 @@ function CountdownStrip({ data }) {
         return (
           <div key={ex.key} style={{
             flexShrink: 0, minWidth: 110,
-            background: urgent ? 'rgba(244,63,94,0.06)' : 'rgba(255,255,255,0.025)',
+            background: urgent ? 'rgba(244,63,94,0.06)' : "var(--ct-wash, rgba(255,255,255,0.025))",
             border: `1px solid ${urgent ? 'rgba(244,63,94,0.22)' : 'rgba(255,255,255,0.07)'}`,
             borderRadius: 12, padding: '10px 12px',
           }}>
@@ -209,16 +210,16 @@ function CountdownStrip({ data }) {
               <img src={ex.logo} alt={ex.label} width={14} height={14}
                 style={{ borderRadius: 3, objectFit: 'cover', flexShrink: 0 }}
                 onError={e => { e.target.style.display = 'none' }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>{ex.short}</span>
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>{ex.interval}h</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ct-muted, rgba(255,255,255,0.55))" }}>{ex.short}</span>
+              <span style={{ fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.2))", marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>{ex.interval}h</span>
             </div>
             <div style={{
               fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)',
-              color: urgent ? '#f43f5e' : 'var(--text-0)', marginBottom: 6,
+              color: workspaceTextColor(urgent ? "var(--ct-negative, #f43f5e)" : 'var(--text-0)'), marginBottom: 6,
             }}>
               {fmtCountdown(remaining)}
             </div>
-            <div style={{ height: 2, background: 'rgba(255,255,255,0.07)', borderRadius: 1, marginBottom: 5 }}>
+            <div style={{ height: 2, background: "var(--ct-wash, rgba(255,255,255,0.07))", borderRadius: 1, marginBottom: 5 }}>
               <div style={{
                 height: '100%', borderRadius: 1, transition: 'width 1s linear',
                 width: pct * 100 + '%',
@@ -226,7 +227,7 @@ function CountdownStrip({ data }) {
               }} />
             </div>
             {avg != null && (
-              <div style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', color: rateColor(avg) }}>
+              <div style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', color: workspaceTextColor(rateColor(avg)) }}>
                 {avg >= 0 ? '+' : ''}{(avg * 100).toFixed(4)}%
               </div>
             )}
@@ -241,8 +242,8 @@ function CountdownStrip({ data }) {
 function FundingSentiment({ sentiment }) {
   if (!sentiment) {
     return (
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ padding: '14px 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))" }}>
+        <div style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.22))", fontWeight: 700, letterSpacing: 0.5 }}>
           SENTIMENT · FUNDING · loading…
         </div>
       </div>
@@ -255,16 +256,16 @@ function FundingSentiment({ sentiment }) {
   const avgPct = (sentiment.avg_rate * 100).toFixed(4)
 
   return (
-    <div style={{ padding: '14px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+    <div style={{ padding: '14px 20px 16px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))" }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', fontWeight: 700, letterSpacing: 0.8 }}>
+        <div style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.28))", fontWeight: 700, letterSpacing: 0.8 }}>
           SENTIMENT · FUNDING
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)', color: tone }}>
+          <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(tone) }}>
             {sentiment.score >= 0 ? '+' : ''}{sentiment.score.toFixed(2)}
           </span>
-          <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.6, color: tone }}>{sentiment.verdict}</span>
+          <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.6, color: workspaceTextColor(tone) }}>{sentiment.verdict}</span>
         </div>
       </div>
 
@@ -273,50 +274,50 @@ function FundingSentiment({ sentiment }) {
           position: 'absolute', inset: 0, borderRadius: 4,
           background: 'linear-gradient(to right, rgba(244,63,94,0.5) 0%, rgba(244,63,94,0.15) 35%, rgba(255,255,255,0.06) 50%, rgba(0,232,122,0.15) 65%, rgba(0,232,122,0.5) 100%)',
         }} />
-        <div style={{ position: 'absolute', top: -2, bottom: -2, left: '50%', width: 1, background: 'rgba(255,255,255,0.18)', transform: 'translateX(-50%)' }} />
+        <div style={{ position: 'absolute', top: -2, bottom: -2, left: '50%', width: 1, background: "var(--ct-wash, rgba(255,255,255,0.18))", transform: 'translateX(-50%)' }} />
         <div style={{
           position: 'absolute', top: '50%', left: pct + '%',
           width: 12, height: 12, borderRadius: '50%', background: tone,
-          boxShadow: `0 0 10px ${tone}99`, border: '2px solid #000',
+          boxShadow: `0 0 10px ${tone}99`, border: "2px solid var(--ct-line-strong, #000)",
           transform: 'translate(-50%, -50%)',
           transition: 'left 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         }} />
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: 'rgba(255,255,255,0.2)', fontWeight: 700, letterSpacing: 0.5, marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: "var(--ct-subtle, rgba(255,255,255,0.2))", fontWeight: 700, letterSpacing: 0.5, marginBottom: 12 }}>
         <span>BEARISH</span><span>NEUTRAL</span><span>BULLISH</span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: 10, padding: '10px 10px' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: '#00e87a', letterSpacing: 0.5, marginBottom: 4 }}>OVERSOLD</div>
+          <div style={{ fontSize: 9, fontWeight: 800, color: "var(--ct-positive, #00e87a)", letterSpacing: 0.5, marginBottom: 4 }}>OVERSOLD</div>
           <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-0)', marginBottom: 2 }}>{sentiment.oversold_count}</div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>
+          <div style={{ fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontFamily: 'var(--font-mono)' }}>
             {sentiment.top_oversold?.[0]
               ? sentiment.top_oversold[0].symbol + ' ' + (sentiment.top_oversold[0].avg_rate * 100).toFixed(3) + '%'
               : '—'}
           </div>
         </div>
         <div style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.15)', borderRadius: 10, padding: '10px 10px' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: '#f43f5e', letterSpacing: 0.5, marginBottom: 4 }}>OVERBOUGHT</div>
+          <div style={{ fontSize: 9, fontWeight: 800, color: "var(--ct-negative, #f43f5e)", letterSpacing: 0.5, marginBottom: 4 }}>OVERBOUGHT</div>
           <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-0)', marginBottom: 2 }}>{sentiment.overbought_count}</div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>
+          <div style={{ fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontFamily: 'var(--font-mono)' }}>
             {sentiment.top_overbought?.[0]
               ? sentiment.top_overbought[0].symbol + ' +' + (sentiment.top_overbought[0].avg_rate * 100).toFixed(3) + '%'
               : '—'}
           </div>
         </div>
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '10px 10px' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: 0.5, marginBottom: 4 }}>AVG RATE</div>
-          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: sentiment.avg_rate >= 0 ? '#f43f5e' : '#00e87a', marginBottom: 2 }}>
+        <div style={{ background: "var(--ct-wash, rgba(255,255,255,0.03))", border: "1px solid var(--ct-line, rgba(255,255,255,0.07))", borderRadius: 10, padding: '10px 10px' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: "var(--ct-muted, rgba(255,255,255,0.4))", letterSpacing: 0.5, marginBottom: 4 }}>AVG RATE</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(sentiment.avg_rate >= 0 ? "var(--ct-negative, #f43f5e)" : "var(--ct-positive, #00e87a)"), marginBottom: 2 }}>
             {sentiment.avg_rate >= 0 ? '+' : ''}{avgPct}%
           </div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>{sentiment.total_symbols} coins</div>
+          <div style={{ fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontFamily: 'var(--font-mono)' }}>{sentiment.total_symbols} coins</div>
         </div>
         <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 10, padding: '10px 10px' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: '#fbbf24', letterSpacing: 0.5, marginBottom: 4 }}>ARB OPPS</div>
+          <div style={{ fontSize: 9, fontWeight: 800, color: "var(--ct-warning, #fbbf24)", letterSpacing: 0.5, marginBottom: 4 }}>ARB OPPS</div>
           <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-0)', marginBottom: 2 }}>{sentiment.arb_count}</div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}>
+          <div style={{ fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontFamily: 'var(--font-mono)' }}>
             {sentiment.top_arb?.[0]
               ? sentiment.top_arb[0].symbol + ' Δ' + (sentiment.top_arb[0].spread * 100).toFixed(3) + '%'
               : '—'}
@@ -343,8 +344,8 @@ function HistoryChart({ coin }) {
       .catch(() => setLoading(false))
   }, [coin])
 
-  if (loading) return <div style={{ padding: '20px 0', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>Loading…</div>
-  if (!history.length) return <div style={{ padding: '16px 0', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>No data</div>
+  if (loading) return <div style={{ padding: '20px 0', textAlign: 'center', color: "var(--ct-subtle, rgba(255,255,255,0.2))", fontSize: 12 }}>Loading…</div>
+  if (!history.length) return <div style={{ padding: '16px 0', textAlign: 'center', color: "var(--ct-subtle, rgba(255,255,255,0.2))", fontSize: 12 }}>No data</div>
 
   const rates  = history.map(d => d.rate)
   const maxAbs = Math.max(...rates.map(Math.abs), 0.0001)
@@ -357,12 +358,12 @@ function HistoryChart({ coin }) {
   return (
     <div style={{ marginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontWeight: 600 }}>Binance · Last 90 periods</span>
-        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: annual >= 0 ? '#00e87a' : '#f43f5e' }}>
+        <span style={{ fontSize: 11, color: "var(--ct-subtle, rgba(255,255,255,0.28))", fontWeight: 600 }}>Binance · Last 90 periods</span>
+        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: workspaceTextColor(annual >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
           ~{(annual * 100).toFixed(1)}% annualized
         </span>
       </div>
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 12px' }}>
+      <div style={{ background: "var(--ct-wash, rgba(255,255,255,0.02))", border: "1px solid var(--ct-line, rgba(255,255,255,0.06))", borderRadius: 10, padding: '10px 12px' }}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="56" preserveAspectRatio="none" style={{ display: 'block' }}>
           <line x1="0" y1={H/2} x2={W} y2={H/2} stroke="rgba(255,255,255,0.06)" strokeWidth="0.3" />
           {rates.map((r, i) => {
@@ -374,7 +375,7 @@ function HistoryChart({ coin }) {
               fill={r >= 0 ? 'rgba(0,232,122,0.8)' : 'rgba(244,63,94,0.8)'} />
           })}
         </svg>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'rgba(255,255,255,0.2)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.2))", marginTop: 4, fontFamily: 'var(--font-mono)' }}>
           <span>{new Date(history[0].time).toLocaleDateString('en-US', { day:'numeric', month:'short' })}</span>
           <span>{new Date(history[Math.floor(history.length/2)].time).toLocaleDateString('en-US', { day:'numeric', month:'short' })}</span>
           <span>{new Date(history[history.length-1].time).toLocaleDateString('en-US', { day:'numeric', month:'short' })}</span>
@@ -393,7 +394,7 @@ function CountdownBadge({ interval }) {
   }, [interval])
   const urgent = ms < 15 * 60_000
   return (
-    <div style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', color: urgent ? '#f43f5e' : 'rgba(255,255,255,0.28)' }}>
+    <div style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', color: workspaceTextColor(urgent ? "var(--ct-negative, #f43f5e)" : "var(--ct-subtle, rgba(255,255,255,0.28))") }}>
       {fmtCountdown(ms)}
     </div>
   )
@@ -415,25 +416,25 @@ function CoinDetail({ coin, data, onBack, isFav, onToggleFav }) {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-0)', color: 'var(--text-0)', overflowY: 'auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '18px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '18px 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.06))", flexShrink: 0 }}>
         <button onClick={onBack}
-          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: 'var(--text-0)', fontSize: 16, cursor: 'pointer', padding: '6px 10px', lineHeight: 1, marginRight: 14 }}>
+          style={{ background: "var(--ct-wash, rgba(255,255,255,0.05))", border: "1px solid var(--ct-line, rgba(255,255,255,0.08))", borderRadius: 8, color: 'var(--text-0)', fontSize: 16, cursor: 'pointer', padding: '6px 10px', lineHeight: 1, marginRight: 14 }}>
           ←
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', background: "var(--ct-wash, rgba(255,255,255,0.05))", display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {!imgErr && logo
               ? <img src={logo} alt={coin} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgErr(true)} />
-              : <span style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.3)' }}>{coin.slice(0,3)}</span>
+              : <span style={{ fontSize: 11, fontWeight: 800, color: "var(--ct-subtle, rgba(255,255,255,0.3))" }}>{coin.slice(0,3)}</span>
             }
           </div>
           <div>
             <div style={{ fontSize: 17, fontWeight: 800 }}>{coin}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Perpetual Funding Rate</div>
+            <div style={{ fontSize: 11, color: "var(--ct-subtle, rgba(255,255,255,0.3))" }}>Perpetual Funding Rate</div>
           </div>
         </div>
         <button onClick={() => onToggleFav(coin)}
-          style={{ background: 'none', border: 'none', color: isFav ? '#f59e0b' : 'rgba(255,255,255,0.2)', fontSize: 22, cursor: 'pointer', padding: 0 }}>
+          style={{ background: 'none', border: 'none', color: workspaceTextColor(isFav ? "var(--ct-warning, #f59e0b)" : "var(--ct-subtle, rgba(255,255,255,0.2))"), fontSize: 22, cursor: 'pointer', padding: 0 }}>
           ★
         </button>
       </div>
@@ -447,9 +448,9 @@ function CoinDetail({ coin, data, onBack, isFav, onToggleFav }) {
             { label: 'LOWEST',   val: fmtRate(minRate), color: rateColor(minRate) },
             { label: 'SPREAD',   val: spread != null ? 'Δ' + (spread * 100).toFixed(4) + '%' : '—', color: spread != null && spread >= 0.0003 ? '#fbbf24' : 'rgba(255,255,255,0.35)' },
           ].map(s => (
-            <div key={s.label} style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
-              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)', fontWeight: 700, letterSpacing: 0.6, marginBottom: 5 }}>{s.label}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: s.color }}>{s.val}</div>
+            <div key={s.label} style={{ background: "var(--ct-wash, rgba(255,255,255,0.025))", border: "1px solid var(--ct-line, rgba(255,255,255,0.07))", borderRadius: 12, padding: '12px 14px' }}>
+              <div style={{ fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.28))", fontWeight: 700, letterSpacing: 0.6, marginBottom: 5 }}>{s.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(s.color) }}>{s.val}</div>
             </div>
           ))}
         </div>
@@ -457,12 +458,12 @@ function CoinDetail({ coin, data, onBack, isFav, onToggleFav }) {
 
       {/* Exchange cards */}
       <div style={{ padding: '8px 20px' }}>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>EXCHANGE RATES</div>
+        <div style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.25))", fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>EXCHANGE RATES</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {rates.map(ex => (
             <div key={ex.key} style={{
               display: 'flex', alignItems: 'center',
-              background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)',
+              background: "var(--ct-wash, rgba(255,255,255,0.025))", border: "1px solid var(--ct-line, rgba(255,255,255,0.07))",
               borderRadius: 12, padding: '12px 16px',
             }}>
               <img src={ex.logo} alt={ex.label} width={22} height={22}
@@ -470,10 +471,10 @@ function CoinDetail({ coin, data, onBack, isFav, onToggleFav }) {
                 onError={e => { e.target.style.display = 'none' }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-0)' }}>{ex.label}</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 1 }}>Every {ex.interval}h</div>
+                <div style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.25))", marginTop: 1 }}>Every {ex.interval}h</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-mono)', color: ex.rate != null ? rateColor(ex.rate) : 'rgba(255,255,255,0.2)' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(ex.rate != null ? rateColor(ex.rate) : "var(--ct-subtle, rgba(255,255,255,0.2))") }}>
                   {ex.rate != null ? fmtRate(ex.rate) : '—'}
                 </div>
                 <CountdownBadge interval={ex.interval} />
@@ -486,7 +487,7 @@ function CoinDetail({ coin, data, onBack, isFav, onToggleFav }) {
       {/* History chart toggle */}
       <div style={{ padding: '12px 20px 24px' }}>
         <button onClick={() => setShowChart(v => !v)}
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '8px 14px', width: '100%' }}>
+          style={{ background: "var(--ct-wash, rgba(255,255,255,0.04))", border: "1px solid var(--ct-line, rgba(255,255,255,0.08))", borderRadius: 8, color: "var(--ct-muted, rgba(255,255,255,0.55))", fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '8px 14px', width: '100%' }}>
           {showChart ? '▲ Hide' : '▼ Binance Funding History (90 periods)'}
         </button>
         {showChart && <HistoryChart coin={coin} />}
@@ -509,25 +510,25 @@ function CoinRow({ coin, data, isFav, onSelect, onToggleFav }) {
   const spreadHot  = spread != null && Math.abs(spread) >= 0.0003
 
   return (
-    <div
+    <div className="ct-funding-row"
       onClick={() => onSelect(coin)}
       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-      style={{ padding: '13px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', transition: 'background 0.15s' }}
+      style={{ padding: '13px 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))", cursor: 'pointer', transition: 'background 0.15s' }}
     >
       {/* Row 1: coin identity + avg + spread + fav */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <div className="ct-funding-identity" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+        <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', background: "var(--ct-wash, rgba(255,255,255,0.05))", display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {!imgErr && logo
             ? <img src={logo} alt={coin} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setImgErr(true)} />
-            : <span style={{ fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.3)' }}>{coin.slice(0,3)}</span>
+            : <span style={{ fontSize: 9, fontWeight: 800, color: "var(--ct-subtle, rgba(255,255,255,0.3))" }}>{coin.slice(0,3)}</span>
           }
         </div>
         <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', flex: 1, color: 'var(--text-0)' }}>{coin}</span>
         {spread != null && (
-          <span style={{
+          <span className="ct-funding-spread" style={{
             fontSize: 9, fontWeight: 800, fontFamily: 'var(--font-mono)',
-            color: spreadHot ? '#fbbf24' : 'rgba(255,255,255,0.2)',
+            color: workspaceTextColor(spreadHot ? "var(--ct-warning, #fbbf24)" : "var(--ct-subtle, rgba(255,255,255,0.2))"),
             background: spreadHot ? 'rgba(251,191,36,0.1)' : 'transparent',
             padding: spreadHot ? '2px 6px' : '0', borderRadius: 4, letterSpacing: 0.3,
           }}>
@@ -535,25 +536,25 @@ function CoinRow({ coin, data, isFav, onSelect, onToggleFav }) {
           </span>
         )}
         {avgRate != null && (
-          <span style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', color: rateColor(avgRate) }}>
+          <span className="ct-funding-average" style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(rateColor(avgRate)) }}>
             {fmtRate(avgRate)}
           </span>
         )}
         <button onClick={e => { e.stopPropagation(); onToggleFav(coin) }}
-          style={{ background: 'none', border: 'none', color: isFav ? '#f59e0b' : 'rgba(255,255,255,0.1)', fontSize: 16, cursor: 'pointer', padding: '0 0 0 6px', lineHeight: 1 }}>
+          style={{ background: 'none', border: 'none', color: workspaceTextColor(isFav ? "var(--ct-warning, #f59e0b)" : "var(--ct-subtle, rgba(255,255,255,0.1))"), fontSize: 16, cursor: 'pointer', padding: '0 0 0 6px', lineHeight: 1 }}>
           ★
         </button>
       </div>
 
       {/* Row 2: exchange rate pills — nowrap, scroll horizontally */}
-      <div style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
+      <div className="ct-funding-rates" style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {rates.map(r => (
           <div key={r.key} style={{
             display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
-            background: 'rgba(255,255,255,0.04)', borderRadius: 6, padding: '4px 8px',
+            background: "var(--ct-wash, rgba(255,255,255,0.04))", borderRadius: 6, padding: '4px 8px',
           }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)', letterSpacing: 0.3 }}>{r.short}</span>
-            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono)', color: r.rate != null ? rateColor(r.rate) : 'rgba(255,255,255,0.12)' }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: "var(--ct-subtle, rgba(255,255,255,0.25))", letterSpacing: 0.3 }}>{r.short}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(r.rate != null ? rateColor(r.rate) : "var(--ct-subtle, rgba(255,255,255,0.12))") }}>
               {r.rate != null ? fmtRate(r.rate) : '—'}
             </span>
           </div>
@@ -569,10 +570,10 @@ export function CoinLogo({ symbol, size = 22 }) {
   const logo  = COIN_LOGOS[coin]
   const [err, setErr] = useState(false)
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', background: "var(--ct-wash, rgba(255,255,255,0.06))", display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       {!err && logo
         ? <img src={logo} alt={coin} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setErr(true)} />
-        : <span style={{ fontSize: size * 0.38, fontWeight: 800, color: 'rgba(255,255,255,0.4)' }}>{coin.slice(0, 2)}</span>
+        : <span style={{ fontSize: size * 0.38, fontWeight: 800, color: "var(--ct-muted, rgba(255,255,255,0.4))" }}>{coin.slice(0, 2)}</span>
       }
     </div>
   )
@@ -684,13 +685,13 @@ export default function FundingRate() {
 
   return (
     /* Outer: full height, flex column, NO scroll — inner list scrolls */
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-0)', color: 'var(--text-0)', overflow: 'hidden' }}>
+    <div className="ct-funding-page" style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-0)', color: 'var(--text-0)', overflow: 'hidden' }}>
 
       {/* ── Fixed top section — never scrolls away ───────────────── */}
       <div style={{ flexShrink: 0 }}>
 
         {/* Header + search */}
-        <div style={{ padding: '18px 20px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '18px 20px 0', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.06))" }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -698,10 +699,10 @@ export default function FundingRate() {
                   onClick={() => setShowSort(v => !v)}
                   style={{ fontSize: 18, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, letterSpacing: -0.3 }}>
                   Funding Rate
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', transform: showSort ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
+                  <span style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.3))", transform: showSort ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
                 </span>
               </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
+              <div style={{ fontSize: 11, color: "var(--ct-subtle, rgba(255,255,255,0.3))", marginTop: 3 }}>
                 {displayed.length} coins · 5 exchanges · 30s refresh
               </div>
             </div>
@@ -709,10 +710,10 @@ export default function FundingRate() {
             <button
               onClick={() => setShowFavs(v => !v)}
               style={{
-                background: showFavs ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)',
+                background: showFavs ? 'rgba(245,158,11,0.12)' : "var(--ct-wash, rgba(255,255,255,0.04))",
                 border: `1px solid ${showFavs ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.08)'}`,
                 borderRadius: 20, padding: '6px 14px', cursor: 'pointer',
-                color: showFavs ? '#f59e0b' : 'rgba(255,255,255,0.35)', fontSize: 12, fontWeight: 700,
+                color: workspaceTextColor(showFavs ? "var(--ct-warning, #f59e0b)" : "var(--ct-subtle, rgba(255,255,255,0.35))"), fontSize: 12, fontWeight: 700,
               }}>
               ★ {favorites.length > 0 ? favorites.length : 'Favs'}
             </button>
@@ -722,7 +723,7 @@ export default function FundingRate() {
           {showSort && (
             <div style={{
               position: 'absolute', top: 70, left: 20,
-              background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.1)',
+              background: "var(--ct-surface, #0f0f0f)", border: "1px solid var(--ct-line, rgba(255,255,255,0.1))",
               borderRadius: 12, padding: 6, zIndex: 50,
               boxShadow: '0 12px 40px rgba(0,0,0,0.8)', minWidth: 220,
             }}>
@@ -731,7 +732,7 @@ export default function FundingRate() {
                   onClick={() => { setSortBy(key); setShowSort(false) }}
                   style={{
                     padding: '10px 14px', fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: 'pointer',
-                    color: sortBy === key ? '#00e87a' : 'rgba(255,255,255,0.6)',
+                    color: workspaceTextColor(sortBy === key ? "var(--ct-positive, #00e87a)" : "var(--ct-muted, rgba(255,255,255,0.6))"),
                     background: sortBy === key ? 'rgba(0,232,122,0.08)' : 'transparent',
                     transition: 'background 0.15s',
                   }}>
@@ -744,10 +745,10 @@ export default function FundingRate() {
           {/* Search */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '8px 12px',
-            border: '1px solid rgba(255,255,255,0.07)', marginBottom: 14,
+            background: "var(--ct-wash, rgba(255,255,255,0.04))", borderRadius: 10, padding: '8px 12px',
+            border: "1px solid var(--ct-line, rgba(255,255,255,0.07))", marginBottom: 14,
           }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))", flexShrink: 0 }}>
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
             </svg>
             <input
@@ -757,7 +758,7 @@ export default function FundingRate() {
               style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text-0)', fontSize: 13, fontFamily: 'var(--font-mono)' }}
             />
             {search && (
-              <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: 0, fontSize: 14 }}>✕</button>
+              <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: "var(--ct-subtle, rgba(255,255,255,0.3))", cursor: 'pointer', padding: 0, fontSize: 14 }}>✕</button>
             )}
           </div>
         </div>
@@ -774,24 +775,24 @@ export default function FundingRate() {
       {showSort && <div onClick={() => setShowSort(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />}
 
       {/* ── Scrollable token list ─────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+      <div className="ct-funding-list" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {loading ? (
           Array.from({ length: 15 }).map((_, i) => (
-            <div key={i} style={{ padding: '13px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <div key={i} style={{ padding: '13px 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))" }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-                <div style={{ height: 13, width: 50, borderRadius: 4, background: 'rgba(255,255,255,0.07)' }} />
-                <div style={{ marginLeft: 'auto', height: 13, width: 70, borderRadius: 4, background: 'rgba(255,255,255,0.07)' }} />
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: "var(--ct-wash, rgba(255,255,255,0.06))" }} />
+                <div style={{ height: 13, width: 50, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.07))" }} />
+                <div style={{ marginLeft: 'auto', height: 13, width: 70, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.07))" }} />
               </div>
               <div style={{ display: 'flex', gap: 5 }}>
                 {EXCHANGES.map(ex => (
-                  <div key={ex.key} style={{ height: 24, width: 70, borderRadius: 6, background: 'rgba(255,255,255,0.04)' }} />
+                  <div key={ex.key} style={{ height: 24, width: 70, borderRadius: 6, background: "var(--ct-wash, rgba(255,255,255,0.04))" }} />
                 ))}
               </div>
             </div>
           ))
         ) : displayed.length === 0 ? (
-          <div style={{ padding: '60px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>
+          <div style={{ padding: '60px 20px', textAlign: 'center', color: "var(--ct-subtle, rgba(255,255,255,0.25))", fontSize: 13 }}>
             {showFavs ? 'No favorites added' : 'No coins found'}
           </div>
         ) : (

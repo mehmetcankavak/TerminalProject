@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../../utils/workspaceTheme'
 import { useEffect, useState } from 'react'
 import { API_BASE } from '../../config'
 import { useAuth } from '../../context/AuthContext'
@@ -246,26 +247,26 @@ export default function ConnectHLModal({
 
     return (
         <div
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.90)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'fixed', inset: 0, background: "var(--ct-surface, rgba(0,0,0,0.90))", zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={e => { if (e.target === e.currentTarget) onClose() }}
         >
-            <div style={{ background: '#050507', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: 24, width: 520, maxWidth: '92vw', maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ background: "var(--ct-surface, #050507)", border: "1px solid var(--ct-line, rgba(255,255,255,0.07))", borderRadius: 8, padding: 24, width: 520, maxWidth: '92vw', maxHeight: '92vh', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <div>
-                        <div style={{ fontSize: 11, color: '#4e4d49', letterSpacing: 2, marginBottom: 4 }}>HYPERLIQUID DEX</div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: '#e8e6e3' }}>Connect via Agent Wallet</div>
+                        <div style={{ fontSize: 11, color: "var(--ct-subtle, #4e4d49)", letterSpacing: 2, marginBottom: 4 }}>HYPERLIQUID DEX</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--ct-ink, #e8e6e3)" }}>Connect via Agent Wallet</div>
                     </div>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4e4d49', fontSize: 18, cursor: 'pointer' }}>✕</button>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: "var(--ct-subtle, #4e4d49)", fontSize: 18, cursor: 'pointer' }}>✕</button>
                 </div>
 
                 {/* ── 3-modlu toggle ── */}
-                <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#0a0a0a', padding: 3, borderRadius: 4, border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: "var(--ct-surface, #0a0a0a)", padding: 3, borderRadius: 4, border: "1px solid var(--ct-line, rgba(255,255,255,0.05))" }}>
                     <button
                         onClick={() => setMode('wallet')}
                         style={{
                             flex: 1, padding: '8px 8px', background: mode === 'wallet' ? '#00d99218' : 'transparent',
                             border: mode === 'wallet' ? '1px solid #00d99244' : '1px solid transparent',
-                            color: mode === 'wallet' ? '#00d992' : '#6b6d74', borderRadius: 3, fontSize: 10,
+                            color: workspaceTextColor(mode === 'wallet' ? "var(--ct-positive, #00d992)" : "var(--ct-subtle, #6b6d74)"), borderRadius: 3, fontSize: 10,
                             fontWeight: 700, cursor: 'pointer', letterSpacing: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         }}
                     ><IconWallet color={mode === 'wallet' ? '#00d992' : '#6b6d74'} />WALLET</button>
@@ -274,7 +275,7 @@ export default function ConnectHLModal({
                         style={{
                             flex: 1, padding: '8px 8px', background: mode === 'agent' ? '#f5a62318' : 'transparent',
                             border: mode === 'agent' ? '1px solid #f5a62344' : '1px solid transparent',
-                            color: mode === 'agent' ? '#f5a623' : '#6b6d74', borderRadius: 3, fontSize: 10,
+                            color: workspaceTextColor(mode === 'agent' ? "var(--ct-warning, #f5a623)" : "var(--ct-subtle, #6b6d74)"), borderRadius: 3, fontSize: 10,
                             fontWeight: 700, cursor: 'pointer', letterSpacing: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         }}
                     ><IconShield color={mode === 'agent' ? '#f5a623' : '#6b6d74'} />MANUAL AGENT</button>
@@ -284,30 +285,30 @@ export default function ConnectHLModal({
                     <>
                         {/* ── Phase 2: OKX/MetaMask ile tek-tıkla bağlan ── */}
                         <div style={{ background: '#00d99210', border: '1px solid #00d99233', borderRadius: 4, padding: '10px 12px', marginBottom: 14, lineHeight: 1.6 }}>
-                            <div style={{ fontSize: 12, color: '#00d992', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <div style={{ fontSize: 12, color: "var(--ct-positive, #00d992)", fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 7 }}>
                                 <IconWallet color="#00d992" />
                                 <span>Most secure flow, one signature</span>
                             </div>
-                            <div style={{ fontSize: 11, color: '#e8e6e3' }}>
+                            <div style={{ fontSize: 11, color: "var(--ct-ink, #e8e6e3)" }}>
                                 OKX Wallet / MetaMask / Rabby ile bağlan. Tarayıcıda fresh bir agent
                                 wallet üretilir ve sen wallet popup'ında tek imza atarak HL'de onaylarsın.
                                 Main private key <b>hiç ortaya çıkmaz</b>. HL sayfasına gitmene gerek yok.
                             </div>
                         </div>
 
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 12, color: '#8a8884' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 12, color: "var(--ct-subtle, #8a8884)" }}>
                             <input type="checkbox" checked={hlTestnet} onChange={e => setHlTestnet(e.target.checked)} />
                             Use Testnet
                         </label>
 
                         {walletError && (
-                            <div style={{ background: '#ff3b5c15', border: '1px solid #ff3b5c44', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#ff3b5c' }}>
+                            <div style={{ background: '#ff3b5c15', border: '1px solid #ff3b5c44', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: "var(--ct-negative, #ff3b5c)" }}>
                                 {walletError}
                             </div>
                         )}
 
                         {walletMain && !walletError && !walletBusy && (
-                            <div style={{ fontSize: 11, color: '#8fbeaf', marginBottom: 10 }}>
+                            <div style={{ fontSize: 11, color: "var(--ct-muted, #8fbeaf)", marginBottom: 10 }}>
                                 Wallet selected: {walletMain.slice(0, 6)}...{walletMain.slice(-4)}
                             </div>
                         )}
@@ -315,13 +316,13 @@ export default function ConnectHLModal({
                         <button
                             onClick={connectWithWallet}
                             disabled={walletBusy}
-                            style={{ width: '100%', background: walletBusy ? '#1a1c25' : '#00d992', color: walletBusy ? '#4e4d49' : '#000', border: 'none', borderRadius: 4, padding: '12px 0', fontSize: 13, fontWeight: 700, cursor: walletBusy ? 'wait' : 'pointer', letterSpacing: 1 }}
+                            style={{ width: '100%', background: walletBusy ? "var(--ct-inset, #1a1c25)" : '#00d992', color: workspaceTextColor(walletBusy ? "var(--ct-subtle, #4e4d49)" : "var(--ct-ink, #000)"), border: 'none', borderRadius: 4, padding: '12px 0', fontSize: 13, fontWeight: 700, cursor: walletBusy ? 'wait' : 'pointer', letterSpacing: 1 }}
                         >
                             {walletStepLabel}
                         </button>
 
-                        <div style={{ fontSize: 10, color: '#4e4d49', marginTop: 12, lineHeight: 1.5 }}>
-                            İmzaladığın payload: <code style={{ color: '#8a8884' }}>HyperliquidTransaction:ApproveAgent</code>.
+                        <div style={{ fontSize: 10, color: "var(--ct-subtle, #4e4d49)", marginTop: 12, lineHeight: 1.5 }}>
+                            İmzaladığın payload: <code style={{ color: "var(--ct-subtle, #8a8884)" }}>HyperliquidTransaction:ApproveAgent</code>.
                             Agent sadece trade yetkisi alır — <b>withdraw/transfer yok</b>. Dilediğin zaman
                             HL → API Wallets → Revoke ile iptal edebilirsin.
                         </div>
@@ -330,11 +331,11 @@ export default function ConnectHLModal({
                     <>
                         {/* ── Phase 1: Manual agent flow ── */}
                         <div style={{ background: '#f5a62312', border: '1px solid #f5a62344', borderRadius: 4, padding: '10px 12px', marginBottom: 14, lineHeight: 1.6 }}>
-                            <div style={{ fontSize: 12, color: '#f5a623', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <div style={{ fontSize: 12, color: "var(--ct-warning, #f5a623)", fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 7 }}>
                                 <IconShield color="#f5a623" />
                                 <span>Manual agent flow</span>
                             </div>
-                            <div style={{ fontSize: 11, color: '#e8e6e3' }}>
+                            <div style={{ fontSize: 11, color: "var(--ct-ink, #e8e6e3)" }}>
                                 Wallet extension yoksa veya mobile'daysan — bu akış seni HL sayfasına
                                 yönlendirip manuel onay ister. Wallet sekmesi daha hızlı.
                             </div>
@@ -342,12 +343,12 @@ export default function ConnectHLModal({
 
                         {step === 1 && (
                             <div style={{ marginBottom: 16 }}>
-                                <div style={{ fontSize: 13, color: '#e8e6e3', marginBottom: 10 }}>
+                                <div style={{ fontSize: 13, color: "var(--ct-ink, #e8e6e3)", marginBottom: 10 }}>
                                     <b>1. adım</b> — Tarayıcıda fresh bir agent wallet üret
                                 </div>
                                 <button
                                     onClick={generateAgent} disabled={generating}
-                                    style={{ width: '100%', background: generating ? '#1a1c25' : '#f5a623', color: generating ? '#4e4d49' : '#000', border: 'none', borderRadius: 4, padding: '10px 0', fontSize: 13, fontWeight: 700, cursor: generating ? 'wait' : 'pointer', letterSpacing: 1 }}
+                                    style={{ width: '100%', background: generating ? "var(--ct-inset, #1a1c25)" : '#f5a623', color: workspaceTextColor(generating ? "var(--ct-subtle, #4e4d49)" : "var(--ct-ink, #000)"), border: 'none', borderRadius: 4, padding: '10px 0', fontSize: 13, fontWeight: 700, cursor: generating ? 'wait' : 'pointer', letterSpacing: 1 }}
                                 >
                                     {generating ? 'GENERATING...' : 'GENERATE AGENT WALLET'}
                                 </button>
@@ -357,38 +358,38 @@ export default function ConnectHLModal({
                         {step === 2 && (
                             <>
                                 <div style={{ marginBottom: 14 }}>
-                                    <div style={{ fontSize: 11, color: '#4e4d49', letterSpacing: 1, marginBottom: 6 }}>AGENT ADDRESS</div>
+                                    <div style={{ fontSize: 11, color: "var(--ct-subtle, #4e4d49)", letterSpacing: 1, marginBottom: 6 }}>AGENT ADDRESS</div>
                                     <div style={{ display: 'flex', gap: 6 }}>
                                         <input readOnly value={agentAddr}
-                                            style={{ flex: 1, background: '#000', border: '1px solid rgba(245,166,35,0.3)', borderRadius: 4, padding: '8px 10px', color: '#f5a623', fontSize: 12, fontFamily: 'var(--font-mono)', boxSizing: 'border-box' }} />
-                                        <button onClick={copyAgent} style={{ background: '#f5a62318', border: '1px solid #f5a62344', color: '#f5a623', borderRadius: 4, padding: '0 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: 1 }}>
+                                            style={{ flex: 1, background: "var(--ct-surface, #000)", border: '1px solid rgba(245,166,35,0.3)', borderRadius: 4, padding: '8px 10px', color: "var(--ct-warning, #f5a623)", fontSize: 12, fontFamily: 'var(--font-mono)', boxSizing: 'border-box' }} />
+                                        <button onClick={copyAgent} style={{ background: '#f5a62318', border: '1px solid #f5a62344', color: "var(--ct-warning, #f5a623)", borderRadius: 4, padding: '0 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: 1 }}>
                                             {copied ? '✓' : 'COPY'}
                                         </button>
                                     </div>
                                 </div>
                                 <div style={{ background: '#fbbf2412', border: '1px solid #fbbf2455', borderRadius: 4, padding: '10px 12px', marginBottom: 14, lineHeight: 1.6 }}>
-                                    <div style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600, marginBottom: 6 }}>2. adım — HL'de onayla</div>
+                                    <div style={{ fontSize: 12, color: "var(--ct-warning, #fbbf24)", fontWeight: 600, marginBottom: 6 }}>2. adım — HL'de onayla</div>
                                     <div style={{ fontSize: 11, color: '#c9a84c', marginBottom: 6 }}>
                                         1) HL API sayfasına git → 2) "Authorize API Wallet" → 3) Agent adresini yapıştır → 4) Main cüzdan ile imzala
                                     </div>
-                                    <a href={hlApproveUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', color: '#fbbf24', fontSize: 11, textDecoration: 'underline' }}>→ {hlApproveUrl}</a>
+                                    <a href={hlApproveUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', color: "var(--ct-warning, #fbbf24)", fontSize: 11, textDecoration: 'underline' }}>→ {hlApproveUrl}</a>
                                 </div>
                                 <div style={{ marginBottom: 14 }}>
-                                    <div style={{ fontSize: 11, color: '#4e4d49', letterSpacing: 1, marginBottom: 6 }}>3. adım — MAIN WALLET ADRESİ</div>
+                                    <div style={{ fontSize: 11, color: "var(--ct-subtle, #4e4d49)", letterSpacing: 1, marginBottom: 6 }}>3. adım — MAIN WALLET ADRESİ</div>
                                     <input type="text" placeholder="0x... (sadece adres, PK DEĞİL)" value={mainWallet}
                                         onChange={e => setMainWallet(e.target.value)}
-                                        style={{ width: '100%', background: '#000', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '8px 10px', color: '#e8e6e3', fontSize: 13, fontFamily: 'var(--font-mono)', boxSizing: 'border-box' }} />
+                                        style={{ width: '100%', background: "var(--ct-surface, #000)", border: "1px solid var(--ct-line, rgba(255,255,255,0.08))", borderRadius: 4, padding: '8px 10px', color: "var(--ct-ink, #e8e6e3)", fontSize: 13, fontFamily: 'var(--font-mono)', boxSizing: 'border-box' }} />
                                 </div>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', fontSize: 12, color: '#8a8884' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', fontSize: 12, color: "var(--ct-subtle, #8a8884)" }}>
                                     <input type="checkbox" checked={hlTestnet} onChange={e => setHlTestnet(e.target.checked)} />
                                     Use Testnet
                                 </label>
-                                {agentError && <div style={{ background: '#ff3b5c15', border: '1px solid #ff3b5c44', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#ff3b5c' }}>{agentError}</div>}
+                                {agentError && <div style={{ background: '#ff3b5c15', border: '1px solid #ff3b5c44', borderRadius: 4, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: "var(--ct-negative, #ff3b5c)" }}>{agentError}</div>}
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button onClick={discardAgent}
-                                        style={{ background: '#0a0a0a', color: '#8a8884', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '10px 14px', fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: 1 }}>RESET</button>
+                                        style={{ background: "var(--ct-surface, #0a0a0a)", color: "var(--ct-subtle, #8a8884)", border: "1px solid var(--ct-line, rgba(255,255,255,0.08))", borderRadius: 4, padding: '10px 14px', fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: 1 }}>RESET</button>
                                     <button onClick={connectAgent} disabled={agentConnecting || !mainWallet}
-                                        style={{ flex: 1, background: agentConnecting || !mainWallet ? '#1a1c25' : '#f5a623', color: agentConnecting || !mainWallet ? '#4e4d49' : '#000', border: 'none', borderRadius: 4, padding: '10px 0', fontSize: 13, fontWeight: 700, cursor: agentConnecting || !mainWallet ? 'not-allowed' : 'pointer', letterSpacing: 1 }}>
+                                        style={{ flex: 1, background: agentConnecting || !mainWallet ? "var(--ct-inset, #1a1c25)" : '#f5a623', color: workspaceTextColor(agentConnecting || !mainWallet ? "var(--ct-subtle, #4e4d49)" : "var(--ct-ink, #000)"), border: 'none', borderRadius: 4, padding: '10px 0', fontSize: 13, fontWeight: 700, cursor: agentConnecting || !mainWallet ? 'not-allowed' : 'pointer', letterSpacing: 1 }}>
                                         {agentConnecting ? 'CONNECTING...' : 'CONNECT WITH AGENT'}
                                     </button>
                                 </div>

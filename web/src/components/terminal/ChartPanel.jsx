@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../../utils/workspaceTheme'
 // Chart paneli — search bar, TV/Lite toggle, timeframe butonları,
 // stale göstergesi + asıl chart (TradingView ya da TerminalChart) wrapper.
 // Sadece UI + minimal lookup hesabı; davranış / stil değişmedi.
@@ -75,7 +76,7 @@ export default function ChartPanel({
                             border: chartMode === k ? '1px solid rgba(0,217,146,0.35)' : '1px solid var(--border-1)',
                             borderRadius: 4, cursor: 'pointer', padding: '2px 8px',
                             fontSize: 10, fontWeight: 600,
-                            color: chartMode === k ? 'var(--accent)' : 'var(--text-3)',
+                            color: workspaceTextColor(chartMode === k ? 'var(--accent)' : 'var(--text-3)'),
                             transition: 'all .15s', flexShrink: 0,
                         }}>{l}</button>
                     ))}
@@ -93,7 +94,7 @@ export default function ChartPanel({
                         title={`Son tick ${Math.round(chartStaleMs / 1000)}s önce. Fiyat gecikiyor — emir göndermeden önce teyit et.`}
                         style={{
                             fontSize: 9, fontWeight: 700, letterSpacing: '.05em',
-                            color: chartStaleMs > 60000 ? '#ff3b5c' : '#f5a623',
+                            color: workspaceTextColor(chartStaleMs > 60000 ? "var(--ct-negative, #ff3b5c)" : "var(--ct-warning, #f5a623)"),
                             border: `1px solid ${chartStaleMs > 60000 ? 'rgba(255,59,92,0.5)' : 'rgba(245,166,35,0.5)'}`,
                             background: chartStaleMs > 60000 ? 'rgba(255,59,92,0.08)' : 'rgba(245,166,35,0.08)',
                             padding: '1px 6px', borderRadius: 3, marginLeft: 6,
@@ -132,7 +133,7 @@ export default function ChartPanel({
                     <button key={tf} onClick={() => setChartInterval(tf)} style={{
                         background: 'none', border: 'none', cursor: 'pointer', padding: '0 6px',
                         fontSize: 11, fontWeight: chartInterval === tf ? 700 : 400,
-                        color: chartInterval === tf ? 'var(--accent)' : 'var(--text-3)',
+                        color: workspaceTextColor(chartInterval === tf ? 'var(--accent)' : 'var(--text-3)'),
                         borderBottom: chartInterval === tf ? '2px solid var(--accent)' : '2px solid transparent',
                         lineHeight: '28px', transition: 'color .15s', flexShrink: 0,
                     }}>{tf}</button>

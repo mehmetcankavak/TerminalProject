@@ -1,4 +1,6 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useRef } from 'react'
+import { isLightWorkspace } from '../utils/workspaceTheme'
 
 const COINGECKO  = 'https://api.coingecko.com/api/v3'
 const FEAR_GREED = 'https://api.alternative.me/fng/'
@@ -39,18 +41,19 @@ function TVWidget({ symbol, height = 340, interval = 'D', studies = [] }) {
     script.async = true
     script.onload = () => {
       if (!window.TradingView) return
+      const light = isLightWorkspace(ref.current)
       new window.TradingView.widget({
         container_id: id.current,
         autosize: true,
         symbol,
         interval,
         timezone: 'Europe/Istanbul',
-        theme: 'dark',
+        theme: light ? 'light' : 'dark',
         style: '1',
         locale: 'en',
-        toolbar_bg: '#0c0d12',
-        backgroundColor: 'rgba(8,9,12,1)',
-        gridColor: 'rgba(26,28,37,0.4)',
+        toolbar_bg: light ? '#ffffff' : '#0c0d12',
+        backgroundColor: light ? '#ffffff' : 'rgba(8,9,12,1)',
+        gridColor: light ? '#edf0ee' : 'rgba(26,28,37,0.4)',
         hide_top_toolbar: false,
         hide_legend: false,
         hide_side_toolbar: true,
@@ -59,7 +62,7 @@ function TVWidget({ symbol, height = 340, interval = 'D', studies = [] }) {
         calendar: false,
         studies,
         overrides: {
-          'paneProperties.background': '#08090c',
+          'paneProperties.background': light ? '#ffffff' : '#08090c',
           'paneProperties.backgroundType': 'solid',
         },
       })
@@ -98,7 +101,7 @@ function GlobalSentiment({ global: g, fg }) {
     <div className="gm-sentiment-wrap">
       <div className="gm-sentiment-top">
         <div className="gm-section-hdr">SENTIMENT · GLOBAL · 24H</div>
-        <div className="gm-sentiment-verdict" style={{ color: tone }}>
+        <div className="gm-sentiment-verdict" style={{ color: workspaceTextColor(tone) }}>
           <span className="gm-sentiment-score">{score >= 0 ? '+' : ''}{score.toFixed(2)}</span>
           <span className="gm-sentiment-label">{verdict}</span>
         </div>
@@ -122,7 +125,7 @@ function GlobalSentiment({ global: g, fg }) {
         <div className="gm-stat4-card">
           <div className="gm-stat4-title">TOTAL MCAP</div>
           <div className="gm-stat4-value">{fmtB(g.total_market_cap?.usd)}</div>
-          <div className="gm-stat4-sub" style={{ color: (g.market_cap_change_percentage_24h_usd || 0) >= 0 ? '#00e87a' : '#f43f5e' }}>
+          <div className="gm-stat4-sub" style={{ color: workspaceTextColor((g.market_cap_change_percentage_24h_usd || 0) >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
             {(g.market_cap_change_percentage_24h_usd || 0) >= 0 ? '+' : ''}
             {(g.market_cap_change_percentage_24h_usd || 0).toFixed(2)}%
           </div>
@@ -133,14 +136,14 @@ function GlobalSentiment({ global: g, fg }) {
           <div className="gm-stat4-sub">{g.active_cryptocurrencies?.toLocaleString() || '—'} coins</div>
         </div>
         <div className="gm-stat4-card" style={{ background: 'rgba(247,147,26,0.06)', border: '1px solid rgba(247,147,26,0.15)' }}>
-          <div className="gm-stat4-title" style={{ color: '#f7931a' }}>BTC DOM</div>
+          <div className="gm-stat4-title" style={{ color: "var(--ct-warning, #f7931a)" }}>BTC DOM</div>
           <div className="gm-stat4-value">{fmtPct(g.market_cap_percentage?.btc)}</div>
           <div className="gm-stat4-sub">ETH {fmtPct(g.market_cap_percentage?.eth)}</div>
         </div>
         <div className="gm-stat4-card" style={{ border: `1px solid ${fgColor}40` }}>
-          <div className="gm-stat4-title" style={{ color: fgColor }}>FEAR & GREED</div>
+          <div className="gm-stat4-title" style={{ color: workspaceTextColor(fgColor) }}>FEAR & GREED</div>
           <div className="gm-stat4-value">{fg.value}</div>
-          <div className="gm-stat4-sub" style={{ color: fgColor }}>{fg.label}</div>
+          <div className="gm-stat4-sub" style={{ color: workspaceTextColor(fgColor) }}>{fg.label}</div>
         </div>
       </div>
     </div>
@@ -204,7 +207,7 @@ function MoverRow({ coin, isGainer }) {
           ${coin.current_price >= 1 ? coin.current_price.toFixed(2) : coin.current_price?.toFixed(5)}
         </div>
       </div>
-      <div className="gm-mover-pct" style={{ color: tone }}>
+      <div className="gm-mover-pct" style={{ color: workspaceTextColor(tone) }}>
         {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
       </div>
     </div>
@@ -299,17 +302,17 @@ export default function GlobalMetrics() {
 
       {/* Top Movers */}
       {(gainers.length > 0 || losers.length > 0) && (
-        <div className="gm-section">
+        <div className="gm-section ct-global-movers">
           <div className="gm-section-hdr">TOP MOVERS · 24H · TOP 100 MCAP</div>
           <div className="gm-movers-grid">
             <div>
-              <div className="gm-movers-side-label" style={{ color: '#00e87a' }}>↑ GAINERS</div>
+              <div className="gm-movers-side-label" style={{ color: "var(--ct-positive, #00e87a)" }}>↑ GAINERS</div>
               <div className="gm-movers-list">
                 {gainers.map(c => <MoverRow key={c.id} coin={c} isGainer />)}
               </div>
             </div>
             <div>
-              <div className="gm-movers-side-label" style={{ color: '#f43f5e' }}>↓ LOSERS</div>
+              <div className="gm-movers-side-label" style={{ color: "var(--ct-negative, #f43f5e)" }}>↓ LOSERS</div>
               <div className="gm-movers-list">
                 {losers.map(c => <MoverRow key={c.id} coin={c} isGainer={false} />)}
               </div>
@@ -320,7 +323,7 @@ export default function GlobalMetrics() {
 
       {/* Trending */}
       {trending.length > 0 && (
-        <div className="gm-section">
+        <div className="gm-section ct-global-trending">
           <div className="gm-section-hdr">TRENDING · COINGECKO 24H</div>
           <div className="gm-trend-grid">
             {trending.map((c, i) => <TrendingChip key={c.id} rank={i + 1} coin={c} />)}
@@ -329,21 +332,21 @@ export default function GlobalMetrics() {
       )}
 
       {/* Charts */}
-      <div className="gm-section">
+      <div className="gm-section ct-global-chart">
         <div className="gm-section-hdr">BTC DOMINANCE <span className="gm-chart-source">CRYPTOCAP:BTC.D</span></div>
         <div className="gm-chart-panel">
           <TVWidget symbol="CRYPTOCAP:BTC.D" height={340} interval="D" />
         </div>
       </div>
 
-      <div className="gm-section">
+      <div className="gm-section ct-global-chart">
         <div className="gm-section-hdr">TOTAL CRYPTO MARKET CAP <span className="gm-chart-source">CRYPTOCAP:TOTAL</span></div>
         <div className="gm-chart-panel">
           <TVWidget symbol="CRYPTOCAP:TOTAL" height={380} interval="W" />
         </div>
       </div>
 
-      <div className="gm-section">
+      <div className="gm-section ct-global-chart">
         <div className="gm-section-hdr">ALTCOIN MARKET CAP (ex-BTC) <span className="gm-chart-source">CRYPTOCAP:TOTAL2</span></div>
         <div className="gm-chart-panel">
           <TVWidget symbol="CRYPTOCAP:TOTAL2" height={340} interval="W" />

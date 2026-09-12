@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect } from 'react'
 
 // 2026 gerçek token unlock takvimi — onchain vesting data
@@ -38,7 +39,7 @@ function Countdown({ target }) {
   }, [])
 
   const ms   = new Date(target).getTime() - now
-  if (ms <= 0) return <span style={{ color: '#f23645' }}>GEÇTİ</span>
+  if (ms <= 0) return <span style={{ color: "var(--ct-negative, #f23645)" }}>GEÇTİ</span>
 
   const d = Math.floor(ms / 86_400_000)
   const h = Math.floor((ms % 86_400_000) / 3_600_000)
@@ -46,9 +47,9 @@ function Countdown({ target }) {
   const s = Math.floor((ms % 60_000) / 1000)
 
   if (d > 30) return <span style={{ color: 'var(--text-muted)' }}>{d} gün kaldı</span>
-  if (d > 7)  return <span style={{ color: '#fbbf24' }}>{d} gün {h}s</span>
+  if (d > 7)  return <span style={{ color: "var(--ct-warning, #fbbf24)" }}>{d} gün {h}s</span>
   return (
-    <span style={{ color: d < 3 ? '#f23645' : '#f59e0b', fontWeight: 700 }}>
+    <span style={{ color: workspaceTextColor(d < 3 ? "var(--ct-negative, #f23645)" : "var(--ct-warning, #f59e0b)"), fontWeight: 700 }}>
       {d}g {h.toString().padStart(2,'0')}:{m.toString().padStart(2,'0')}:{s.toString().padStart(2,'0')}
     </span>
   )
@@ -59,10 +60,10 @@ function ImpactBar({ pct }) {
   const col = pct > 8 ? '#f23645' : pct > 4 ? '#f59e0b' : '#22ab94'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ width: 80, height: 6, background: '#1e2130', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ width: 80, height: 6, background: "var(--ct-inset, #1e2130)", borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ width: w + '%', height: '100%', background: col, borderRadius: 3 }} />
       </div>
-      <span style={{ color: col, fontSize: 11, fontFamily: 'var(--font-mono)' }}>{pct.toFixed(2)}%</span>
+      <span style={{ color: workspaceTextColor(col), fontSize: 11, fontFamily: 'var(--font-mono)' }}>{pct.toFixed(2)}%</span>
     </div>
   )
 }
@@ -116,7 +117,7 @@ export default function TokenUnlock() {
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: u.color, display: 'inline-block' }} />
-                      <span style={{ fontWeight: 700, color: '#fff' }}>{u.coin}</span>
+                      <span style={{ fontWeight: 700, color: "var(--ct-ink, #fff)" }}>{u.coin}</span>
                       <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{u.name}</span>
                     </div>
                   </td>
@@ -127,7 +128,7 @@ export default function TokenUnlock() {
                   <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
                     {fmtAmount(u.amount)} {u.coin}
                   </td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#fff' }}>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: "var(--ct-ink, #fff)" }}>
                     {fmtUSD(u.usd)}
                   </td>
                   <td><ImpactBar pct={u.pct} /></td>

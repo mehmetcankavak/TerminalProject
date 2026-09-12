@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useCallback } from 'react'
 
 const SYMBOLS = [
@@ -47,7 +48,7 @@ function GaugeBar({ longPct, size = 'normal' }) {
         }} />
         <div style={{
           position: 'absolute', top: -2, bottom: -2, left: '50%',
-          width: 1, background: 'rgba(255,255,255,0.15)', transform: 'translateX(-50%)',
+          width: 1, background: "var(--ct-wash, rgba(255,255,255,0.15))", transform: 'translateX(-50%)',
         }} />
         <div style={{
           position: 'absolute', top: '50%', left: longPct + '%',
@@ -62,9 +63,9 @@ function GaugeBar({ longPct, size = 'normal' }) {
 
       {/* Corner labels — SHORT% left · LONG% right */}
       <div className="lsr2-gauge-corners">
-        <span style={{ color: '#f43f5e' }}>SHORT {shortPct.toFixed(1)}%</span>
-        {isLarge && <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 9 }}>NEUTRAL</span>}
-        <span style={{ color: '#00e87a' }}>LONG {longPct.toFixed(1)}%</span>
+        <span style={{ color: "var(--ct-negative, #f43f5e)" }}>SHORT {shortPct.toFixed(1)}%</span>
+        {isLarge && <span style={{ color: "var(--ct-subtle, rgba(255,255,255,0.25))", fontSize: 9 }}>NEUTRAL</span>}
+        <span style={{ color: "var(--ct-positive, #00e87a)" }}>LONG {longPct.toFixed(1)}%</span>
       </div>
 
     </div>
@@ -86,7 +87,7 @@ function BtcSpotlight({ btc }) {
     <div className="lsr2-spotlight">
       <div className="lsr2-spotlight-top">
         <div className="lsr2-section-hdr">BTC/USDT · LONG/SHORT RATIO</div>
-        <span className="lsr2-spot-badge" style={{ color: tone, borderColor: tone + '55', background: tone + '18' }}>
+        <span className="lsr2-spot-badge" style={{ color: workspaceTextColor(tone), borderColor: tone + '55', background: tone + '18' }}>
           {btc.longPct > 52 ? 'LONG HEAVY' : btc.longPct < 48 ? 'SHORT HEAVY' : 'NEUTRAL'}
         </span>
       </div>
@@ -102,7 +103,7 @@ function BtcSpotlight({ btc }) {
         ].map(({ label, val, color }) => (
           <div key={label} className="lsr2-stat-card">
             <div className="lsr2-stat-label">{label}</div>
-            <div className="lsr2-stat-val" style={{ color }}>{val != null ? val.toFixed(2) + '%' : '—'}</div>
+            <div className="lsr2-stat-val" style={{ color: workspaceTextColor(color) }}>{val != null ? val.toFixed(2) + '%' : '—'}</div>
           </div>
         ))}
       </div>
@@ -125,7 +126,7 @@ function CoinCard({ row }) {
       {/* col 2: gauge bar — S% left corner / L% right corner */}
       <GaugeBar longPct={row.longPct} />
       {/* col 3: verdict badge */}
-      <span className="lsr2-signal-badge" style={{ color: tone, borderColor: tone + '55', background: tone + '18' }}>
+      <span className="lsr2-signal-badge" style={{ color: workspaceTextColor(tone), borderColor: tone + '55', background: tone + '18' }}>
         {verdict}
       </span>
     </div>

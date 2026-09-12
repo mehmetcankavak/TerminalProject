@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useRef } from 'react'
 
 const NO_BINANCE_FUTURES = new Set(['HYPEUSDT'])
@@ -158,7 +159,7 @@ export default function WhaleWalls({ symbol = 'BTCUSDT' }) {
                 <span className="ww-sym">{symbol.replace('USDT', '')}/USDT-PERP</span>
 
                 {imbalance != null && (
-                    <span className="ww-imbalance" style={{ color: imbalanceColor }}>
+                    <span className="ww-imbalance" style={{ color: workspaceTextColor(imbalanceColor) }}>
                         {imbalance >= 60 ? '▲' : imbalance <= 40 ? '▼' : '◆'} {imbalance}% BUY
                     </span>
                 )}

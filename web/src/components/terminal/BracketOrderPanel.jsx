@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../../utils/workspaceTheme'
 // Bracket Order Panel — TerminalPage.jsx'ten ayrıştırıldı.
 // Hesaplamalar (R:R, position sizing, contracts) burada local; state TerminalPage'de.
 export default function BracketOrderPanel({
@@ -38,7 +39,7 @@ export default function BracketOrderPanel({
     const fmtUSD = (n) => n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(1)}K` : `$${n.toFixed(0)}`
 
     return (
-        <div style={{ border: '1px solid #171717', background: 'linear-gradient(180deg,#090909 0%,#050505 100%)', padding: '8px 10px', marginBottom: 8 }}>
+        <div style={{ border: "1px solid var(--ct-line-strong, #171717)", background: 'var(--ct-surface, #090909)', padding: '8px 10px', marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: bracketMode ? 8 : 0 }}>
                 <span style={{ fontSize: 10, letterSpacing: '.08em', color: 'var(--text-2)', textTransform: 'uppercase' }}>Bracket Order</span>
                 <button
@@ -46,7 +47,7 @@ export default function BracketOrderPanel({
                     style={{
                         background: bracketMode ? 'rgba(0,217,146,0.12)' : 'transparent',
                         border: `1px solid ${bracketMode ? 'rgba(0,217,146,0.4)' : '#1f1f1f'}`,
-                        color: bracketMode ? 'var(--accent)' : 'var(--text-3)',
+                        color: workspaceTextColor(bracketMode ? 'var(--accent)' : 'var(--text-3)'),
                         borderRadius: 4, padding: '2px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer', letterSpacing: '.06em',
                     }}
                 >{bracketMode ? '● ON' : '○ OFF'}</button>
@@ -59,10 +60,10 @@ export default function BracketOrderPanel({
                             value={bracketTP}
                             onChange={e => setBracketTP(e.target.value)}
                             placeholder="Take-profit fiyatı"
-                            style={{ background: '#0a0a0a', border: '1px solid #1d2d1d', color: 'var(--text-0)', borderRadius: 0, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-mono)', outline: 'none' }}
+                            style={{ background: "var(--ct-surface, #0a0a0a)", border: "1px solid var(--ct-line-strong, #1d2d1d)", color: 'var(--text-0)', borderRadius: 0, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-mono)', outline: 'none' }}
                         />
                         {tpPct !== null && (
-                            <span style={{ fontSize: 10, color: parseFloat(tpPct) >= 0 ? 'var(--accent)' : 'var(--danger)', minWidth: 44, textAlign: 'right' }}>
+                            <span style={{ fontSize: 10, color: workspaceTextColor(parseFloat(tpPct) >= 0 ? 'var(--accent)' : 'var(--danger)'), minWidth: 44, textAlign: 'right' }}>
                                 {parseFloat(tpPct) >= 0 ? '+' : ''}{tpPct}%
                             </span>
                         )}
@@ -73,16 +74,16 @@ export default function BracketOrderPanel({
                             value={bracketSL}
                             onChange={e => setBracketSL(e.target.value)}
                             placeholder="Stop-loss fiyatı"
-                            style={{ background: '#0a0a0a', border: '1px solid #2d1d1d', color: 'var(--text-0)', borderRadius: 0, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-mono)', outline: 'none' }}
+                            style={{ background: "var(--ct-surface, #0a0a0a)", border: "1px solid var(--ct-line-strong, #2d1d1d)", color: 'var(--text-0)', borderRadius: 0, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-mono)', outline: 'none' }}
                         />
                         {slPct !== null && (
-                            <span style={{ fontSize: 10, color: parseFloat(slPct) >= 0 ? 'var(--accent)' : 'var(--danger)', minWidth: 44, textAlign: 'right' }}>
+                            <span style={{ fontSize: 10, color: workspaceTextColor(parseFloat(slPct) >= 0 ? 'var(--accent)' : 'var(--danger)'), minWidth: 44, textAlign: 'right' }}>
                                 {parseFloat(slPct) >= 0 ? '+' : ''}{slPct}%
                             </span>
                         )}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 6, alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, color: '#f5a623', fontWeight: 700, letterSpacing: '.05em' }}>Risk</span>
+                        <span style={{ fontSize: 10, color: "var(--ct-warning, #f5a623)", fontWeight: 700, letterSpacing: '.05em' }}>Risk</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <input
                                 value={bracketRisk}
@@ -91,9 +92,9 @@ export default function BracketOrderPanel({
                                     localStorage.setItem('nt_bracket_risk', e.target.value)
                                 }}
                                 placeholder="1"
-                                style={{ width: 48, background: '#0a0a0a', border: '1px solid #2d2a1a', color: 'var(--text-0)', borderRadius: 0, padding: '5px 6px', fontSize: 11, fontFamily: 'var(--font-mono)', outline: 'none', textAlign: 'right' }}
+                                style={{ width: 48, background: "var(--ct-surface, #0a0a0a)", border: "1px solid var(--ct-line-strong, #2d2a1a)", color: 'var(--text-0)', borderRadius: 0, padding: '5px 6px', fontSize: 11, fontFamily: 'var(--font-mono)', outline: 'none', textAlign: 'right' }}
                             />
-                            <span style={{ fontSize: 10, color: '#f5a623' }}>%</span>
+                            <span style={{ fontSize: 10, color: "var(--ct-warning, #f5a623)" }}>%</span>
                             {posSizeUSD !== null && (
                                 <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-2)' }}>
                                     → <b style={{ color: 'var(--text-0)' }}>{fmtUSD(posSizeUSD)}</b> pozisyon
@@ -102,7 +103,7 @@ export default function BracketOrderPanel({
                             )}
                         </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4, borderTop: '1px solid #141414', flexWrap: 'wrap', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4, borderTop: "1px solid var(--ct-line-strong, #141414)", flexWrap: 'wrap', gap: 4 }}>
                         <span style={{ fontSize: 10, color: 'var(--text-3)' }}>
                             {curPrice ? `Güncel: $${curPrice.toLocaleString()}` : 'Fiyat bekleniyor…'}
                         </span>
@@ -115,7 +116,7 @@ export default function BracketOrderPanel({
                             {rr !== null && (
                                 <span style={{
                                     fontSize: 10, fontWeight: 700, letterSpacing: '.05em',
-                                    color: parseFloat(rr) >= 2 ? 'var(--accent)' : parseFloat(rr) >= 1 ? '#f5a623' : 'var(--danger)',
+                                    color: workspaceTextColor(parseFloat(rr) >= 2 ? 'var(--accent)' : parseFloat(rr) >= 1 ? "var(--ct-warning, #f5a623)" : 'var(--danger)'),
                                 }}>
                                     R:R = 1:{rr}
                                 </span>

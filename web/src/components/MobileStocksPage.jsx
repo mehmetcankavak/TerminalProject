@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect } from 'react'
 import { haptic } from '../capacitor'
 import { API_BASE } from '../config'
@@ -76,17 +77,17 @@ export default function MobileStocksPage({ onNavigate }) {
   }
 
   return (
-    <div style={{ paddingBottom: 24, position: 'relative', background: '#000' }}>
+    <div style={{ paddingBottom: 24, position: 'relative', background: "var(--ct-surface, #000)" }}>
       {/* Search Bar */}
       <div className="markets-search">
-        <span className="markets-search-icon" style={{ color: '#a1a1aa' }}>⌕</span>
+        <span className="markets-search-icon" style={{ color: "var(--ct-muted, #a1a1aa)" }}>⌕</span>
         <input
           className="markets-search-input"
           placeholder="Search Stock / Asset..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           autoCorrect="off" autoCapitalize="off"
-          style={{ background: '#000', color: '#d4d4d8' }}
+          style={{ background: "var(--ct-surface, #000)", color: "var(--ct-ink, #d4d4d8)" }}
         />
       </div>
 
@@ -191,7 +192,7 @@ export default function MobileStocksPage({ onNavigate }) {
                   {(asset.market_cap || '').replace(' T', 'T').replace(' B', 'B')}
                 </div>
                 {hlSymbols.has(asset.code) && (
-                  <div style={{ fontSize: 11, color: '#888', marginTop: 1, letterSpacing: 0.2 }}>Hyperliquid</div>
+                  <div style={{ fontSize: 11, color: "var(--ct-subtle, #888)", marginTop: 1, letterSpacing: 0.2 }}>Hyperliquid</div>
                 )}
               </div>
               
@@ -203,7 +204,7 @@ export default function MobileStocksPage({ onNavigate }) {
                 <div style={{ 
                   fontSize: 13, 
                   fontWeight: 600, 
-                  color: isUp ? 'var(--green)' : (isDown ? 'var(--red)' : 'var(--text-3)'),
+                  color: workspaceTextColor(isUp ? 'var(--green)' : (isDown ? 'var(--red)' : 'var(--text-3)')),
                   marginTop: 2,
                   fontFamily: 'var(--mono)'
                 }}>

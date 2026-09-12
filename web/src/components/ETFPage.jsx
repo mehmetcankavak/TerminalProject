@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useCallback } from 'react'
 import { API_BASE } from '../config'
 
@@ -53,10 +54,10 @@ function ETFSentiment({ etfs, summary }) {
       <div className="etx-sentiment-hdr">
         <span className="etx-section-label">SENTIMENT · ETF · 24H</span>
         <div className="etx-sentiment-score">
-          <span className="etx-score-num" style={{ color: tone }}>
+          <span className="etx-score-num" style={{ color: workspaceTextColor(tone) }}>
             {score >= 0 ? '+' : ''}{score.toFixed(2)}
           </span>
-          <span className="etx-verdict" style={{ color: tone }}>{verdict}</span>
+          <span className="etx-verdict" style={{ color: workspaceTextColor(tone) }}>{verdict}</span>
         </div>
       </div>
 
@@ -79,19 +80,19 @@ function ETFSentiment({ etfs, summary }) {
         </div>
 
         <div className={`etx-stat-card ${avgChg >= 0 ? 'buy' : 'sell'}`}>
-          <div className="etx-stat-label" style={{ color: avgChg >= 0 ? '#00e87a' : '#f43f5e' }}>AVG CHANGE</div>
+          <div className="etx-stat-label" style={{ color: workspaceTextColor(avgChg >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>AVG CHANGE</div>
           <div className="etx-stat-val">{avgChg >= 0 ? '+' : ''}{avgChg.toFixed(2)}%</div>
           <div className="etx-stat-sub">volume weighted</div>
         </div>
 
         <div className="etx-stat-card neutral">
-          <div className="etx-stat-label" style={{ color: '#fbbf24' }}>DOMINANT</div>
+          <div className="etx-stat-label" style={{ color: "var(--ct-warning, #fbbf24)" }}>DOMINANT</div>
           <div className="etx-stat-val">{dominant?.symbol || '—'}</div>
           <div className="etx-stat-sub">{dominant ? fmtUSD((dominant.volume || 0) * (dominant.price || 0)) : '—'}</div>
         </div>
 
         <div className={`etx-stat-card ${cgToday != null ? (cgToday >= 0 ? 'buy' : 'sell') : 'neutral'}`}>
-          <div className="etx-stat-label" style={{ color: cgToday != null ? (cgToday >= 0 ? '#00e87a' : '#f43f5e') : '#666' }}>
+          <div className="etx-stat-label" style={{ color: workspaceTextColor(cgToday != null ? (cgToday >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") : "var(--ct-subtle, #666)") }}>
             NET FLOW
           </div>
           <div className="etx-stat-val">
@@ -156,7 +157,7 @@ function NetflowSection({ summary }) {
           return (
             <div key={key} className={`etx-nf-card ${cls}`}>
               <div className="etx-nf-label">{label}</div>
-              <div className="etx-nf-val" style={{ color: v != null ? (up ? '#00e87a' : '#f43f5e') : '#555' }}>
+              <div className="etx-nf-val" style={{ color: workspaceTextColor(v != null ? (up ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") : "var(--ct-subtle, #555)") }}>
                 {v != null ? (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(0) + 'M' : '—'}
               </div>
             </div>
@@ -266,6 +267,8 @@ export default function ETFPage() {
       {/* Sentiment */}
       <ETFSentiment etfs={etfs} summary={summary} />
 
+      <NetflowSection summary={summary} />
+
       {/* Column labels */}
       <div className="etx-col-labels">
         <span style={{ width: 10 }} />
@@ -284,8 +287,6 @@ export default function ETFPage() {
         }
       </div>
 
-      {/* Netflow section */}
-      <NetflowSection summary={summary} />
 
     </div>
   )

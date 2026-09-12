@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
@@ -93,7 +94,7 @@ export default function SystemAlerts() {
         </div>
         <div className="sa2-header-stats">
           <div className="sa2-hstat">
-            <span className="sa2-hstat-val" style={{ color: '#00e87a' }}>{enabledCount}</span>
+            <span className="sa2-hstat-val" style={{ color: "var(--ct-positive, #00e87a)" }}>{enabledCount}</span>
             <span className="sa2-hstat-lbl">Enabled</span>
           </div>
           <div className="sa2-hstat">
@@ -101,7 +102,7 @@ export default function SystemAlerts() {
             <span className="sa2-hstat-lbl">Disabled</span>
           </div>
           <div className="sa2-hstat">
-            <span className="sa2-hstat-val" style={{ color: '#f59e0b' }}>{activeAlerts.length}</span>
+            <span className="sa2-hstat-val" style={{ color: "var(--ct-warning, #f59e0b)" }}>{activeAlerts.length}</span>
             <span className="sa2-hstat-lbl">Price Active</span>
           </div>
         </div>
@@ -131,13 +132,13 @@ export default function SystemAlerts() {
                   <div className="sa2-notif-accent" style={{ background: on ? at.color : 'transparent' }} />
 
                   {/* Icon */}
-                  <div className="sa2-notif-icon" style={{ background: on ? at.color + '22' : 'rgba(255,255,255,0.04)', color: on ? at.color : 'var(--text-muted)' }}>
+                  <div className="sa2-notif-icon" style={{ background: on ? at.color + '22' : "var(--ct-wash, rgba(255,255,255,0.04))", color: workspaceTextColor(on ? at.color : 'var(--text-muted)') }}>
                     {at.icon}
                   </div>
 
                   {/* Info */}
                   <div className="sa2-notif-info">
-                    <div className="sa2-notif-name" style={{ color: on ? 'var(--text-primary)' : 'var(--text-muted)' }}>{at.name}</div>
+                    <div className="sa2-notif-name" style={{ color: workspaceTextColor(on ? 'var(--text-primary)' : 'var(--text-muted)') }}>{at.name}</div>
                     <div className="sa2-notif-desc">{at.desc}</div>
                   </div>
 

@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../../utils/workspaceTheme'
 // Komut input + autocomplete dropdown (komut ve sembol) + log paneli.
 // TerminalPage.jsx'ten ayrıştırıldı; davranış / stil aynen korundu.
 import { fmt } from '../../utils/format'
@@ -96,7 +97,7 @@ export default function CommandConsole({
                         <div
                             key={i}
                             style={{
-                                color: LOG_COLORS[log.style] || LOG_COLORS.info,
+                                color: workspaceTextColor(LOG_COLORS[log.style] || LOG_COLORS.info),
                                 fontSize: 10,
                                 lineHeight: 1.5,
                                 borderLeft: ['order', 'error', 'risk'].includes(log.style) ? `2px solid ${LOG_COLORS[log.style]}` : 'none',

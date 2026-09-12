@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
@@ -33,47 +34,47 @@ function Screen1() {
     <div className="ob-screen ob-s1">
       <div className="ob-preview-panel">
         <div className="ob-preview-header">
-          <span className="ob-preview-tag" style={{ color: '#e2484a' }}>◉ LIQUIDATION STREAM</span>
+          <span className="ob-preview-tag" style={{ color: "var(--ct-negative, #e2484a)" }}>◉ LIQUIDATION STREAM</span>
           <span className="ob-preview-live">LIVE</span>
         </div>
         <div className="ob-preview-row">
           <span className="ob-pr-badge ob-pr-long">LONG</span>
           <span className="ob-pr-coin">BTC</span>
-          <span className="ob-pr-val" style={{ color: '#e2484a' }}>$4.2M</span>
+          <span className="ob-pr-val" style={{ color: "var(--ct-negative, #e2484a)" }}>$4.2M</span>
           <span className="ob-pr-venue">Binance</span>
           <span className="ob-pr-time">14:32:07</span>
         </div>
         <div className="ob-preview-row">
           <span className="ob-pr-badge ob-pr-short">SHORT</span>
           <span className="ob-pr-coin">ETH</span>
-          <span className="ob-pr-val" style={{ color: '#00d992' }}>$880K</span>
+          <span className="ob-pr-val" style={{ color: "var(--ct-positive, #00d992)" }}>$880K</span>
           <span className="ob-pr-venue">OKX</span>
           <span className="ob-pr-time">14:31:52</span>
         </div>
         <div className="ob-preview-row ob-preview-dim">
           <span className="ob-pr-badge ob-pr-long">LONG</span>
           <span className="ob-pr-coin">SOL</span>
-          <span className="ob-pr-val" style={{ color: '#e2484a' }}>$210K</span>
+          <span className="ob-pr-val" style={{ color: "var(--ct-negative, #e2484a)" }}>$210K</span>
           <span className="ob-pr-venue">Bybit</span>
           <span className="ob-pr-time">14:31:44</span>
         </div>
         <div className="ob-preview-sep" />
         <div className="ob-preview-header">
-          <span className="ob-preview-tag" style={{ color: '#f59e0b' }}>◉ WHALE TRANSFERS</span>
+          <span className="ob-preview-tag" style={{ color: "var(--ct-warning, #f59e0b)" }}>◉ WHALE TRANSFERS</span>
           <span className="ob-preview-live">LIVE</span>
         </div>
         <div className="ob-preview-row">
-          <span className="ob-pr-whale" style={{ color: '#f59e0b' }}>●</span>
+          <span className="ob-pr-whale" style={{ color: "var(--ct-warning, #f59e0b)" }}>●</span>
           <span className="ob-pr-coin">USDT</span>
-          <span className="ob-pr-val" style={{ color: '#f59e0b' }}>$12.4M</span>
+          <span className="ob-pr-val" style={{ color: "var(--ct-warning, #f59e0b)" }}>$12.4M</span>
           <span className="ob-pr-arrow">→</span>
           <span className="ob-pr-venue">Binance</span>
           <span className="ob-pr-time">3m</span>
         </div>
         <div className="ob-preview-row ob-preview-dim">
-          <span className="ob-pr-whale" style={{ color: '#f59e0b' }}>●</span>
+          <span className="ob-pr-whale" style={{ color: "var(--ct-warning, #f59e0b)" }}>●</span>
           <span className="ob-pr-coin">BTC</span>
-          <span className="ob-pr-val" style={{ color: '#f59e0b' }}>$6.7M</span>
+          <span className="ob-pr-val" style={{ color: "var(--ct-warning, #f59e0b)" }}>$6.7M</span>
           <span className="ob-pr-arrow">→</span>
           <span className="ob-pr-venue">Unknown</span>
           <span className="ob-pr-time">11m</span>
@@ -137,7 +138,7 @@ function Screen2() {
             transition: `opacity .32s ease ${i * 90}ms, transform .32s ease ${i * 90}ms`,
           }}
         >
-          <div className="ob-sig-label" style={{ color: card.accent }}>{card.label}</div>
+          <div className="ob-sig-label" style={{ color: workspaceTextColor(card.accent) }}>{card.label}</div>
           {card.rows.map((row, j) => (
             <div key={j} className="ob-sig-row">{row}</div>
           ))}
@@ -237,7 +238,7 @@ function Screen3() {
             <span
               key={f.label}
               className="ob-feat-chip"
-              style={{ color: f.accent, borderColor: `${f.accent}30` }}
+              style={{ color: workspaceTextColor(f.accent), borderColor: `${f.accent}30` }}
             >
               {f.label}
             </span>
@@ -273,7 +274,7 @@ function Screen4({ choice, setChoice }) {
           onClick={() => setChoice('connect')}
         >
           <div className="ob-choice-top">
-            <span className="ob-choice-tag" style={{ color: '#00d992' }}>LIVE TRADING</span>
+            <span className="ob-choice-tag" style={{ color: "var(--ct-positive, #00d992)" }}>LIVE TRADING</span>
             {choice === 'connect' && <span className="ob-choice-chk"><IcoCheck /></span>}
           </div>
           <div className="ob-choice-name">Connect Exchange</div>
@@ -288,11 +289,11 @@ function Screen4({ choice, setChoice }) {
           <div className="ob-exchange-opts">
             <div className="ob-exchange-opt">
               <span className="ob-exchange-opt-name">HyperLiquid</span>
-              <span className="ob-exchange-opt-tag" style={{ color: '#00d992' }}>DEX</span>
+              <span className="ob-exchange-opt-tag" style={{ color: "var(--ct-positive, #00d992)" }}>DEX</span>
             </div>
             <div className="ob-exchange-opt">
               <span className="ob-exchange-opt-name">Binance</span>
-              <span className="ob-exchange-opt-tag" style={{ color: '#f59e0b' }}>CEX</span>
+              <span className="ob-exchange-opt-tag" style={{ color: "var(--ct-warning, #f59e0b)" }}>CEX</span>
             </div>
           </div>
           <div className="ob-exchange-sec">

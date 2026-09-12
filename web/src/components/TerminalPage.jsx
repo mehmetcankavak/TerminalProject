@@ -543,7 +543,7 @@ export default function TerminalPage() {
                 />
 
                 <div className="nt-right">
-                    <QuickAlertsPanel
+                    <div className="ct-terminal-alerts"><QuickAlertsPanel
                         quickAlerts={quickAlerts}
                         quickAlertsCollapsed={quickAlertsCollapsed}
                         setQuickAlertsCollapsed={setQuickAlertsCollapsed}
@@ -563,9 +563,9 @@ export default function TerminalPage() {
                         createQuickAlert={createQuickAlert}
                         deleteQuickAlert={deleteQuickAlert}
                         recentAlerts={recentAlerts}
-                    />
+                    /></div>
                     {/* ─── Bracket Order Panel ─── */}
-                    <BracketOrderPanel
+                    <div className="ct-terminal-bracket"><BracketOrderPanel
                         bracketMode={bracketMode}
                         setBracketMode={setBracketMode}
                         bracketTP={bracketTP}
@@ -576,10 +576,10 @@ export default function TerminalPage() {
                         setBracketRisk={setBracketRisk}
                         curPrice={tickers[chartSymbol]?.last_price}
                         tradeBalance={tradeBalance}
-                    />
+                    /></div>
 
                     {/* ─── Command Input + Autocomplete ─── */}
-                    <CommandConsole
+                    <div className="ct-terminal-console"><CommandConsole
                         input={input}
                         setInput={setInput}
                         inputRef={inputRef}
@@ -593,7 +593,7 @@ export default function TerminalPage() {
                         logs={logs}
                         logRef={logRef}
                         setLogs={setLogs}
-                    />
+                    /></div>
 
                     {/* ─── Chart ─── */}
                     <ChartPanel

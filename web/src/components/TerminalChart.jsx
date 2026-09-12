@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createChart, CrosshairMode, CandlestickSeries } from 'lightweight-charts'
+import { workspaceChartOptions } from '../utils/workspaceTheme'
 import { API_BASE } from '../config'
 
 export default function TerminalChart({ symbol = 'BTCUSDT', interval = '15m', activePosition = null, activeOrders = [], alertLines = [], onPriceClick, onTpSlChange }) {
@@ -165,6 +166,7 @@ export default function TerminalChart({ symbol = 'BTCUSDT', interval = '15m', ac
             },
         })
 
+        chart.applyOptions(workspaceChartOptions(chartContainerRef.current))
         const candlestickSeries = chart.addSeries(CandlestickSeries, {
             upColor: '#00d992',
             downColor: '#ff3b5c',
@@ -323,15 +325,15 @@ export default function TerminalChart({ symbol = 'BTCUSDT', interval = '15m', ac
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             {loading && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b9eb7', zIndex: 10 }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--ct-muted, #8b9eb7)", zIndex: 10 }}>
                     Loading chart data...
                 </div>
             )}
             {!loading && chartError && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b9eb7', zIndex: 10, textAlign: 'center', padding: 24, background: 'rgba(5,8,12,0.35)' }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--ct-muted, #8b9eb7)", zIndex: 10, textAlign: 'center', padding: 24, background: 'rgba(5,8,12,0.35)' }}>
                     <div>
-                        <div style={{ fontSize: 14, color: '#d5dbe3', marginBottom: 6 }}>{chartError}</div>
-                        <div style={{ fontSize: 12, color: '#8b9eb7' }}>
+                        <div style={{ fontSize: 14, color: "var(--ct-ink, #d5dbe3)", marginBottom: 6 }}>{chartError}</div>
+                        <div style={{ fontSize: 12, color: "var(--ct-muted, #8b9eb7)" }}>
                             The browser may be blocked from direct exchange traffic, so chart data is now requested through the local backend proxy.
                         </div>
                     </div>

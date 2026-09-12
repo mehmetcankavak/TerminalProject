@@ -1,3 +1,4 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState } from 'react'
 import WhaleWalls from './WhaleWalls'
 
@@ -12,9 +13,9 @@ export default function WhaleWallsPage() {
           <button key={c}
             onClick={() => { setSym(c); localStorage.setItem('ww_sym', c) }}
             style={{
-              background: sym === c ? 'rgba(168,85,247,0.15)' : '#0a0a0a',
+              background: sym === c ? 'rgba(168,85,247,0.15)' : "var(--ct-surface, #0a0a0a)",
               border: `1px solid ${sym === c ? 'rgba(168,85,247,0.5)' : '#1a1a1a'}`,
-              color: sym === c ? '#c084fc' : 'var(--text-2)',
+              color: workspaceTextColor(sym === c ? '#c084fc' : 'var(--text-2)'),
               borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: sym === c ? 700 : 400,
               cursor: 'pointer', letterSpacing: '.04em',
             }}

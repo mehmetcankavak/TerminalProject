@@ -286,6 +286,7 @@ export default function AccountSettings() {
 
   return (
     <div className="acc2-page">
+      <h1 className="ct-account-title">Account Settings</h1>
 
       {/* ── Hero header ────────────────────────────────────────────── */}
       <div className="acc2-hero">
