@@ -1,293 +1,159 @@
-import { workspaceTextColor } from '../utils/workspaceTheme'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Calendar, ChevronDown, Download } from 'lucide-react'
 import { API_BASE } from '../config'
 
-function fmtUSD(n) {
-  if (n == null || !isFinite(n)) return '—'
-  const v = Number(n)
-  if (Math.abs(v) >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B'
-  if (Math.abs(v) >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M'
-  if (Math.abs(v) >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K'
-  return '$' + v.toFixed(0)
-}
+const fmtM = v => v == null || !isFinite(v) ? '—' : (v >= 0 ? '+' : '-') + '$' + (Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(2) + 'B' : Math.abs(v).toFixed(1) + 'M')
+const fmtCell = v => v == null || !isFinite(v) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1)
+const fmtUSD = n => n == null || !isFinite(n) ? '—' : Math.abs(n) >= 1e9 ? '$' + (n / 1e9).toFixed(2) + 'B' : Math.abs(n) >= 1e6 ? '$' + (n / 1e6).toFixed(1) + 'M' : '$' + Math.round(n).toLocaleString('en-US')
+const fmtDate = d => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+const RANGES = [[14, 'Last 2 weeks'], [30, 'Last 30 days'], [60, 'Last 60 days'], [90, 'Last 90 days']]
 
-function fmtPrice(p) {
-  if (p == null || isNaN(p)) return '—'
-  if (p >= 1000) return '$' + p.toLocaleString('en-US', { maximumFractionDigits: 2 })
-  if (p >= 1)    return '$' + p.toFixed(2)
-  return '$' + p.toFixed(4)
-}
-
-const TYPES = [
-  { key: 'BTC', label: 'BTC ETFs' },
-  { key: 'ETH', label: 'ETH ETFs' },
-]
-
-/* ── Sentiment Panel ──────────────────────────────────────────────── */
-function ETFSentiment({ etfs, summary }) {
-  if (!etfs?.length) {
-    return (
-      <div className="etx-sentiment etx-sentiment-loading">
-        <span className="etx-section-label">SENTIMENT · ETF · loading…</span>
-      </div>
-    )
-  }
-
-  let bullVol = 0, bearVol = 0, gainers = 0, losers = 0
-  let dominant = null
-  for (const e of etfs) {
-    const vol = (e.volume || 0) * (e.price || 0)
-    if ((e.changePct || 0) >= 0) { bullVol += vol; gainers++ }
-    else                          { bearVol += vol; losers++ }
-    if (!dominant || vol > (dominant.volume || 0) * (dominant.price || 0)) dominant = e
-  }
-  const total    = bullVol + bearVol
-  const score    = total > 0 ? (bullVol - bearVol) / total : 0
-  const verdict  = score >  0.3 ? 'INFLOW' : score < -0.3 ? 'OUTFLOW' : 'NEUTRAL'
-  const tone     = verdict === 'INFLOW' ? '#00e87a' : verdict === 'OUTFLOW' ? '#f43f5e' : '#fbbf24'
-  const pct      = Math.max(0, Math.min(100, (score + 1) * 50))
-  const avgChg   = total > 0 ? etfs.reduce((s, e) => s + (e.changePct || 0) * ((e.volume || 0) * (e.price || 0)), 0) / total : 0
-  const cgToday  = summary?.today ?? null
-
+/* ── Daily net flow bar chart ───────────────────────────────────────────── */
+function FlowChart({ rows }) {
+  const W = 1000, H = 220, mid = H / 2, pad = 6
+  if (rows.length < 2) return <div className="ws-empty"><div className="ws-empty-title">No flow history for this range.</div><div className="ws-empty-sub">Daily net flows need a Coinglass key on the backend.</div></div>
+  const max = Math.max(...rows.map(r => Math.abs(r.value)), 1)
+  const bw = W / rows.length
+  const ticks = [1, 0.5, 0, -0.5, -1]
+  const labelEvery = Math.max(1, Math.round(rows.length / 10))
   return (
-    <div className="etx-sentiment">
-      <div className="etx-sentiment-hdr">
-        <span className="etx-section-label">SENTIMENT · ETF · 24H</span>
-        <div className="etx-sentiment-score">
-          <span className="etx-score-num" style={{ color: workspaceTextColor(tone) }}>
-            {score >= 0 ? '+' : ''}{score.toFixed(2)}
-          </span>
-          <span className="etx-verdict" style={{ color: workspaceTextColor(tone) }}>{verdict}</span>
-        </div>
-      </div>
-
-      {/* Gauge */}
-      <div className="etx-gauge-track">
-        <div className="etx-gauge-bg" />
-        <div className="etx-gauge-mid" />
-        <div className="etx-gauge-dot" style={{ left: pct + '%', background: tone, boxShadow: `0 0 10px ${tone}99` }} />
-      </div>
-      <div className="etx-gauge-axis">
-        <span>OUTFLOW</span><span>NEUTRAL</span><span>INFLOW</span>
-      </div>
-
-      {/* 4-stat grid */}
-      <div className="etx-stat4-grid">
-        <div className="etx-stat-card neutral">
-          <div className="etx-stat-label">TOTAL VOL</div>
-          <div className="etx-stat-val">{fmtUSD(total)}</div>
-          <div className="etx-stat-sub">{etfs.length} ETF</div>
-        </div>
-
-        <div className={`etx-stat-card ${avgChg >= 0 ? 'buy' : 'sell'}`}>
-          <div className="etx-stat-label" style={{ color: workspaceTextColor(avgChg >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>AVG CHANGE</div>
-          <div className="etx-stat-val">{avgChg >= 0 ? '+' : ''}{avgChg.toFixed(2)}%</div>
-          <div className="etx-stat-sub">volume weighted</div>
-        </div>
-
-        <div className="etx-stat-card neutral">
-          <div className="etx-stat-label" style={{ color: "var(--ct-warning, #fbbf24)" }}>DOMINANT</div>
-          <div className="etx-stat-val">{dominant?.symbol || '—'}</div>
-          <div className="etx-stat-sub">{dominant ? fmtUSD((dominant.volume || 0) * (dominant.price || 0)) : '—'}</div>
-        </div>
-
-        <div className={`etx-stat-card ${cgToday != null ? (cgToday >= 0 ? 'buy' : 'sell') : 'neutral'}`}>
-          <div className="etx-stat-label" style={{ color: workspaceTextColor(cgToday != null ? (cgToday >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") : "var(--ct-subtle, #666)") }}>
-            NET FLOW
-          </div>
-          <div className="etx-stat-val">
-            {cgToday != null ? (cgToday >= 0 ? '+' : '') + cgToday.toFixed(0) + 'M' : '—'}
-          </div>
-          <div className="etx-stat-sub">{cgToday != null ? 'Coinglass · today' : 'no Coinglass key'}</div>
+    <div className="liq-timeline">
+      <div className="liq-timeline-y">{ticks.map(t => <span key={t}>{t === 0 ? '0' : (t < 0 ? '-' : '') + (Math.abs(t) * max >= 1000 ? (Math.abs(t) * max / 1000).toFixed(1) + 'B' : Math.round(Math.abs(t) * max) + 'M')}</span>)}</div>
+      <div className="liq-timeline-plot" style={{ paddingBottom: 26 }}>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H}>
+          {ticks.map(t => <line key={t} x1="0" x2={W} y1={mid - t * (mid - pad)} y2={mid - t * (mid - pad)} stroke="#e5e7eb" strokeDasharray={t === 0 ? '' : '3 4'} />)}
+          {rows.map((r, i) => {
+            const h = (Math.abs(r.value) / max) * (mid - pad)
+            return <rect key={i} x={i * bw + bw * 0.22} y={r.value >= 0 ? mid - h : mid} width={bw * 0.56} height={Math.max(1, h)} fill={r.value >= 0 ? '#22c55e' : '#ef4444'} rx="1" />
+          })}
+        </svg>
+        <div className="liq-timeline-x" style={{ height: 20 }}>
+          {rows.map((r, i) => i % labelEvery === 0 ? <span key={i} style={{ left: `${((i + 0.5) / rows.length) * 100}%` }}>{new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span> : null)}
         </div>
       </div>
     </div>
   )
 }
 
-/* ── ETF Row ──────────────────────────────────────────────────────── */
-function ETFRow({ etf, maxVol }) {
-  const isUp = (etf.changePct || 0) >= 0
-  const tone = isUp ? '#00e87a' : '#f43f5e'
-  const vol  = (etf.volume || 0) * (etf.price || 0)
-  const pct  = maxVol > 0 ? Math.min(100, (vol / maxVol) * 100) : 0
-
-  return (
-    <div className="etx-etf-row">
-      <div className="etx-etf-dot" style={{ background: etf.color || '#6b7280' }} />
-
-      <div className="etx-etf-id">
-        <div className="etx-etf-sym">{etf.symbol}</div>
-        <div className="etx-etf-name">{(etf.longName || '').slice(0, 22)}</div>
-      </div>
-
-      <div className="etx-etf-vol-block">
-        <div className="etx-vol-bar-track">
-          <div className="etx-vol-bar-fill" style={{ width: pct + '%', background: tone }} />
-        </div>
-        <div className="etx-etf-vol-amt">{fmtUSD(vol)}</div>
-      </div>
-
-      <div className="etx-etf-price-block">
-        <div className="etx-etf-price">{fmtPrice(etf.price)}</div>
-        <div className={`etx-etf-chg ${isUp ? 'up' : 'dn'}`}>
-          {isUp ? '+' : ''}{(etf.changePct || 0).toFixed(2)}%
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ── Netflow Section (Coinglass) ──────────────────────────────────── */
-function NetflowSection({ summary }) {
-  if (!summary || !Object.keys(summary).length) return null
-  const rows = [
-    { key: 'today',      label: 'Today',   v: summary.today },
-    { key: 'week',       label: '7 Days',  v: summary.week },
-    { key: 'month',      label: '30 Days', v: summary.month },
-    { key: 'threeMonth', label: '90 Days', v: summary.threeMonth },
-  ]
-  return (
-    <div className="etx-netflow">
-      <div className="etx-section-label etx-netflow-label">NETFLOW · COINGLASS</div>
-      <div className="etx-netflow-grid">
-        {rows.map(({ key, label, v }) => {
-          const up  = v != null && v >= 0
-          const cls = v != null ? (up ? 'buy' : 'sell') : 'neutral'
-          return (
-            <div key={key} className={`etx-nf-card ${cls}`}>
-              <div className="etx-nf-label">{label}</div>
-              <div className="etx-nf-val" style={{ color: workspaceTextColor(v != null ? (up ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") : "var(--ct-subtle, #555)") }}>
-                {v != null ? (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(0) + 'M' : '—'}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/* ── Skeleton ─────────────────────────────────────────────────────── */
-function Skeleton() {
-  return (
-    <>
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="etx-skeleton-row">
-          <div className="etx-skel-dot" />
-          <div style={{ width: 110 }}>
-            <div className="etx-skel-rect" style={{ width: 55, height: 13, marginBottom: 4 }} />
-            <div className="etx-skel-rect" style={{ width: 80, height: 9 }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div className="etx-skel-rect" style={{ width: '65%', height: 3, marginBottom: 6 }} />
-            <div className="etx-skel-rect" style={{ width: 65, height: 10 }} />
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div className="etx-skel-rect" style={{ width: 64, height: 13, marginBottom: 3, marginLeft: 'auto' }} />
-            <div className="etx-skel-rect" style={{ width: 44, height: 11, marginLeft: 'auto' }} />
-          </div>
-        </div>
-      ))}
-    </>
-  )
-}
-
-/* ── Main ─────────────────────────────────────────────────────────── */
 export default function ETFPage() {
-  const [type,    setType]    = useState('BTC')
-  const [data,    setData]    = useState(null)
+  const [type, setType]       = useState('BTC')
+  const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const [lastUpd, setLastUpd] = useState(null)
+  const [days, setDays]       = useState(30)
 
   const load = useCallback(async () => {
     try {
       const r = await fetch(`${API_BASE}/api/etf-data?type=${type}`)
       if (!r.ok) return
-      const d = await r.json()
-      setData(d)
-      setLastUpd(new Date())
-    } catch {}
+      setData(await r.json())
+    } catch { /* keep the previous snapshot */ }
     finally { setLoading(false) }
   }, [type])
+  useEffect(() => { setLoading(true); load(); const id = setInterval(load, 60_000); return () => clearInterval(id) }, [load])
 
-  useEffect(() => {
-    setLoading(true)
-    load()
-    const id = setInterval(load, 60_000)
-    return () => clearInterval(id)
-  }, [load])
+  const etfs = data?.etfs || []
+  const summary = data?.summary || {}
+  const history = useMemo(() => {
+    const rows = [...(data?.flowHistory || [])].filter(r => r.date && isFinite(r.value)).sort((a, b) => a.date.localeCompare(b.date))
+    return rows.slice(-days)
+  }, [data, days])
+  const tableRows = useMemo(() => [...history].reverse().slice(0, 14), [history])
+  const shownTotal = tableRows.reduce((s, r) => s + r.value, 0)
+  const rangeLabel = history.length ? `${fmtDate(history[0].date)} - ${fmtDate(history[history.length - 1].date)}` : RANGES.find(r => r[0] === days)[1]
 
-  const etfs       = data?.etfs    || []
-  const summary    = data?.summary || null
-  const sorted     = [...etfs].sort((a, b) => ((b.volume || 0) * (b.price || 0)) - ((a.volume || 0) * (a.price || 0)))
-  const maxVol     = sorted.length ? (sorted[0].volume || 0) * (sorted[0].price || 0) : 1
+  const exportCsv = () => {
+    const lines = ['date,net_flow_musd', ...history.map(r => `${r.date},${r.value}`)]
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob); a.download = `${type.toLowerCase()}-etf-flows.csv`; a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  const kpis = [['Today Net Flow', summary.today], ['7 Days Net Flow', summary.week], ['30 Days Net Flow', summary.month], ['90 Days Net Flow', summary.threeMonth]]
 
   return (
-    <div className="etx-page">
-
-      {/* Header */}
-      <div className="etx-page-header">
-        <div className="etx-header-top">
-          <div>
-            <div className="etx-page-title">ETF Data</div>
-            <div className="etx-page-subtitle">
-              <span className="etx-live-dot" />
-              Yahoo Finance{data?.hasCoinGlass ? ' + Coinglass netflow' : ''} · 60s refresh
-              {lastUpd && (
-                <span className="etx-updated">
-                  ↻ {lastUpd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
-            </div>
+    <div className="ws-page">
+      <div className="ws-page-head" style={{ marginBottom: 10 }}>
+        <div className="ws-page-head-left"><h1 className="ws-title">ETF Data</h1></div>
+        <div className="ws-page-head-right">
+          <div className="ws-inline-select" style={{ minWidth: 250 }}><Calendar size={15} className="ws-muted" /> {rangeLabel} <ChevronDown size={14} />
+            <select value={days} onChange={e => setDays(Number(e.target.value))}>{RANGES.map(([d, l]) => <option key={d} value={d}>{l}</option>)}</select>
           </div>
-
-          {data?.totalAUM > 0 && (
-            <div className="etx-aum">
-              <div className="etx-aum-label">TOTAL AUM</div>
-              <div className="etx-aum-val">{fmtUSD(data.totalAUM)}</div>
-            </div>
-          )}
-        </div>
-
-        {/* BTC / ETH tabs */}
-        <div className="etx-tabs">
-          {TYPES.map(t => (
-            <button
-              key={t.key}
-              className={`etx-tab ${type === t.key ? 'active' : ''}`}
-              onClick={() => setType(t.key)}
-            >
-              {t.label}
-            </button>
-          ))}
         </div>
       </div>
 
-      {/* Sentiment */}
-      <ETFSentiment etfs={etfs} summary={summary} />
-
-      <NetflowSection summary={summary} />
-
-      {/* Column labels */}
-      <div className="etx-col-labels">
-        <span style={{ width: 10 }} />
-        <span style={{ width: 110 }}>ETF</span>
-        <span style={{ flex: 1 }}>VOLUME</span>
-        <span>PRICE · CHANGE</span>
+      <div className="ws-tabs ws-tabs-lg ws-mb-16">
+        {['BTC', 'ETH'].map(t => <button key={t} className={`ws-tab ${type === t ? 'active' : ''}`} onClick={() => setType(t)}>{t} ETFs</button>)}
       </div>
 
-      {/* List */}
-      <div className="etx-etf-list">
-        {loading
-          ? <Skeleton />
-          : sorted.length === 0
-            ? <div className="etx-empty">No ETF data available</div>
-            : sorted.map(etf => <ETFRow key={etf.symbol} etf={etf} maxVol={maxVol} />)
-        }
+      <div className="ws-grid ws-grid-4">
+        {kpis.map(([label, v]) => (
+          <div key={label} className="ws-kpi">
+            <div className="ws-kpi-label" style={{ fontSize: 14 }}>{label}</div>
+            <div className={`ws-kpi-value ${v == null ? 'ws-muted' : v >= 0 ? 'ws-pos' : 'ws-neg'}`} style={{ fontSize: 26 }}>{v == null ? '—' : fmtM(v).replace(/^([+-])\$/, '$1 $')}</div>
+          </div>
+        ))}
       </div>
 
+      <div className="ws-card ws-mt-16">
+        <div className="ws-card-head">
+          <h3 className="ws-h3">Total ETF Net Flow ({type})</h3>
+          <div className="ws-chart-legend"><span><i style={{ background: '#16a34a' }} /> Net Inflow</span><span><i style={{ background: '#ef4444' }} /> Net Outflow</span></div>
+        </div>
+        <div className="ws-card-body">{loading ? <div className="ws-loading"><span className="ws-spinner" /> Loading flows…</div> : <FlowChart rows={history} />}</div>
+      </div>
 
+      <div className="ws-card ws-mt-16">
+        <div className="ws-card-head">
+          <h3 className="ws-h3">{type} ETF Flows (US$ Millions)</h3>
+          <button className="ws-link" onClick={exportCsv} disabled={!history.length}><Download size={14} /> Export CSV</button>
+        </div>
+        <div className="ws-table-wrap">
+          <table className="ws-table ws-table-bordered ws-table-dense">
+            <thead><tr><th>Date</th><th className="ws-right">Net Flow</th><th className="ws-right">7D Avg</th><th className="ws-right">Cumulative (shown)</th></tr></thead>
+            <tbody>
+              {tableRows.length === 0 ? <tr><td colSpan={4}><div className="ws-empty"><div className="ws-empty-title">No daily flow rows.</div></div></td></tr>
+              : tableRows.map((r, i) => {
+                const idx = history.length - 1 - i
+                const window = history.slice(Math.max(0, idx - 6), idx + 1)
+                const avg = window.reduce((s, x) => s + x.value, 0) / window.length
+                const cum = tableRows.slice(i).reduce((s, x) => s + x.value, 0)
+                return (
+                  <tr key={r.date}>
+                    <td className="ws-ink">{fmtDate(r.date)}</td>
+                    <td className={`ws-right ws-num ${r.value >= 0 ? 'ws-pos' : 'ws-neg'}`}>{fmtCell(r.value)}</td>
+                    <td className={`ws-right ws-num ${avg >= 0 ? 'ws-pos' : 'ws-neg'}`}>{fmtCell(avg)}</td>
+                    <td className={`ws-right ws-num ws-bold ${cum >= 0 ? 'ws-pos' : 'ws-neg'}`}>{fmtCell(cum)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {tableRows.length > 0 && <tfoot><tr><td>Total (Shown)</td><td className={`ws-right ws-num ${shownTotal >= 0 ? 'ws-pos' : 'ws-neg'}`}>{fmtCell(shownTotal)}</td><td /><td /></tr></tfoot>}
+          </table>
+        </div>
+      </div>
+
+      <div className="ws-card ws-mt-16">
+        <div className="ws-card-head"><h3 className="ws-h3">{type} Spot ETFs</h3><span className="ws-meta">Total AUM {fmtUSD(data?.totalAUM)}</span></div>
+        <div className="ws-table-wrap">
+          <table className="ws-table ws-table-dense">
+            <thead><tr><th>ETF</th><th>Name</th><th className="ws-right">Price</th><th className="ws-right">24h</th><th className="ws-right">Volume</th><th className="ws-right">AUM</th></tr></thead>
+            <tbody>
+              {etfs.length === 0 ? <tr><td colSpan={6}><div className="ws-empty"><div className="ws-empty-title">{loading ? 'Loading…' : 'No ETF quotes available.'}</div></div></td></tr>
+              : [...etfs].sort((a, b) => (b.totalAssets || 0) - (a.totalAssets || 0)).map(e => (
+                <tr key={e.symbol}>
+                  <td className="ws-ink ws-bold">{e.symbol}</td>
+                  <td className="ws-text">{e.longName || e.shortName || ''}</td>
+                  <td className="ws-right ws-num ws-ink">{e.price != null ? '$' + Number(e.price).toFixed(2) : '—'}</td>
+                  <td className={`ws-right ws-num ${(e.changePct || 0) >= 0 ? 'ws-pos' : 'ws-neg'}`}>{e.changePct != null ? (e.changePct >= 0 ? '+' : '') + e.changePct.toFixed(2) + '%' : '—'}</td>
+                  <td className="ws-right ws-num">{fmtUSD((e.volume || 0) * (e.price || 0))}</td>
+                  <td className="ws-right ws-num">{fmtUSD(e.totalAssets)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

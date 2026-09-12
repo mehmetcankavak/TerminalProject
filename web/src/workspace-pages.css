@@ -204,3 +204,40 @@
 .ct-workspace .ec-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 22px 28px 0; }
 .ct-workspace .ec-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .ct-workspace .ec-widget { flex: 1; min-height: 480px; border-top: 1px solid var(--ws-line); }
+
+/* ── Global Metrics ───────────────────────────────────────────────────────── */
+.ct-workspace .gm-top { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(4, minmax(0, 1fr)); gap: 14px; }
+.ct-workspace .gm-gauge { position: relative; display: flex; flex-direction: column; align-items: center; margin-top: 4px; }
+.ct-workspace .gm-gauge-val { position: absolute; top: 52px; text-align: center; }
+.ct-workspace .gm-gauge-val b { display: block; font-size: 22px; font-weight: 700; color: var(--ws-ink); line-height: 1; }
+.ct-workspace .gm-gauge-val span { font-size: 12px; color: var(--ws-muted); }
+.ct-workspace .gm-gauge-ends { display: flex; justify-content: space-between; width: 100%; font-size: 11px; color: var(--ws-muted); margin-top: 2px; }
+.ct-workspace .gm-dom { display: flex; height: 36px; border-radius: 4px; overflow: hidden; }
+.ct-workspace .gm-dom span { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; min-width: 0; }
+.ct-workspace .gm-mini-table th { background: transparent; padding: 6px 8px; font-size: 11px; }
+.ct-workspace .gm-mini-table td { padding: 7px 8px; font-size: 12px; }
+@media (max-width: 1280px) { .ct-workspace .gm-top { grid-template-columns: repeat(3, minmax(0, 1fr)); } .ct-workspace .gm-sent { grid-column: 1 / -1; } }
+
+/* ── Portfolio ────────────────────────────────────────────────────────────── */
+.ct-workspace .pf-table th { padding: 12px 10px; }
+.ct-workspace .pf-table td { padding: 14px 10px; }
+
+/* ── Dashboard ────────────────────────────────────────────────────────────── */
+.ct-workspace .db-page { padding-top: 12px; }
+.ct-workspace .db-news { display: flex; align-items: center; gap: 12px; padding: 6px 0 14px; border-bottom: 1px solid var(--ws-line); margin-bottom: 14px; }
+.ct-workspace .db-news-track { flex: 1; min-width: 0; display: flex; gap: 0; overflow: hidden; white-space: nowrap; font-size: 13px; color: var(--ws-ink); }
+.ct-workspace .db-news-item { padding-right: 14px; margin-right: 14px; border-right: 1px solid var(--ws-line-strong); }
+.ct-workspace .db-news-item:last-child { border-right: 0; }
+.ct-workspace .db-welcome { position: relative; padding: 18px 22px 20px; margin-bottom: 16px; }
+.ct-workspace .db-welcome-x { position: absolute; top: 12px; right: 12px; }
+.ct-workspace .db-tips { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.ct-workspace .db-tip { display: flex; align-items: center; gap: 12px; padding: 6px 16px; border: 0; border-right: 1px solid var(--ws-line); background: transparent; text-align: left; cursor: pointer; color: var(--ws-ink); font-family: var(--ws-font); border-radius: 4px; }
+.ct-workspace .db-tip:first-child { padding-left: 0; }
+.ct-workspace .db-tip:last-child { border-right: 0; }
+.ct-workspace .db-tip:hover { background: var(--ws-bg-soft); }
+.ct-workspace .db-tip-title { font-size: 13px; font-weight: 600; }
+.ct-workspace .db-tip-desc { font-size: 12px; color: var(--ws-muted); margin-top: 2px; }
+.ct-workspace .db-tile { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.ct-workspace .db-grid > .ws-card { align-self: start; }
+@media (max-width: 1100px) { .ct-workspace .db-tips { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 10px; } }
+@media (max-width: 768px) { .ct-workspace .db-tips { grid-template-columns: minmax(0, 1fr); } .ct-workspace .db-tip { border-right: 0; padding-left: 0; } }
