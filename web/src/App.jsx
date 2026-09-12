@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { GoogleOAuthProvider } from '@react-oauth/google'
@@ -16,7 +16,6 @@ import DashboardPage from './components/DashboardPage'
 import SystemAlerts from './components/SystemAlerts'
 import TerminalPage from './components/TerminalPage'
 import PortfolioPage from './components/PortfolioPage'
-import ScrollTicker from './components/ScrollTicker'
 import MarketsPage from './components/MarketsPage'
 import MobileStocksPage from './components/MobileStocksPage'
 import StocksPage from './components/StocksPage'
@@ -36,7 +35,6 @@ import GlobalAlertSound from './components/GlobalAlertSound'
 import ProGate from './components/ProGate'
 import AccountSettings from './components/AccountSettings'
 import CryptoUpgradePage from './components/CryptoUpgradePage'
-import AIChat from './components/AIChat'
 import AlertMonitoring from './components/AlertMonitoring'
 import AdminPage from './pages/AdminPage'
 import PrivacyPage from './pages/PrivacyPage'
@@ -44,7 +42,8 @@ import TermsPage from './pages/TermsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import OnboardingModal from './components/OnboardingModal'
 import './workspace.css'
-import './workspace-layouts.css'
+import './workspace-ui.css'
+import './workspace-pages.css'
 
 // Pro-only pages
 const PRO_PAGES = new Set([
@@ -85,53 +84,6 @@ function UpgradedBanner({ onDismiss }) {
     <div className="upgraded-banner">
       <span>{t('welcome_pro')}</span>
       <button onClick={onDismiss}>✕</button>
-    </div>
-  )
-}
-
-function UserProfileBadge({ onPageChange }) {
-  const { user, plan, logout } = useAuth()
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const isPro = plan === 'pro'
-
-  useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const email    = user?.email || ''
-  const username = user?.username || user?.name || email.split('@')[0] || 'User'
-  const initials = username.slice(0, 2).toUpperCase()
-
-  return (
-    <div className="upb-wrap" ref={ref}>
-      <button className={`upb-chip${isPro ? ' pro' : ''}`} onClick={() => setOpen(p => !p)}>
-        <span className={`upb-avatar${isPro ? ' pro' : ''}`}>{initials}</span>
-        <span className="upb-name">{username}</span>
-        <span className={`upb-plan-badge${isPro ? ' pro' : ''}`}>{isPro ? 'PRO' : 'FREE'}</span>
-        <svg className="upb-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
-      </button>
-      {open && (
-        <div className="upb-dropdown">
-          <div className="upb-dd-email">{email}</div>
-          {!isPro && (
-            <button className="upb-dd-item upgrade" onClick={() => { setOpen(false); onPageChange('upgrade') }}>
-              ⚡ Upgrade to Pro
-            </button>
-          )}
-          <button className="upb-dd-item" onClick={() => { setOpen(false); onPageChange('account-settings') }}>
-            Account Settings
-          </button>
-          <button className="upb-dd-item danger" onClick={() => { setOpen(false); logout() }}>
-            Sign Out
-          </button>
-        </div>
-      )}
     </div>
   )
 }
@@ -279,28 +231,13 @@ function TerminalApp() {
         {showUpgradedBanner && (
           <UpgradedBanner onDismiss={() => setShowUpgradedBanner(false)} />
         )}
-        <ScrollTicker />
-        {isTerminal && <div className="ct-terminal-mobile-nav"><MobileMenuBtn onClick={() => setMobileMenuOpen(true)} /><span>Terminal</span></div>}
-        {!isTerminal && (
-          <div className="header">
-            <MobileMenuBtn onClick={() => setMobileMenuOpen(true)} />
-            <div className="header-title">
-              <h1>{currentPage.title}</h1>
-              <span>{currentPage.sub}</span>
-            </div>
-            <div className="header-actions">
-              <div className="status-badge connected">
-                <span className="status-dot" />
-                Connected
-              </div>
-              <UserProfileBadge onPageChange={handlePageChange} />
-            </div>
-          </div>
-        )}
+        <div className="ws-mobile-bar">
+          <MobileMenuBtn onClick={() => setMobileMenuOpen(true)} />
+          <span>{currentPage.title}</span>
+        </div>
         {!isTerminal && <GlobalAlertSound />}
         {renderContent()}
       </div>
-      <AIChat />
     </div>
   )
 }

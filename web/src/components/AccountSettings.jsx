@@ -1,47 +1,35 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Pencil, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 
-/* ── iOS Toggle ─────────────────────────────────────────────────── */
+/* ── Primitives ─────────────────────────────────────────────────── */
 function Toggle({ value, onChange, disabled }) {
   return (
-    <button
-      type="button"
-      className={`acc2-toggle ${value ? 'on' : ''}`}
-      onClick={() => !disabled && onChange(!value)}
-      disabled={disabled}
-      aria-checked={value}
-      role="switch"
-    >
-      <div className="acc2-toggle-thumb" />
-    </button>
+    <button type="button" role="switch" aria-checked={!!value} disabled={disabled}
+      className={`ws-toggle ${value ? 'on' : ''}`} onClick={() => !disabled && onChange(!value)} />
   )
 }
 
-/* ── Section Label ──────────────────────────────────────────────── */
-function SectionLabel({ children }) {
-  return <div className="acc2-section-label">{children}</div>
-}
-
-/* ── Setting Card ───────────────────────────────────────────────── */
-function SettingCard({ children }) {
-  return <div className="acc2-setting-card">{children}</div>
-}
-
-/* ── Setting Row ────────────────────────────────────────────────── */
-function SettingRow({ label, sub, right, last }) {
+function Group({ label, children }) {
   return (
-    <div className={`acc2-row ${last ? 'last' : ''}`}>
-      <div className="acc2-row-text">
-        <div className="acc2-row-label">{label}</div>
-        {sub && <div className="acc2-row-sub">{sub}</div>}
-      </div>
-      {right && <div className="acc2-row-right">{right}</div>}
+    <div className="ws-setting-group">
+      <div className="ws-setting-label">{label}</div>
+      {children}
     </div>
   )
 }
 
-/* ── Modal ──────────────────────────────────────────────────────── */
+function Row({ label, sub, value, right }) {
+  return (
+    <div className={`ws-setting-row ${value === undefined ? 'ws-setting-row-2' : ''}`}>
+      <div className="ws-setting-key">{label}{sub && <small>{sub}</small>}</div>
+      {value !== undefined && <div className="ws-setting-val">{value}</div>}
+      <div>{right}</div>
+    </div>
+  )
+}
+
 function Modal({ open, onClose, title, children }) {
   useEffect(() => {
     if (!open) return
@@ -51,24 +39,64 @@ function Modal({ open, onClose, title, children }) {
   }, [open, onClose])
   if (!open) return null
   return (
-    <div className="acc2-modal-overlay" onClick={onClose}>
-      <div className="acc2-modal" onClick={e => e.stopPropagation()}>
-        <div className="acc2-modal-header">
-          <div className="acc2-modal-title">{title}</div>
-          <button className="acc2-modal-close" onClick={onClose}>✕</button>
+    <div className="ws-modal-overlay" onClick={onClose}>
+      <div className="ws-modal" onClick={e => e.stopPropagation()}>
+        <div className="ws-modal-head">
+          <h3 className="ws-h3">{title}</h3>
+          <button className="ws-iconbtn" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
-        <div className="acc2-modal-body">{children}</div>
+        <div className="ws-modal-body">{children}</div>
       </div>
     </div>
   )
 }
 
-/* ── Password Modal ─────────────────────────────────────────────── */
+/* ── Name modal ─────────────────────────────────────────────────── */
+function NameModal({ open, onClose, token, initial, onSaved }) {
+  const [name, setName]       = useState(initial || '')
+  const [error, setError]     = useState('')
+  const [loading, setLoading] = useState(false)
+  useEffect(() => { if (open) { setName(initial || ''); setError('') } }, [open, initial])
+
+  const submit = async e => {
+    e.preventDefault()
+    setLoading(true); setError('')
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.detail || 'Could not update name'); return }
+      await onSaved()
+      onClose()
+    } catch { setError('Network error') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit Name">
+      <form className="ws-form" onSubmit={submit}>
+        <div className="ws-field">
+          <label>Display name</label>
+          <input className="ws-input" value={name} onChange={e => setName(e.target.value)} maxLength={80} autoFocus />
+        </div>
+        {error && <div className="ws-note ws-note-err">{error}</div>}
+        <div className="ws-row" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="ws-btn" onClick={onClose}>Cancel</button>
+          <button className="ws-btn ws-btn-primary" type="submit" disabled={loading}>{loading ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+/* ── Password modal ─────────────────────────────────────────────── */
 function PasswordModal({ open, onClose, token }) {
-  const [form, setForm]         = useState({ current: '', next: '', confirm: '' })
-  const [error, setError]       = useState('')
-  const [success, setSuccess]   = useState(false)
-  const [loading, setLoading]   = useState(false)
+  const [form, setForm]       = useState({ current: '', next: '', confirm: '' })
+  const [error, setError]     = useState('')
+  const [success, setSuccess] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -82,40 +110,29 @@ function PasswordModal({ open, onClose, token }) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ current_password: form.current, new_password: form.next }),
       })
-      if (res.ok) {
-        setSuccess(true)
-        setForm({ current: '', next: '', confirm: '' })
-      } else {
-        const data = await res.json()
-        setError(data.detail || 'Failed to change password')
-      }
-    } catch {
-      setError('Network error')
-    } finally {
-      setLoading(false)
-    }
+      if (res.ok) { setSuccess(true); setForm({ current: '', next: '', confirm: '' }) }
+      else { const data = await res.json(); setError(data.detail || 'Failed to change password') }
+    } catch { setError('Network error') }
+    finally { setLoading(false) }
   }
 
   return (
     <Modal open={open} onClose={onClose} title="Change Password">
-      <form className="acc2-form" onSubmit={handleSubmit}>
-        <input className="acc2-input" type="password" placeholder="Current password"
-          value={form.current} onChange={e => setForm(p => ({ ...p, current: e.target.value }))} required />
-        <input className="acc2-input" type="password" placeholder="New password (min. 8 chars)"
-          value={form.next} onChange={e => setForm(p => ({ ...p, next: e.target.value }))} required />
-        <input className="acc2-input" type="password" placeholder="Confirm new password"
-          value={form.confirm} onChange={e => setForm(p => ({ ...p, confirm: e.target.value }))} required />
-        {error   && <div className="acc2-msg acc2-msg-error">{error}</div>}
-        {success && <div className="acc2-msg acc2-msg-ok">Password updated successfully.</div>}
-        <button className="acc2-btn acc2-btn-primary" type="submit" disabled={loading}>
-          {loading ? <span className="auth-spinner" /> : 'Update Password'}
-        </button>
+      <form className="ws-form" onSubmit={handleSubmit}>
+        <input className="ws-input" type="password" placeholder="Current password" value={form.current} onChange={e => setForm(p => ({ ...p, current: e.target.value }))} required />
+        <input className="ws-input" type="password" placeholder="New password (min. 8 chars)" value={form.next} onChange={e => setForm(p => ({ ...p, next: e.target.value }))} required />
+        <input className="ws-input" type="password" placeholder="Confirm new password" value={form.confirm} onChange={e => setForm(p => ({ ...p, confirm: e.target.value }))} required />
+        {error   && <div className="ws-note ws-note-err">{error}</div>}
+        {success && <div className="ws-note ws-note-ok">Password updated successfully.</div>}
+        <button className="ws-btn ws-btn-primary" type="submit" disabled={loading}>{loading ? 'Updating…' : 'Update Password'}</button>
       </form>
     </Modal>
   )
 }
 
-/* ── Telegram Modal ─────────────────────────────────────────────── */
+/* ── Telegram modal ─────────────────────────────────────────────── */
+const TG_KEYS = [['notify_alerts', 'Price Alerts'], ['notify_orders', 'Orders'], ['notify_news', 'High Priority News']]
+
 function TelegramModal({ open, onClose, token, tgStatus, onConnected, onDisconnected }) {
   const [chatId, setChatId]     = useState('')
   const [settings, setSettings] = useState({ notify_news: true, notify_orders: true, notify_alerts: true })
@@ -124,29 +141,21 @@ function TelegramModal({ open, onClose, token, tgStatus, onConnected, onDisconne
 
   useEffect(() => {
     if (open && tgStatus?.connected) {
-      setSettings({
-        notify_news:   tgStatus.notify_news   ?? true,
-        notify_orders: tgStatus.notify_orders ?? true,
-        notify_alerts: tgStatus.notify_alerts ?? true,
-      })
+      setSettings({ notify_news: tgStatus.notify_news ?? true, notify_orders: tgStatus.notify_orders ?? true, notify_alerts: tgStatus.notify_alerts ?? true })
     }
   }, [open, tgStatus])
+
+  const post = async body => fetch(`${API_BASE}/api/telegram/connect`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body),
+  })
 
   const handleConnect = async e => {
     e.preventDefault(); setMsg(''); setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/telegram/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ chat_id: chatId, ...settings }),
-      })
+      const res = await post({ chat_id: chatId, ...settings })
       const data = await res.json()
-      if (res.ok) {
-        setMsg('✓ Telegram connected!')
-        onConnected({ chat_id: chatId, ...settings })
-      } else {
-        setMsg(`Error: ${data.detail || 'Connection failed'}`)
-      }
+      if (res.ok) { setMsg('✓ Telegram connected!'); onConnected({ chat_id: chatId, ...settings }) }
+      else setMsg(`Error: ${data.detail || 'Connection failed'}`)
     } catch { setMsg('Connection error') }
     finally { setLoading(false) }
   }
@@ -154,11 +163,7 @@ function TelegramModal({ open, onClose, token, tgStatus, onConnected, onDisconne
   const handleUpdate = async () => {
     setLoading(true); setMsg('')
     try {
-      const res = await fetch(`${API_BASE}/api/telegram/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ chat_id: tgStatus?.chat_id, ...settings }),
-      })
+      const res = await post({ chat_id: tgStatus?.chat_id, ...settings })
       if (res.ok) { setMsg('✓ Settings updated'); onConnected({ ...tgStatus, ...settings }) }
       else setMsg('Failed to update')
     } catch { setMsg('Network error') }
@@ -169,73 +174,58 @@ function TelegramModal({ open, onClose, token, tgStatus, onConnected, onDisconne
     setLoading(true)
     try {
       await fetch(`${API_BASE}/api/telegram/connect`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-      onDisconnected()
-      onClose()
-    } catch {} finally { setLoading(false) }
+      onDisconnected(); onClose()
+    } catch { /* keep the modal open so the user can retry */ }
+    finally { setLoading(false) }
   }
 
   const connected = tgStatus?.connected
+  const toggles = TG_KEYS.map(([key, label]) => (
+    <Row key={key} label={label} right={<Toggle value={settings[key]} onChange={v => setSettings(p => ({ ...p, [key]: v }))} />} />
+  ))
 
   return (
     <Modal open={open} onClose={onClose} title="Telegram Notifications">
       {connected ? (
-        <div className="acc2-form">
-          <div className="acc2-tg-status">
-            <span className="acc2-tg-dot" />
-            <span>Connected · {tgStatus.chat_id}</span>
-          </div>
-          <div className="acc2-setting-card" style={{ marginTop: 12 }}>
-            {[['notify_alerts', 'Price Alerts'], ['notify_orders', 'Orders'], ['notify_news', 'HIGH Priority News']].map(([key, label], i, arr) => (
-              <SettingRow key={key} label={label} last={i === arr.length - 1}
-                right={<Toggle value={settings[key]} onChange={v => setSettings(p => ({ ...p, [key]: v }))} />} />
-            ))}
-          </div>
-          {msg && <div className={`acc2-msg ${msg.startsWith('✓') ? 'acc2-msg-ok' : 'acc2-msg-error'}`}>{msg}</div>}
-          <div className="acc2-btn-row">
-            <button className="acc2-btn acc2-btn-primary" onClick={handleUpdate} disabled={loading}>
-              {loading ? <span className="auth-spinner" /> : 'Save Settings'}
-            </button>
-            <button className="acc2-btn acc2-btn-danger" onClick={handleDisconnect} disabled={loading}>
-              Disconnect
-            </button>
+        <div className="ws-form">
+          <div className="ws-note ws-note-ok">Connected · {tgStatus.chat_id}</div>
+          <div>{toggles}</div>
+          {msg && <div className={`ws-note ${msg.startsWith('✓') ? 'ws-note-ok' : 'ws-note-err'}`}>{msg}</div>}
+          <div className="ws-row">
+            <button className="ws-btn ws-btn-primary" onClick={handleUpdate} disabled={loading}>Save Settings</button>
+            <button className="ws-btn ws-btn-danger" onClick={handleDisconnect} disabled={loading}>Disconnect</button>
           </div>
         </div>
       ) : (
-        <form className="acc2-form" onSubmit={handleConnect}>
-          <div className="acc2-tg-hint">
-            1. Open Telegram and send <code>/start</code> to <b>@TradingToolsBot</b>.<br />
-            2. The bot will reply with your Chat ID — paste it below.
+        <form className="ws-form" onSubmit={handleConnect}>
+          <div className="ws-note">
+            <span>1. Open Telegram and send <code>/start</code> to <b>@TradingToolsBot</b>.<br />2. The bot replies with your Chat ID — paste it below.</span>
           </div>
-          <input className="acc2-input" type="text" placeholder="Chat ID (e.g. 123456789)"
-            value={chatId} onChange={e => setChatId(e.target.value)} required />
-          <div className="acc2-setting-card">
-            {[['notify_alerts', 'Price Alerts'], ['notify_orders', 'Orders'], ['notify_news', 'HIGH Priority News']].map(([key, label], i, arr) => (
-              <SettingRow key={key} label={label} last={i === arr.length - 1}
-                right={<Toggle value={settings[key]} onChange={v => setSettings(p => ({ ...p, [key]: v }))} />} />
-            ))}
-          </div>
-          {msg && <div className={`acc2-msg ${msg.startsWith('✓') ? 'acc2-msg-ok' : 'acc2-msg-error'}`}>{msg}</div>}
-          <button className="acc2-btn acc2-btn-primary" type="submit" disabled={loading}>
-            {loading ? <span className="auth-spinner" /> : 'Connect Telegram →'}
-          </button>
+          <input className="ws-input" type="text" placeholder="Chat ID (e.g. 123456789)" value={chatId} onChange={e => setChatId(e.target.value)} required />
+          <div>{toggles}</div>
+          {msg && <div className={`ws-note ${msg.startsWith('✓') ? 'ws-note-ok' : 'ws-note-err'}`}>{msg}</div>}
+          <button className="ws-btn ws-btn-primary" type="submit" disabled={loading}>{loading ? 'Connecting…' : 'Connect Telegram'}</button>
         </form>
       )}
     </Modal>
   )
 }
 
-/* ── Main ───────────────────────────────────────────────────────── */
+/* ── Page ───────────────────────────────────────────────────────── */
+const EMAIL_ROWS = [
+  { key: 'enabled',       label: 'System Alerts',      sub: 'Receive important system alerts via email.' },
+  { key: 'notify_alerts', label: 'Price Alerts',       sub: 'Get notified when your price alerts are triggered.' },
+  { key: 'notify_orders', label: 'Order Fills',        sub: 'Receive a message when an order is filled.' },
+  { key: 'notify_news',   label: 'High Priority News', sub: 'Get key market news as it breaks.' },
+]
+
 export default function AccountSettings() {
-  const { user, token, plan, logout } = useAuth()
-  const isPro = plan === 'pro'
+  const { user, token, logout, refreshUser } = useAuth()
 
-  const goUpgrade = () => window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'upgrade' } }))
+  const [nameOpen, setNameOpen] = useState(false)
+  const [pwOpen, setPwOpen]     = useState(false)
+  const [tgOpen, setTgOpen]     = useState(false)
 
-  // Modals
-  const [pwOpen, setPwOpen]   = useState(false)
-  const [tgOpen, setTgOpen]   = useState(false)
-
-  // Email settings
   const [emailSettings, setEmailSettings] = useState(null)
   const [emailSaving, setEmailSaving]     = useState(false)
 
@@ -247,16 +237,14 @@ export default function AccountSettings() {
       .catch(() => setEmailSettings({ enabled: false, notify_news: false, notify_orders: true, notify_alerts: true }))
   }, [token])
 
-  const saveEmailSettings = useCallback(async (patch) => {
+  const saveEmailSettings = useCallback(async patch => {
     const next = { ...emailSettings, ...patch }
     setEmailSettings(next)
     try {
       await fetch(`${API_BASE}/api/email/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(next),
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(next),
       })
-    } catch {}
+    } catch { /* optimistic update stays; next load resyncs */ }
   }, [emailSettings, token])
 
   const handleEmailDisable = async () => {
@@ -264,165 +252,76 @@ export default function AccountSettings() {
     try {
       await fetch(`${API_BASE}/api/email/settings`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
       setEmailSettings(p => ({ ...p, enabled: false }))
-    } catch {}
+    } catch { /* leave as is */ }
     finally { setEmailSaving(false) }
   }
 
-  // Telegram
   const [tgStatus, setTgStatus] = useState(null)
-
   useEffect(() => {
     if (!token) return
     fetch(`${API_BASE}/api/telegram/status`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(d => setTgStatus(d))
+      .then(r => r.json()).then(d => setTgStatus(d))
       .catch(() => setTgStatus({ connected: false }))
   }, [token])
 
-  const initial = user?.email?.charAt(0)?.toUpperCase() || '?'
-  const memberSince = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    : '—'
+  const displayName = user?.name || (user?.email ? user.email.split('@')[0] : '—')
 
   return (
-    <div className="acc2-page">
-      <h1 className="ct-account-title">Account Settings</h1>
-
-      {/* ── Hero header ────────────────────────────────────────────── */}
-      <div className="acc2-hero">
-        <div className="acc2-hero-left">
-          <div className="acc2-avatar-lg">{initial}</div>
-          <div>
-            <div className="acc2-hero-email">{user?.email}</div>
-            <div className="acc2-hero-meta">Member since {memberSince}</div>
-          </div>
-        </div>
-        <div className="acc2-hero-right">
-          <span className={`acc2-plan-badge-lg ${isPro ? 'pro' : 'free'}`}>
-            {isPro ? '✦ PRO' : 'FREE'}
-          </span>
-          {!isPro && (
-            <button className="acc2-btn acc2-btn-pro acc2-upgrade-btn" onClick={goUpgrade}>
-              Upgrade to Pro →
-            </button>
-          )}
-          {isPro && user?.plan_expires_at && (
-            <div className="acc2-hero-expiry">
-              Active until {new Date(user.plan_expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </div>
-          )}
-        </div>
+    <div className="ws-page acc-page">
+      <div className="ws-page-head">
+        <div className="ws-page-head-left"><h1 className="ws-title">Account Settings</h1></div>
       </div>
 
-      {/* ── 2-column grid ──────────────────────────────────────────── */}
-      <div className="acc2-grid">
+      <Group label="Account">
+        <Row label="Name" value={displayName}
+          right={<button className="ws-link" onClick={() => setNameOpen(true)}><Pencil size={15} /> Edit</button>} />
+        <Row label="Email" value={user?.email || '—'}
+          right={<span className="ws-link" style={{ opacity: 0.45, cursor: 'default' }} title="Email is your sign-in identity and cannot be changed here."><Pencil size={15} /> Edit</span>} />
+      </Group>
 
-        {/* Left column */}
-        <div className="acc2-col">
+      <Group label="Security">
+        <Row label="Password" value={<span style={{ letterSpacing: '0.12em' }}>••••••••</span>}
+          right={<button className="ws-btn" onClick={() => setPwOpen(true)}>Change Password</button>} />
+      </Group>
 
-          <SectionLabel>ACCOUNT</SectionLabel>
-          <SettingCard>
-            <SettingRow label="Email" sub={user?.email} />
-            <SettingRow label="Member since" sub={memberSince} last />
-          </SettingCard>
+      <Group label="Session">
+        <Row label="Sign out from this account" sub="Ends your current session on this device."
+          right={<button className="ws-btn ws-btn-danger" onClick={logout}>Sign Out</button>} />
+      </Group>
 
-          <SectionLabel>SECURITY</SectionLabel>
-          <SettingCard>
-            <SettingRow label="Password" sub="••••••••••••"
-              right={
-                <button className="acc2-btn acc2-btn-ghost" onClick={() => setPwOpen(true)}>
-                  Change →
-                </button>
-              }
-            />
-            <SettingRow label="Plan" sub={isPro ? 'Pro — all tools unlocked' : 'Free — 13 tools locked'} last
-              right={
-                <button className={`acc2-btn ${isPro ? 'acc2-btn-outline' : 'acc2-btn-pro'}`} onClick={goUpgrade}>
-                  {isPro ? 'Extend →' : 'Upgrade →'}
-                </button>
-              }
-            />
-          </SettingCard>
-
-          <SectionLabel>SESSION</SectionLabel>
-          <SettingCard>
-            <SettingRow label="Sign Out" sub="Log out of this device" last
-              right={
-                <button className="acc2-btn acc2-btn-danger" onClick={logout}>
-                  Sign Out
-                </button>
-              }
-            />
-          </SettingCard>
-
-        </div>
-
-        {/* Right column */}
-        <div className="acc2-col">
-
-          <SectionLabel>EMAIL NOTIFICATIONS</SectionLabel>
-          <SettingCard>
-            {emailSettings === null ? (
-              <SettingRow label="Loading…" last />
-            ) : (
-              <>
-                <SettingRow label="Email Alerts" sub={emailSettings.enabled ? 'Active · ' + user?.email : 'Disabled'}
-                  right={
-                    <Toggle
-                      value={!!emailSettings.enabled}
-                      onChange={v => { if (v) saveEmailSettings({ enabled: true }); else handleEmailDisable() }}
-                      disabled={emailSaving}
-                    />
-                  }
-                />
-                <SettingRow label="Price Alerts"
-                  right={<Toggle value={emailSettings.notify_alerts ?? true}
-                    onChange={v => saveEmailSettings({ notify_alerts: v })} />}
-                />
-                <SettingRow label="Order Fills"
-                  right={<Toggle value={emailSettings.notify_orders ?? true}
-                    onChange={v => saveEmailSettings({ notify_orders: v })} />}
-                />
-                <SettingRow label="HIGH Priority News" last
-                  right={<Toggle value={emailSettings.notify_news ?? false}
-                    onChange={v => saveEmailSettings({ notify_news: v })} />}
-                />
-              </>
-            )}
-          </SettingCard>
-
-          <SectionLabel>TELEGRAM NOTIFICATIONS</SectionLabel>
-          <SettingCard>
-            {tgStatus === null ? (
-              <SettingRow label="Loading…" last />
-            ) : (
-              <SettingRow
-                label="Telegram Bot"
-                sub={tgStatus.connected ? `● Connected · ${tgStatus.chat_id}` : 'Not connected'}
-                last
-                right={
-                  tgStatus.connected
-                    ? <button className="acc2-btn acc2-btn-ghost" onClick={() => setTgOpen(true)}>Settings →</button>
-                    : <button className="acc2-btn acc2-btn-outline" onClick={() => setTgOpen(true)}>Connect →</button>
-                }
+      <Group label="Email Notifications">
+        {emailSettings === null ? (
+          <Row label="Loading…" />
+        ) : EMAIL_ROWS.map(r => (
+          <Row key={r.key} label={r.label} sub={r.sub}
+            right={
+              <Toggle
+                value={r.key === 'enabled' ? !!emailSettings.enabled : (emailSettings[r.key] ?? true)}
+                disabled={emailSaving}
+                onChange={v => {
+                  if (r.key === 'enabled') { if (v) saveEmailSettings({ enabled: true }); else handleEmailDisable() }
+                  else saveEmailSettings({ [r.key]: v })
+                }}
               />
-            )}
-          </SettingCard>
+            } />
+        ))}
+      </Group>
 
-        </div>
-      </div>
+      <Group label="Telegram Notifications">
+        <Row label="Telegram Status"
+          sub={tgStatus === null ? 'Checking…' : tgStatus.connected ? `Connected · ${tgStatus.chat_id}` : 'Not connected'}
+          right={
+            <button className="ws-btn" onClick={() => setTgOpen(true)} disabled={tgStatus === null}>
+              {tgStatus?.connected ? 'Telegram Settings' : 'Connect Telegram'}
+            </button>
+          } />
+      </Group>
 
-      {/* Modals */}
+      <NameModal open={nameOpen} onClose={() => setNameOpen(false)} token={token} initial={user?.name || ''} onSaved={refreshUser} />
       <PasswordModal open={pwOpen} onClose={() => setPwOpen(false)} token={token} />
-      <TelegramModal
-        open={tgOpen}
-        onClose={() => setTgOpen(false)}
-        token={token}
-        tgStatus={tgStatus}
+      <TelegramModal open={tgOpen} onClose={() => setTgOpen(false)} token={token} tgStatus={tgStatus}
         onConnected={status => setTgStatus({ connected: true, ...status })}
-        onDisconnected={() => setTgStatus({ connected: false })}
-      />
-
+        onDisconnected={() => setTgStatus({ connected: false })} />
     </div>
   )
 }

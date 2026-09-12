@@ -240,6 +240,13 @@ async def update_user_plan(user_id: int, plan: str, expires_at: datetime | None 
     logger.info("user_plan_updated", user_id=user_id, plan=plan, expires_at=str(expires_at))
 
 
+async def update_user_name(user_id: int, name: str | None) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET name = $1 WHERE id = $2", name, user_id)
+    logger.info("user_name_updated", user_id=user_id)
+
+
 async def update_stripe_customer(user_id: int, customer_id: str) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:

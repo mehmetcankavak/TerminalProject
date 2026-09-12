@@ -1,345 +1,226 @@
-import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect } from 'react'
+import { Landmark, ArrowLeftRight, Flame, Percent, BarChart3, FileText, Globe, BarChart2, AlertTriangle, Clock } from 'lucide-react'
 import { API_BASE } from '../config'
 
 const COMPONENT_META = {
-  smart_money:   { label: 'Smart Money',    note: 'Whale fills, real positions' },
-  big_transfers: { label: 'Big Transfers',  note: 'CEX flow + mint/burn' },
-  liquidations:  { label: 'Liquidations',   note: 'Long flush → bullish (contra)' },
-  funding:       { label: 'Funding Rate',   note: 'Oversold → bullish (contra)' },
-  volume:        { label: 'Volume × Price', note: 'Active buy/sell pressure' },
-  etf:           { label: 'ETF Flow',       note: 'BTC + ETH ETF net direction' },
-  global:        { label: 'Global Macro',   note: 'F&G + market cap momentum' },
+  smart_money:   { label: 'Smart Money',    Icon: Landmark,       note: 'Whale fills and real positions' },
+  big_transfers: { label: 'Big Transfers',  Icon: ArrowLeftRight, note: 'Exchange flow, mint and burn' },
+  liquidations:  { label: 'Liquidations',   Icon: Flame,          note: 'Long flush reads bullish (contra)' },
+  funding:       { label: 'Funding Rate',   Icon: Percent,        note: 'Oversold reads bullish (contra)' },
+  volume:        { label: 'Volume × Price', Icon: BarChart3,      note: 'Active buy / sell pressure' },
+  etf:           { label: 'ETF Flow',       Icon: FileText,       note: 'BTC + ETH ETF net direction' },
+  global:        { label: 'Global Macro',   Icon: Globe,          note: 'Fear & Greed and market cap momentum' },
 }
-
 const ORDER = ['smart_money', 'big_transfers', 'liquidations', 'funding', 'volume', 'etf', 'global']
 
-function toneColor(verdict) {
-  if (verdict === 'BULLISH') return '#00e87a'
-  if (verdict === 'BEARISH') return '#f43f5e'
-  return '#fbbf24'
+const to100 = s => Math.round(Math.max(0, Math.min(100, ((s || 0) + 1) * 50)))
+const verdictClass = v => v === 'BULLISH' ? 'ws-pos' : v === 'BEARISH' ? 'ws-neg' : 'ws-text'
+const verdictLabel = v => v === 'BULLISH' ? 'Bullish' : v === 'BEARISH' ? 'Bearish' : 'Neutral'
+const barClass = v => v === 'BULLISH' ? '' : v === 'BEARISH' ? 'neg' : 'neutral'
+const cap = s => s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—'
+
+function scale(score, low, mid, high) {
+  const a = Math.abs(score || 0)
+  return a < 0.2 ? low : a < 0.5 ? mid : high
 }
 
-function advisorTone(tone) {
-  if (tone === 'bullish')         return '#00e87a'
-  if (tone === 'bearish')         return '#f43f5e'
-  if (tone === 'contrarian_bull') return '#22d3ee'
-  if (tone === 'contrarian_bear') return '#f59e0b'
-  return '#aaa'
-}
-
-/* ── Master Gauge ───────────────────────────────────────────────────── */
+/* ── Master gauge ─────────────────────────────────────────────────── */
 function MasterGauge({ data }) {
-  if (!data) return null
-  const score = data.score || 0
-  const tone  = toneColor(data.verdict)
-  const pct   = Math.max(0, Math.min(100, (score + 1) * 50))
-
-  const confColor =
-    data.confidence_label === 'HIGH'   ? '#00e87a' :
-    data.confidence_label === 'MEDIUM' ? '#fbbf24' : '#f43f5e'
-
+  const score = to100(data.score)
+  const consensus = data.verdict === 'NEUTRAL' || data.confidence_label === 'LOW' ? 'Neutral' : verdictLabel(data.verdict)
   return (
-    <div className="mco-master-gauge">
-      <div className="mco-master-hdr">
-        <span className="mco-section-label">MASTER COMPASS · ALL SIGNALS</span>
-        <div className="mco-master-score">
-          <span className="mco-score-num" style={{ color: workspaceTextColor(tone) }}>
-            {score >= 0 ? '+' : ''}{score.toFixed(2)}
-          </span>
-          <span className="mco-verdict-lbl" style={{ color: workspaceTextColor(tone) }}>{data.verdict}</span>
+    <div className="ws-card mc-master">
+      <div className="mc-gauge">
+        <div className="mc-gauge-labels">
+          <div><div className="mc-gauge-tag ws-neg">BEARISH</div><div className="mc-gauge-range ws-neg">0 – 33</div></div>
+          <div className="ws-center"><div className="mc-gauge-tag ws-muted">NEUTRAL</div><div className="mc-gauge-range ws-muted">34 – 66</div></div>
+          <div className="ws-right"><div className="mc-gauge-tag ws-pos">BULLISH</div><div className="mc-gauge-range ws-pos">67 – 100</div></div>
+        </div>
+        <div className="mc-gauge-track">
+          <span className="mc-seg mc-seg-bear" /><span className="mc-seg mc-seg-neutral" /><span className="mc-seg mc-seg-bull" />
+          <i className="mc-gauge-marker" style={{ left: `${score}%` }} />
+        </div>
+        <div className="mc-gauge-score" style={{ left: `${score}%` }}>
+          <div className="mc-gauge-score-num">{score}</div>
+          <div className="mc-gauge-score-lbl">COMPASS SCORE</div>
         </div>
       </div>
-
-      {/* Large gauge */}
-      <div className="mco-gauge-track mco-gauge-lg">
-        <div className="mco-gauge-bg" />
-        <div className="mco-gauge-mid" />
-        <div className="mco-gauge-dot mco-gauge-dot-lg"
-          style={{ left: pct + '%', background: tone, boxShadow: `0 0 18px ${tone}cc` }}
-        />
-      </div>
-      <div className="mco-gauge-axis">
-        <span>BEARISH</span><span>NEUTRAL</span><span>BULLISH</span>
-      </div>
-
-      {/* Confidence row */}
-      <div className="mco-conf-row">
-        <div className="mco-conf-cell">
-          <div className="mco-conf-label">CONSENSUS</div>
-          <div className="mco-conf-val" style={{ color: workspaceTextColor(confColor) }}>
-            {data.confidence_label}
-          </div>
+      <div className="mc-conf">
+        <div className="mc-conf-cell">
+          <div className="mc-conf-label">CONSENSUS</div>
+          <div className="mc-conf-val">{consensus}</div>
         </div>
-        <div className="mco-conf-divider" />
-        <div className="mco-conf-cell">
-          <div className="mco-conf-label">AGREE / DIVERGE</div>
-          <div className="mco-conf-val">
-            <span style={{ color: "var(--ct-positive, #00e87a)" }}>{data.agree_count}</span>
-            <span style={{ color: "var(--ct-subtle, #444)" }}> / </span>
-            <span style={{ color: "var(--ct-negative, #f43f5e)" }}>{data.diverge_count}</span>
-            <span style={{ color: "var(--ct-subtle, #444)", fontSize: 11, marginLeft: 3 }}>/ {data.total_components}</span>
-          </div>
+        <div className="mc-conf-cell">
+          <div className="mc-conf-label">AGREE / DIVERGE</div>
+          <div className="mc-conf-val"><span className="ws-pos">{data.agree_count}</span> <span className="ws-subtle">/</span> <span className="ws-neg">{data.diverge_count}</span></div>
         </div>
-        <div className="mco-conf-divider" />
-        <div className="mco-conf-cell">
-          <div className="mco-conf-label">CONFIDENCE</div>
-          <div className="mco-conf-val">{(data.confidence * 100).toFixed(0)}%</div>
+        <div className="mc-conf-cell">
+          <div className="mc-conf-label">CONFIDENCE</div>
+          <div className="mc-conf-val">{Math.round((data.confidence || 0) * 100)}%</div>
         </div>
       </div>
     </div>
   )
 }
 
-/* ── Component Row ──────────────────────────────────────────────────── */
-function ComponentRow({ id, comp, weight }) {
-  const meta      = COMPONENT_META[id]
-  const score     = comp.score || 0
-  const tone      = toneColor(comp.verdict)
-  const pct       = Math.max(0, Math.min(100, (score + 1) * 50))
-  const available = comp.available !== false
-
+/* ── Component table ──────────────────────────────────────────────── */
+function ComponentTable({ data }) {
   return (
-    <div className={`mco-comp-row ${available ? '' : 'mco-comp-row-unavail'}`}>
-      <div className="mco-comp-top">
-        <div>
-          <div className="mco-comp-name">
-            {meta?.label || id}
-            <span className="mco-comp-weight">×{(weight * 100).toFixed(0)}%</span>
-          </div>
-          <div className="mco-comp-note">{meta?.note}</div>
-        </div>
-        <div className="mco-comp-right">
-          <div className="mco-comp-score" style={{ color: workspaceTextColor(tone) }}>
-            {available ? (score >= 0 ? '+' : '') + score.toFixed(2) : '—'}
-          </div>
-          <div className="mco-comp-verdict" style={{ color: workspaceTextColor(tone) }}>
-            {available ? comp.verdict : 'NO DATA'}
-          </div>
-        </div>
-      </div>
-
-      {/* Mini gauge */}
-      <div className="mco-gauge-track mco-gauge-sm">
-        <div className="mco-gauge-bg" />
-        <div className="mco-gauge-mid" />
-        {available && (
-          <div className="mco-gauge-dot mco-gauge-dot-sm"
-            style={{ left: pct + '%', background: tone, boxShadow: `0 0 6px ${tone}aa` }}
-          />
-        )}
+    <div className="ws-card">
+      <div className="ws-card-head"><h3 className="ws-h4"><BarChart2 size={16} /> Component Analysis</h3></div>
+      <div className="ws-table-wrap">
+        <table className="ws-table ws-table-tall">
+          <thead>
+            <tr>
+              <th className="ws-th-caps">Component</th>
+              <th className="ws-th-caps">Signal</th>
+              <th className="ws-th-caps">Score (0–100)</th>
+              <th className="ws-th-caps" style={{ width: '28%' }} />
+              <th className="ws-th-caps">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ORDER.map(id => {
+              const comp = data.components?.[id]
+              if (!comp) return null
+              const meta = COMPONENT_META[id]
+              const available = comp.available !== false
+              const s = to100(comp.score)
+              return (
+                <tr key={id}>
+                  <td className="ws-ink">
+                    <span className="ws-row"><meta.Icon size={17} strokeWidth={1.6} className="ws-muted" />{meta.label}</span>
+                  </td>
+                  <td className={`ws-bold ${available ? verdictClass(comp.verdict) : 'ws-subtle'}`}>{available ? verdictLabel(comp.verdict) : 'No data'}</td>
+                  <td className="ws-ink ws-num">{available ? s : '—'}</td>
+                  <td><div className="ws-bar ws-bar-lg"><div className={`ws-bar-fill ${barClass(comp.verdict)}`} style={{ width: `${available ? s : 0}%` }} /></div></td>
+                  <td className="ws-muted" style={{ whiteSpace: 'normal' }}>{comp.note || meta.note}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )
 }
 
-/* ── Watch Item ─────────────────────────────────────────────────────── */
-function WatchItem({ w }) {
-  const [open, setOpen] = useState(false)
-  const tone = advisorTone(w.tone)
+/* ── Market setup + caution ───────────────────────────────────────── */
+function SetupAndCaution({ data }) {
+  const s = data.advisor?.setup || {}
+  const c = data.components || {}
+  const trend = s.trend || (data.verdict === 'BULLISH' ? 'Uptrend' : data.verdict === 'BEARISH' ? 'Downtrend' : 'Sideways')
+  const regime = s.regime || (data.verdict === 'NEUTRAL' ? 'Range' : 'Trend')
+  const volatility = s.volatility || scale(c.liquidations?.score, 'Low', 'Moderate', 'High')
+  const liquidity = s.liquidity || scale(c.volume?.score, 'Thin', 'Normal', 'Deep')
+  const risk = s.risk_appetite || (data.verdict === 'BULLISH' ? 'Risk-on' : data.verdict === 'BEARISH' ? 'Risk-off' : 'Neutral')
+  const rows = [['Primary Trend', trend], ['Market Regime', cap(regime)], ['Volatility', cap(volatility)], ['Liquidity', cap(liquidity)], ['Risk Appetite', cap(risk)]]
+
+  const risks = (data.advisor?.risks || []).map(r => r.message || r.title).filter(Boolean)
+  const cautions = risks.length ? risks : [
+    s.message || 'Signals are mixed, with no strong consensus.',
+    'Watch for a clear break above or below the current range.',
+    'Monitor ETF flows and macro data for confirmation.',
+  ]
 
   return (
-    <div className="mco-watch-item">
-      <button className="mco-watch-btn" onClick={() => setOpen(v => !v)}>
-        <span className="mco-watch-chevron" style={{ color: workspaceTextColor(tone) }}>{open ? '▾' : '▸'}</span>
-        <div className="mco-watch-info">
-          <div className="mco-watch-title" style={{ color: workspaceTextColor(tone) }}>{w.title}</div>
-          <div className="mco-watch-hook">{w.hook}</div>
-        </div>
-        <div className="mco-watch-progress-bar">
-          <div className="mco-watch-progress-fill" style={{ width: `${w.progress * 100}%`, background: tone }} />
-        </div>
-      </button>
-      {open && (
-        <div className="mco-watch-conditions">
-          {w.conditions.map((c, i) => (
-            <div key={i} className="mco-condition-row">
-              <span className={`mco-condition-check ${c.met ? 'met' : ''}`}>{c.met ? '✓' : '○'}</span>
-              <span className={`mco-condition-label ${c.met ? 'met' : ''}`}>{c.label}</span>
-              <span className="mco-condition-val">
-                {c.current.toFixed(2)} {c.op === 'gt' ? '→' : '←'} {c.threshold}
-              </span>
-            </div>
+    <div className="ws-grid ws-grid-2 mc-setup-grid">
+      <div className="ws-card">
+        <div className="ws-card-head"><h3 className="ws-h4"><BarChart3 size={16} /> Market Setup</h3></div>
+        <div className="ws-card-body" style={{ paddingTop: 6, paddingBottom: 6 }}>
+          {rows.map(([k, v]) => (
+            <div key={k} className="mc-setup-row"><span className="ws-text">{k}</span><span className="ws-ink">{v}</span></div>
           ))}
         </div>
-      )}
-    </div>
-  )
-}
-
-function WatchList({ watch }) {
-  if (!watch?.length) return null
-  return (
-    <div className="mco-watchlist">
-      <div className="mco-section-label mco-watchlist-label">WATCHING</div>
-      {watch.map(w => <WatchItem key={w.key} w={w} />)}
-    </div>
-  )
-}
-
-/* ── Advisor Card ───────────────────────────────────────────────────── */
-function AdvisorCard({ advisor }) {
-  const [showReasons, setShowReasons] = useState(false)
-  if (!advisor?.setup) return null
-  const s     = advisor.setup
-  const risks = advisor.risks || []
-  const tone  = advisorTone(s.tone)
-
-  return (
-    <div className="mco-advisor">
-      {/* Setup card */}
-      <div className="mco-setup-card" style={{
-        background: `linear-gradient(180deg, ${tone}14 0%, rgba(255,255,255,0.02) 100%)`,
-        borderColor: tone + '33',
-      }}>
-        <div className="mco-setup-hdr">
-          <span className="mco-setup-badge" style={{ color: workspaceTextColor(tone) }}>MARKET SETUP</span>
-          <span className="mco-setup-key">{s.key}</span>
-        </div>
-        <div className="mco-setup-title" style={{ color: workspaceTextColor(tone) }}>{s.title}</div>
-        <div className="mco-setup-msg">{s.message}</div>
-
-        {s.reasons?.length > 0 && (
-          <>
-            <button className="mco-reasons-btn" onClick={() => setShowReasons(v => !v)}>
-              {showReasons ? '▾' : '▸'} WHY
-            </button>
-            {showReasons && (
-              <ul className="mco-reasons-list">
-                {s.reasons.map((r, i) => <li key={i}>{r}</li>)}
-              </ul>
-            )}
-          </>
-        )}
       </div>
-
-      {/* Risk warnings */}
-      {risks.length > 0 && (
-        <div className="mco-risks">
-          <div className="mco-risks-label">CAUTION</div>
-          {risks.map(r => (
-            <div key={r.key} className="mco-risk-card">
-              <div className="mco-risk-title">{r.title}</div>
-              <div className="mco-risk-msg">{r.message}</div>
-            </div>
-          ))}
+      <div className="ws-card">
+        <div className="ws-card-head"><h3 className="ws-h4"><AlertTriangle size={16} /> Caution</h3></div>
+        <div className="ws-card-body">
+          <ul className="mc-caution">
+            {cautions.map((m, i) => <li key={i}>{m}</li>)}
+          </ul>
         </div>
-      )}
-
-      <WatchList watch={advisor.watch || []} />
+      </div>
     </div>
   )
 }
 
-/* ── Backtest Section ───────────────────────────────────────────────── */
-function BacktestSection() {
-  const [data,    setData]    = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState(null)
-  const [opened,  setOpened]  = useState(false)
+/* ── Historical performance ───────────────────────────────────────── */
+const TITLE_MAP = { EARLY_ACCUMULATION: 'Early Accumulation', DISTRIBUTION_TOP: 'Distribution Top', CAPITULATION_BOTTOM: 'Capitulation Bottom', TREND_CONTINUATION: 'Trend Continuation' }
+const H_ORDER = ['1h', '6h', '24h', '7d']
 
-  const load = async () => {
-    setLoading(true); setError(null)
-    try {
-      const r = await fetch(`${API_BASE}/api/sentiment/backtest`)
-      const j = await r.json()
-      setData(j)
-    } catch (e) { setError(String(e?.message || e)) }
-    finally { setLoading(false) }
-  }
+function Backtest() {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
 
-  const toggle = () => {
-    if (!opened && !data) load()
-    setOpened(v => !v)
-  }
+  useEffect(() => {
+    let alive = true
+    fetch(`${API_BASE}/api/sentiment/backtest`)
+      .then(r => r.json())
+      .then(j => { if (alive) setData(j) })
+      .catch(e => { if (alive) setError(String(e?.message || e)) })
+    return () => { alive = false }
+  }, [])
 
-  const TITLE_MAP = {
-    EARLY_ACCUMULATION:  'Early Accumulation',
-    DISTRIBUTION_TOP:    'Distribution Top',
-    CAPITULATION_BOTTOM: 'Capitulation Bottom',
-    TREND_CONTINUATION:  'Trend Continuation',
-  }
-  const H_ORDER = ['1h', '6h', '24h', '7d']
+  const setups = data?.available ? Object.entries(data.results_by_setup || {}) : []
 
   return (
-    <div className="mco-backtest-section">
-      <button className="mco-backtest-toggle" onClick={toggle}>
-        <span className="mco-backtest-chevron">{opened ? '▾' : '▸'}</span>
-        <span className="mco-backtest-title">HISTORICAL PERFORMANCE</span>
-        <span className="mco-backtest-sub">BTC · setup → return</span>
-      </button>
-
-      {opened && (
-        <div className="mco-backtest-body">
-          {loading && <div className="mco-bt-loading">Calculating…</div>}
-          {error && <div className="mco-bt-error">Error: {error}</div>}
-          {data && !loading && !error && (
-            !data.available
-              ? (
-                <div className="mco-bt-empty">
-                  <div className="mco-bt-empty-msg">{data.message || 'Not enough data yet.'}</div>
-                  <div className="mco-bt-empty-sub">Results will appear as compass_history fills.</div>
-                </div>
-              )
-              : (
-                <>
-                  <div className="mco-bt-stats">{data.processed} triggers · {data.skipped} skipped</div>
-                  {Object.entries(data.results_by_setup || {}).map(([key, horizons]) => (
-                    <div key={key} className="mco-bt-card">
-                      <div className="mco-bt-card-hdr">
-                        <span className="mco-bt-card-name">{TITLE_MAP[key] || key}</span>
-                        <span className="mco-bt-card-key">{key}</span>
-                      </div>
-                      <div className="mco-bt-horizons">
-                        {H_ORDER.map(h => {
-                          const s    = horizons[h] || {}
-                          const ret  = s.avg_return_pct
-                          const win  = s.win_rate_pct
-                          const tone = ret == null ? '#555' : ret >= 0 ? '#00e87a' : '#f43f5e'
-                          return (
-                            <div key={h} className={`mco-bt-cell ${s.insufficient_samples ? 'weak' : ''}`}>
-                              <div className="mco-bt-cell-h">{h.toUpperCase()}</div>
-                              {!s.samples
-                                ? <div className="mco-bt-cell-empty">—</div>
-                                : <>
-                                  <div className="mco-bt-cell-ret" style={{ color: workspaceTextColor(tone) }}>
-                                    {ret >= 0 ? '+' : ''}{ret?.toFixed(2)}%
-                                  </div>
-                                  <div className="mco-bt-cell-win">
-                                    {win?.toFixed(0)}% · n={s.samples}
-                                  </div>
-                                </>
-                              }
-                            </div>
-                          )
-                        })}
-                      </div>
-                      {H_ORDER.some(h => horizons[h]?.insufficient_samples) && (
-                        <div className="mco-bt-card-note">Faded cells: &lt; 10 samples, not yet statistically reliable.</div>
-                      )}
-                    </div>
-                  ))}
-                </>
-              )
-          )}
+    <div className="ws-card">
+      <div className="ws-card-head">
+        <h3 className="ws-h4"><Clock size={16} /> Historical Performance</h3>
+        {data?.available && <span className="ws-meta">{data.processed} triggers · {data.skipped} skipped</span>}
+      </div>
+      {error ? (
+        <div className="ws-empty"><div className="ws-empty-title">Error: {error}</div></div>
+      ) : !data ? (
+        <div className="ws-loading"><span className="ws-spinner" /> Calculating…</div>
+      ) : !data.available ? (
+        <div className="ws-empty">
+          <div className="ws-empty-icon"><BarChart2 size={24} strokeWidth={1.5} /></div>
+          <div className="ws-empty-title">{data.message || 'Not enough samples'}</div>
+          <div className="ws-empty-sub">More historical data is needed to display performance statistics.</div>
+        </div>
+      ) : (
+        <div className="ws-table-wrap">
+          <table className="ws-table">
+            <thead><tr><th>Setup</th>{H_ORDER.map(h => <th key={h} className="ws-right">{h.toUpperCase()}</th>)}</tr></thead>
+            <tbody>
+              {setups.map(([key, horizons]) => (
+                <tr key={key}>
+                  <td className="ws-ink">{TITLE_MAP[key] || cap(key)}</td>
+                  {H_ORDER.map(h => {
+                    const st = horizons[h] || {}
+                    if (!st.samples) return <td key={h} className="ws-right ws-subtle">—</td>
+                    const ret = st.avg_return_pct
+                    return (
+                      <td key={h} className={`ws-right ${st.insufficient_samples ? 'ws-subtle' : ''}`}>
+                        <span className={ret >= 0 ? 'ws-pos' : 'ws-neg'}>{ret >= 0 ? '+' : ''}{ret?.toFixed(2)}%</span>
+                        <span className="ws-muted ws-xs"> · {st.win_rate_pct?.toFixed(0)}% · n={st.samples}</span>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   )
 }
 
-/* ── Main ───────────────────────────────────────────────────────────── */
+/* ── Page ─────────────────────────────────────────────────────────── */
 export default function MarketCompass() {
-  const [data,    setData]    = useState(null)
+  const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
+  const [error, setError]     = useState(null)
 
   useEffect(() => {
     let alive = true
     async function load() {
       try {
         const r = await fetch(`${API_BASE}/api/sentiment/compass`)
-        if (!r.ok) { setError('HTTP ' + r.status); setLoading(false); return }
+        if (!r.ok) { if (alive) { setError('HTTP ' + r.status); setLoading(false) } return }
         const d = await r.json()
         if (!alive) return
         setData(d)
@@ -356,46 +237,26 @@ export default function MarketCompass() {
   }, [])
 
   return (
-    <div className="mco-page">
-
-      {/* Header */}
-      <div className="mco-page-header">
-        <div>
-          <div className="mco-page-title">Market Compass</div>
-          <div className="mco-page-subtitle">
-            <span className="mco-live-dot" />
-            Composite direction from 7 underlying signals · 30s refresh
-          </div>
+    <div className="ws-page">
+      <div className="ws-page-head">
+        <div className="ws-page-head-left">
+          <h1 className="ws-title">Market Compass</h1>
+          <p className="ws-subtitle ws-caps">Master Compass · All Signals</p>
         </div>
+        <div className="ws-page-head-right"><span className="ws-meta">7 signals · 30s refresh</span></div>
       </div>
 
-      {/* Body */}
       {loading ? (
-        <div className="mco-loading">
-          <div className="ldash-spinner" />
-          <span>Blending all signals…</span>
-        </div>
+        <div className="ws-loading"><span className="ws-spinner" /> Blending all signals…</div>
       ) : error ? (
-        <div className="mco-error">Error: {error}</div>
+        <div className="ws-note ws-note-err">Could not load the compass: {error}</div>
       ) : (
-        <>
+        <div className="ws-stack">
           <MasterGauge data={data} />
-
-          <div className="mco-components">
-            <div className="mco-components-hdr">
-              <span className="mco-section-label">COMPONENT ANALYSIS</span>
-            </div>
-            {ORDER.map(id => {
-              const comp   = data.components?.[id]
-              const weight = data.weights?.[id] || 0
-              if (!comp) return null
-              return <ComponentRow key={id} id={id} comp={comp} weight={weight} />
-            })}
-          </div>
-
-          <AdvisorCard advisor={data.advisor} />
-          <BacktestSection />
-        </>
+          <ComponentTable data={data} />
+          <SetupAndCaution data={data} />
+          <Backtest />
+        </div>
       )}
     </div>
   )

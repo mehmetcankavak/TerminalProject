@@ -76,6 +76,16 @@ export function AuthProvider({ children }) {
     init()
   }, [fetchMe])
 
+  const refreshUser = useCallback(async () => {
+    const userData = await fetchMe(token)
+    if (userData) {
+      setUser(userData)
+      setPlan(userData.plan || 'free')
+      setIsAdmin(userData.is_admin || false)
+    }
+    return userData
+  }, [fetchMe, token])
+
   const login = useCallback(async (email, password) => {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
@@ -152,7 +162,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, token, plan, isAdmin, isLoading, login, register, googleLogin, logout }}>
+    <AuthContext.Provider value={{ user, token, plan, isAdmin, isLoading, login, register, googleLogin, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

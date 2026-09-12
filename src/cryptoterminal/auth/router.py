@@ -144,6 +144,21 @@ async def me(user_id: int = Depends(get_current_user_id)) -> UserOut:
     return user
 
 
+@router.patch("/me", response_model=UserOut)
+async def update_me(body: dict, user_id: int = Depends(get_current_user_id)) -> UserOut:
+    """Update editable profile fields. Only the display name for now."""
+    if "name" not in body:
+        raise HTTPException(status_code=400, detail="name is required")
+    name = (body.get("name") or "").strip()
+    if len(name) > 80:
+        raise HTTPException(status_code=400, detail="Name must be 80 characters or fewer")
+    await service.update_user_name(user_id, name or None)
+    user = await service.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
 @router.post("/refresh", response_model=Token)
 async def refresh(
     response: Response,
