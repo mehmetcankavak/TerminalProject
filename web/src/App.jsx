@@ -43,6 +43,8 @@ import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import OnboardingModal from './components/OnboardingModal'
+import './workspace.css'
+import './workspace-layouts.css'
 
 // Pro-only pages
 const PRO_PAGES = new Set([
@@ -258,7 +260,7 @@ function TerminalApp() {
   const isTerminal  = activePage === 'terminal'
 
   return (
-    <div className="app-layout">
+    <div className="app-layout ct-workspace" data-page={activePage}>
       {/* Desktop sidebar (hidden on mobile via CSS) */}
       <Sidebar activePage={activePage} onPageChange={handlePageChange} proPages={PRO_PAGES} />
 
@@ -278,6 +280,7 @@ function TerminalApp() {
           <UpgradedBanner onDismiss={() => setShowUpgradedBanner(false)} />
         )}
         <ScrollTicker />
+        {isTerminal && <div className="ct-terminal-mobile-nav"><MobileMenuBtn onClick={() => setMobileMenuOpen(true)} /><span>Terminal</span></div>}
         {!isTerminal && (
           <div className="header">
             <MobileMenuBtn onClick={() => setMobileMenuOpen(true)} />

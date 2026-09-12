@@ -1,0 +1,253 @@
+/* Page compositions use existing live modules; the public site and native app are separate. */
+.ct-smart-feed { display: none; }
+.ct-workspace .header { min-height: 46px; padding: 8px 24px; }
+.ct-workspace .header-title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.ct-workspace .header-title h1 { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.ct-workspace .header-title span { font-size: 10px; }
+.ct-workspace .header-actions .status-badge { font-size: 10px; padding: 4px 8px; }
+.ct-workspace .sb-sidebar { width: 224px; flex: 0 0 224px; }
+.ct-workspace .sb-item { min-height: 36px; font-size: 12px; }
+.ct-workspace .sb-logo-name { font-size: 19px; }
+.ct-workspace .sb-group-label { padding-top: 20px; }
+.ct-workspace :is(.pfx-page, .cmcx-page, .stx2-page, .etx-page, .gm-page, .mco-page, .lsr2-page, .liq-page, .sa2-page, .alm-page, .ca2-page, .vmx-page, .unlock-page, .ecal-page, .acc2-page, .upgrade-page) {
+  width: 100%; max-width: none; min-width: 0; box-sizing: border-box; margin: 0; padding: 22px 24px 32px;
+}
+.ct-workspace :is(.pfx-page-title, .cmcx-page-title, .stx2-page-title, .etx-page-title, .gm-page-title, .mco-page-title, .lsr2-page-title, .liq-page-title, .sa2-title, .alm-title, .ca2-title, .vmx-page-title, .unlock-title, .ecal-title, .ct-account-title, .up-v2-title) {
+  font-family: var(--font-sans); font-size: 28px; font-weight: 650; line-height: 1.25; margin: 0; color: var(--text-0); text-transform: none;
+}
+.ct-workspace :is(.pfx-page-header, .cmcx-page-header, .stx2-page-header, .etx-page-header, .gm-page-header, .mco-page-header, .lsr2-page-header, .liq-page-header, .vmx-page-header, .unlock-header) {
+  padding: 0 0 20px; margin: 0; min-width: 0; gap: 16px; flex-wrap: wrap;
+}
+.ct-workspace :is(.pfx-page-subtitle, .cmcx-page-subtitle, .etx-page-subtitle, .gm-page-subtitle, .mco-page-subtitle, .lsr2-page-subtitle, .liq-page-subtitle, .vmx-page-subtitle) { margin-top: 7px; font-size: 12px; }
+.ct-workspace :is(.cmcx-table, .stx2-table, .pfx-table, .unlock-table) { width: 100%; }
+.ct-workspace :is(.cmcx-table, .stx2-table, .pfx-table, .unlock-table) th { height: 42px; background: #f4f6f7; }
+.ct-workspace :is(.cmcx-table, .stx2-table, .pfx-table, .unlock-table) td { height: 54px; padding-top: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-0); font-size: 12px; }
+.ct-workspace :is(.cmcx-table-wrap, .stx2-table-wrap, .pfx-table-wrap, .unlock-table-wrap) { border: 0; border-radius: 0; min-width: 0; overflow-x: auto; }
+.ct-workspace :is(.cmcx-toolbar, .cmcx-categories, .lsr2-toolbar-right, .vmx-toolbar-right) { gap: 8px; flex-wrap: wrap; }
+.ct-workspace :is(.cmcx-cat-btn, .lsr2-period-btn, .vmx-limit-btn, .pfx-range-tab).active { color: #17200d; background: #d5ff5f; border-color: #d5ff5f; }
+
+/* Dashboard: welcome shortcuts, market tiles, then the original paired tools. */
+.ct-workspace .dashboard-content { padding: 12px 16px 24px !important; }
+.ct-workspace .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ct-workspace .welcome-card { padding: 16px 0 20px; margin-bottom: 14px; }
+.ct-workspace .welcome-tips { margin-top: 20px; }
+.ct-workspace .welcome-tip { display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 10px; align-content: center; text-align: left; }
+.ct-workspace .welcome-tip-icon { grid-row: span 2; align-self: center; }
+.ct-workspace .welcome-tip-desc { font-size: 10px; line-height: 1.45; }
+.ct-workspace .ds-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; border: 0; padding: 0; margin-bottom: 16px; overflow: visible; height: auto; flex-shrink: 0; }
+.ct-workspace .ds-strip-coin { min-width: 0; width: auto; display: grid; grid-template-columns: 28px 1fr auto; gap: 4px 8px; padding: 12px; border: 1px solid var(--border-0); border-radius: 4px; }
+.ct-workspace .ds-strip-coin > :is(img, svg) { grid-row: span 2; align-self: center; width: 26px; height: 26px; }
+.ct-workspace .ds-strip-sym { grid-column: 2; }
+.ct-workspace .ds-strip-price { grid-column: 2; font-size: 17px; font-weight: 600; }
+.ct-workspace .ds-strip-chg { grid-column: 3; grid-row: 2; align-self: center; font-size: 11px; }
+.ct-workspace .ds-strip-sep { display: none; }
+.ct-workspace .ds-strip-stat { padding: 8px 12px; border-right: 1px solid var(--border-0); }
+.ct-workspace .ds-watch { border: 0; }
+.ct-workspace .ds-watch-hdr { padding: 10px 0; gap: 12px; flex-wrap: wrap; }
+.ct-workspace .ct-watch-tools { display: flex; align-items: center; gap: 8px; }
+.ct-workspace .ds-watch-add-btn { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; }
+.ct-workspace .ct-watch-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border-1); border-radius: 4px; padding: 0 10px; height: 30px; color: var(--text-2); }
+.ct-workspace .ct-watch-search input { width: 160px; min-width: 0; border: 0; background: transparent; font-size: 11px; }
+.ct-workspace :is(.ct-watch-columns, .ds-watch-row) { display: grid; grid-template-columns: minmax(0, 1fr) 130px 110px 28px; gap: 12px; align-items: center; padding: 8px 12px; }
+.ct-workspace .ct-watch-columns { background: #f4f6f7; font-size: 11px; color: var(--text-2); }
+.ct-workspace .ct-watch-columns > :nth-child(2), .ct-workspace .ct-watch-columns > :nth-child(3) { text-align: right; }
+.ct-workspace .ds-watch-row-right { display: contents; }
+.ct-workspace .ds-watch-remove { margin: 0; padding: 0; width: 28px; height: 28px; display: grid; place-items: center; }
+.ct-workspace .dashboard-grid > :is(.lsr2-page, .liq-page, .vmx-page, .alm-page) { padding: 0; height: auto; border-top: 1px solid var(--border-0); }
+.ct-workspace .dashboard-grid :is(.lsr2-page-title, .liq-page-title, .vmx-page-title, .alm-title) { font-size: 17px; }
+.ct-workspace .dashboard-grid :is(.lsr2-page-header, .liq-page-header, .vmx-page-header, .alm-header) { padding: 12px 0; }
+.ct-workspace .dashboard-grid :is(.lsr2-stat-grid, .vmx-stat4-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ct-workspace .dashboard-grid .ecal-page { padding: 0; }
+
+/* Portfolio: account metrics above a dedicated chart and position ledger. */
+.ct-workspace .pfx-equity-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); gap: 24px; padding: 22px 0; border-top: 1px solid var(--border-0); margin: 0 0 18px; }
+.ct-workspace .pfx-hero-mini { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.ct-workspace .pfx-hero-mini-item { border-left: 1px solid var(--border-0); padding-left: 20px; min-width: 0; }
+.ct-workspace .pfx-hero-mini-item { text-align: left; align-items: flex-start; }
+.ct-workspace :is(.pfx-equity-val, .pfx-hero-mini-val) { font-size: 26px; line-height: 1.3; margin-top: 10px; overflow-wrap: anywhere; }
+.ct-workspace :is(.pfx-equity-label, .pfx-hero-mini-label) { font-size: 12px; color: var(--text-2); text-transform: none; }
+.ct-workspace .pfx-hero { border: 1px solid var(--border-0); border-radius: 4px; padding: 16px; background: #fff; }
+.ct-workspace .ct-equity-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.ct-workspace .ct-equity-toolbar h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.ct-workspace .pfx-range-tabs { margin: 0; padding: 0; gap: 6px; }
+.ct-workspace .pfx-chart-wrap { height: 240px; margin-top: 20px; }
+.ct-workspace .pfx-stats-grid { gap: 0; padding: 20px 0; margin: 0; }
+.ct-workspace .pfx-stats-grid { background: #fff; }
+.ct-workspace .pfx-stat-card { background: none; border: 0; border-right: 1px solid var(--border-0); border-radius: 0; padding: 8px 16px; }
+.ct-workspace .pfx-tab.active { color: var(--text-0); border-color: #9ad800; }
+
+/* The terminal keeps quick trade, alerts and bracket inputs alongside the chart. */
+.ct-workspace .nt-topbar { min-height: 58px; height: auto; flex-wrap: wrap; gap: 14px; padding: 10px 16px; }
+.ct-workspace .nt-main { min-height: 520px; }
+.ct-workspace .nt-news { width: 28%; min-width: 240px; }
+.ct-workspace .nt-right { display: grid; grid-template-columns: minmax(0, 1fr) 260px; grid-template-rows: auto minmax(200px, 1fr) auto; overflow: auto; }
+.ct-workspace .nt-right > .nt-chart { grid-column: 1; grid-row: 1 / 3; min-height: 420px; border-right: 1px solid var(--border-0); }
+.ct-workspace .ct-terminal-alerts { grid-column: 2; grid-row: 1; min-width: 0; }
+.ct-workspace .ct-terminal-bracket { grid-column: 2; grid-row: 2; min-width: 0; border-top: 1px solid var(--border-0); }
+.ct-workspace .ct-terminal-console { grid-column: 1 / -1; grid-row: 3; min-width: 0; border-top: 1px solid var(--border-0); }
+.ct-workspace .nt-chart-search-bar { position: relative; top: auto; left: auto; width: 100%; max-width: none; flex-wrap: wrap; border-radius: 0; background: #fff; }
+.ct-workspace .nt-chart { display: flex; flex-direction: column; }
+.ct-workspace .nt-news-head { padding: 12px; font-size: 12px; }
+.ct-workspace .nt-log { height: 84px; }
+
+/* Market pages use wide comparison rows and a selected-asset chart on the page. */
+.ct-workspace .cmcx-stats-bar { padding: 18px 0; margin: 0 0 20px; border-top: 1px solid var(--border-0); border-bottom: 1px solid var(--border-0); background: none; }
+.ct-workspace .ct-stock-detail { margin-bottom: 24px; min-width: 0; }
+.ct-workspace .ct-stock-detail .stx-modal-overlay { position: static; padding: 0; background: none; backdrop-filter: none; display: block; }
+.ct-workspace .ct-stock-detail .stx-modal-content { width: 100%; max-width: none; max-height: none; margin: 0; border: 1px solid var(--border-0); border-radius: 4px; box-shadow: none; }
+.ct-workspace .ct-stock-detail .stx-modal-header { padding: 18px; }
+.ct-workspace .etx-stat4-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ct-workspace .etx-tabs { padding-top: 20px; }
+.ct-workspace .etx-tab.active { background: transparent; color: var(--text-0); border-bottom-color: #9ad800; }
+.ct-workspace .gm-page { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-content: start; }
+.ct-workspace .gm-page > * { grid-column: 1 / -1; min-width: 0; }
+.ct-workspace .gm-page > .ct-global-movers { grid-column: span 2; }
+.ct-workspace .gm-page > :is(.ct-global-trending, .ct-global-chart) { grid-column: span 1; }
+.ct-workspace .gm-section { margin: 0; padding: 16px 0; border-top: 1px solid var(--border-0); border-radius: 0; }
+.ct-workspace .gm-trend-grid { display: flex; flex-direction: column; gap: 0; }
+.ct-workspace .gm-chart-panel { border-radius: 4px; }
+.ct-workspace .gm-section-hdr { font-size: 12px; margin-bottom: 14px; }
+.ct-workspace :is(.gm-stat4-grid, .vmx-stat4-grid, .lsr2-stat-grid) { gap: 12px; }
+
+/* Analytic summaries precede full-width rows, without inventing historical series. */
+.ct-workspace :is(.lsr2-spotlight, .mco-master, .vmx-sentiment, .liq-sentiment-wrap, .gm-sentiment-wrap) { border-radius: 4px; margin-bottom: 20px; }
+.ct-workspace .lsr2-coin-grid { display: flex; flex-direction: column; gap: 0; }
+.ct-workspace .lsr2-coin-card { display: grid; grid-template-columns: 120px minmax(0, 1fr) 90px; align-items: center; gap: 24px; min-height: 54px; border: 0; border-bottom: 1px solid var(--border-0); border-radius: 0; padding: 12px 16px; background: #fff; }
+.ct-workspace .lsr2-stat-card { padding: 18px; background: #fff; border: 1px solid var(--border-0); border-radius: 4px; }
+.ct-workspace .lsr2-stat-val { font-size: 26px; }
+.ct-workspace .liq-period-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ct-workspace .liq-hot-grid { display: flex; flex-direction: column; gap: 0; }
+.ct-workspace .liq-hot-row { border-radius: 0; border: 0; border-bottom: 1px solid var(--border-0); background: #fff; padding: 12px 16px; }
+.ct-workspace .vmx-coin-row { min-height: 62px; padding: 10px 12px; gap: 14px; }
+.ct-workspace .vmx-col-labels { padding: 12px; background: #f4f6f7; color: var(--text-2); }
+.ct-workspace .vmx-vol-bar-track { max-width: 560px; height: 8px; }
+.ct-workspace .vmx-rank-badge { background: none; border: 0; color: var(--text-2); }
+
+/* Inline-styled legacy lists get explicit layout hooks, retaining their handlers. */
+.ct-workspace :is(.ct-funding-page, .ct-transfers-page, .ct-smart-page) { padding: 18px 24px 30px; height: auto !important; flex: 1; min-height: 0; min-width: 0; }
+.ct-workspace .ct-funding-page > div:first-child > div:first-child { padding: 0 0 14px !important; position: relative; }
+.ct-workspace .ct-funding-page > div:first-child > div:first-child > div:first-child span:first-child { font-size: 28px !important; }
+.ct-workspace .ct-funding-list { margin-top: 18px; }
+.ct-workspace .ct-funding-row { display: grid; grid-template-columns: minmax(170px, 1.2fr) minmax(0, 3fr); align-items: center; padding: 12px 8px !important; gap: 20px; }
+.ct-workspace .ct-funding-identity { flex-wrap: wrap; margin-bottom: 0 !important; gap: 8px !important; }
+.ct-workspace .ct-funding-identity > :nth-child(2) { flex: 1 1 80px !important; }
+.ct-workspace .ct-funding-rates { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 !important; overflow: visible !important; }
+.ct-workspace .ct-funding-rates > div { flex-direction: column; align-items: flex-end !important; background: none !important; border-left: 1px solid var(--border-0); border-radius: 0 !important; padding: 6px 12px !important; }
+.ct-workspace .ct-funding-rates > div > span:last-child { font-size: 13px !important; }
+.ct-workspace .ct-smart-page { flex-direction: column; overflow-y: auto !important; }
+.ct-workspace .ct-smart-feed { display: block; min-width: 0; }
+.ct-workspace .ct-smart-feed h2 { font-size: 18px; margin: 0; padding: 0 0 16px; }
+.ct-workspace .ct-smart-feed-table { overflow-x: auto; }
+.ct-workspace .ct-smart-feed table { width: 100%; border-collapse: collapse; }
+.ct-workspace .ct-smart-feed :is(th, td) { padding: 12px 8px; text-align: left; border-bottom: 1px solid var(--border-0); font-size: 11px; }
+.ct-workspace .ct-smart-feed th { background: #f4f6f7; }
+.ct-workspace .ct-smart-list { flex: none !important; width: 100%; border: 0 !important; overflow: visible !important; }
+.ct-workspace .ct-smart-list > div { flex: none !important; overflow: visible !important; }
+.ct-workspace .ct-smart-detail { flex: none !important; min-height: 420px; border-top: 1px solid var(--border-0); margin-top: 20px; }
+.ct-workspace .ct-trader-row { display: grid; grid-template-columns: minmax(240px, 1.2fr) minmax(0, 1fr); gap: 24px; align-items: center; padding: 12px 0 !important; }
+.ct-workspace .ct-trader-identity { margin-bottom: 0 !important; }
+.ct-workspace .ct-trader-identity button { border-radius: 4px !important; border: 1px solid var(--border-1) !important; }
+.ct-workspace .ct-trader-metrics > div { background: none !important; border-radius: 0 !important; border-left: 1px solid var(--border-0); text-align: right !important; }
+.ct-workspace .ct-transfer-row { min-height: 54px; padding: 12px 0 !important; border-left: 0 !important; }
+.ct-workspace .ct-transfer-value { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr); gap: 20px; align-items: center; }
+.ct-workspace .ct-transfer-address { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); font-size: 12px !important; gap: 8px; }
+.ct-workspace .ct-transfer-address span { overflow: hidden; text-overflow: ellipsis; }
+.ct-workspace .ct-transfer-columns { padding: 12px 0 !important; background: #f4f6f7; }
+
+/* Alert and settings pages are organized as summaries followed by rows. */
+.ct-workspace :is(.sa2-header, .alm-header, .ca2-header) { display: flex; flex-direction: column; align-items: stretch; gap: 22px; }
+.ct-workspace :is(.sa2-header-stats, .alm-stats, .ca2-header-stats) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; width: 100%; }
+.ct-workspace :is(.sa2-hstat, .alm-stat, .ca2-hstat) { background: none; border: 0; border-right: 1px solid var(--border-0); border-radius: 0; align-items: flex-start; text-align: left; padding: 14px 20px; }
+.ct-workspace :is(.sa2-hstat-val, .alm-stat-val, .ca2-hstat-val) { font-size: 28px; }
+.ct-workspace .sa2-grid { flex: none; min-height: 560px; gap: 24px; }
+.ct-workspace .sa2-card { border: 0; border-radius: 0; background: none; }
+.ct-workspace .sa2-card + .sa2-card { border-left: 1px solid var(--border-0); padding-left: 20px; }
+.ct-workspace .sa2-card-hdr { padding: 12px 0; }
+.ct-workspace .sa2-card-title { font-size: 13px; color: var(--text-0); }
+.ct-workspace .sa2-notif-row { padding: 12px 0; }
+.ct-workspace .alm-table td { padding: 16px; }
+.ct-workspace .ca2-form { background: #fff; border: 1px solid var(--border-0); border-radius: 4px; }
+.ct-workspace .ca2-section { margin-top: 24px; border-radius: 0; border: 0; border-top: 1px solid var(--border-0); }
+.ct-workspace .ca2-col-labels { background: #f4f6f7; }
+.ct-workspace .ecal-widget-wrap { min-height: 600px; border: 0; border-top: 1px solid var(--border-0); border-radius: 0; }
+.ct-workspace .acc2-grid { display: flex; flex-direction: column; gap: 0; max-width: none; }
+.ct-workspace .acc2-col { gap: 0; }
+.ct-workspace .ct-account-title { margin-bottom: 24px; }
+.ct-workspace .acc2-section-label { margin-top: 28px; margin-bottom: 10px; font-size: 12px; }
+.ct-workspace .acc2-row { min-height: 66px; padding: 16px 0; }
+.ct-workspace .acc2-row-text { display: grid; grid-template-columns: 180px minmax(0, 1fr); align-items: center; gap: 24px; flex: 1; }
+.ct-workspace .acc2-row-sub { margin: 0; overflow-wrap: anywhere; }
+.ct-workspace .acc2-hero { padding: 0 0 20px; }
+.ct-workspace .up-v2-grid { display: flex; flex-direction: column; gap: 24px; }
+.ct-workspace .up-v2-pricing-section { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 24px; }
+.ct-workspace .up-v2-card { margin: 0; padding: 20px 0; }
+.ct-workspace .up-v2-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ct-workspace .up-v2-checkout { width: 100%; max-width: none; border: 0; border-top: 1px solid var(--border-0); border-radius: 0; padding: 24px 0; }
+.ct-workspace .up-v2-steps { width: 100%; justify-content: space-between; margin: 24px 0; }
+
+@media (min-width: 1300px) {
+  .ct-workspace .ct-smart-page:not([data-tab="live"]) { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto; align-content: start; gap: 24px; }
+  .ct-workspace .ct-smart-feed { grid-column: 1; grid-row: 1; padding-top: 18px; }
+  .ct-workspace .ct-smart-list { grid-column: 2; grid-row: 1; }
+  .ct-workspace .ct-smart-detail { grid-column: 1 / -1; }
+  .ct-workspace .ct-smart-list .ct-trader-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+}
+.ct-workspace .ct-smart-page[data-tab="live"] .ct-smart-feed { display: none; }
+
+@media (max-width: 1200px) {
+  .ct-workspace .nt-news { width: 30%; min-width: 210px; }
+  .ct-workspace .nt-right { grid-template-columns: minmax(0, 1fr); grid-template-rows: 380px auto auto auto; }
+  .ct-workspace .nt-right > .nt-chart { grid-column: 1; grid-row: 1; min-height: 380px; border-right: 0; }
+  .ct-workspace .ct-terminal-alerts { grid-column: 1; grid-row: 2; }
+  .ct-workspace .ct-terminal-bracket { grid-column: 1; grid-row: 3; }
+  .ct-workspace .ct-terminal-console { grid-column: 1; grid-row: 4; }
+  .ct-workspace .gm-page { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ct-workspace .gm-page > :is(.ct-global-movers, .ct-global-trending) { grid-column: 1 / -1; }
+  .ct-workspace .ds-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ct-workspace .ct-trader-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .ct-workspace .ct-transfer-value { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
+@media (max-width: 768px) {
+  .ct-workspace .mobile-sidebar .sb-sidebar { width: 100%; flex-basis: auto; }
+  .ct-workspace .header { padding: 8px 12px; }
+  .ct-workspace .header-title { flex-direction: column; gap: 2px; }
+  .ct-workspace :is(.pfx-page, .cmcx-page, .stx2-page, .etx-page, .gm-page, .mco-page, .lsr2-page, .liq-page, .sa2-page, .alm-page, .ca2-page, .vmx-page, .unlock-page, .ecal-page, .acc2-page, .upgrade-page, .ct-smart-page, .ct-funding-page, .ct-transfers-page) { padding: 16px 12px 24px; }
+  .ct-workspace :is(.pfx-page-title, .cmcx-page-title, .stx2-page-title, .etx-page-title, .gm-page-title, .mco-page-title, .lsr2-page-title, .liq-page-title, .sa2-title, .alm-title, .ca2-title, .vmx-page-title, .unlock-title, .ct-account-title, .up-v2-title) { font-size: 23px; }
+  .ct-workspace .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+  .ct-workspace .dashboard-content { padding: 12px !important; }
+  .ct-workspace .ds-strip-coin { grid-template-columns: 20px minmax(0, 1fr); padding: 10px; gap: 4px; }
+  .ct-workspace .ds-strip-coin > :is(img, svg) { width: 20px; height: 20px; }
+  .ct-workspace .ds-strip-chg { grid-column: 2; grid-row: 3; }
+  .ct-workspace .ds-strip-price { font-size: 15px; }
+  .ct-workspace .welcome-tip { grid-template-columns: 24px minmax(0, 1fr); padding: 8px 0; }
+  .ct-workspace :is(.ct-watch-columns, .ds-watch-row) { grid-template-columns: minmax(0, 1fr) 80px 72px 24px; gap: 4px; padding: 8px 0; }
+  .ct-workspace .ds-watch-row-left { min-width: 0; gap: 6px; }
+  .ct-workspace .ds-watch-name { display: none; }
+  .ct-workspace .ct-watch-search input { width: 125px; }
+  .ct-workspace .pfx-equity-row { grid-template-columns: minmax(0, 1fr); }
+  .ct-workspace .pfx-hero-mini { gap: 10px; }
+  .ct-workspace .pfx-hero-mini-item { padding-left: 8px; }
+  .ct-workspace .pfx-hero-mini-val { font-size: 18px; }
+  .ct-workspace .pfx-chart-wrap { height: 210px; }
+  .ct-workspace .nt-main { flex-direction: column; overflow-y: auto; }
+  .ct-workspace .nt-news { width: 100%; min-width: 0; min-height: 280px; max-height: 380px; flex: 0 0 280px; }
+  .ct-workspace .nt-right { min-height: 850px; overflow: visible; flex: none; }
+  .ct-workspace .nt-topbar { padding: 10px 12px; }
+  .ct-workspace .gm-page { grid-template-columns: minmax(0, 1fr); }
+  .ct-workspace .gm-page > * { grid-column: 1 !important; }
+  .ct-workspace :is(.etx-stat4-grid, .lsr2-stat-grid, .liq-period-row) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ct-workspace .lsr2-coin-card { grid-template-columns: 70px minmax(0, 1fr) 66px; padding: 10px 0; gap: 8px; }
+  .ct-workspace .ct-funding-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .ct-workspace .ct-funding-rates { gap: 8px !important; display: flex !important; overflow-x: auto !important; }
+  .ct-workspace .ct-funding-rates > div { padding: 4px 8px !important; }
+  .ct-workspace .ct-smart-list > div { padding-left: 0 !important; padding-right: 0 !important; }
+  .ct-workspace .ct-smart-feed { display: none; }
+  .ct-workspace .ct-transfer-address { font-size: 10px !important; }
+  .ct-workspace .sa2-grid { min-height: 0; grid-template-columns: minmax(0, 1fr); }
+  .ct-workspace .sa2-card + .sa2-card { border-left: 0; padding-left: 0; }
+  .ct-workspace :is(.sa2-hstat, .alm-stat, .ca2-hstat) { padding: 10px; min-width: 0; }
+  .ct-workspace :is(.sa2-hstat-val, .alm-stat-val, .ca2-hstat-val) { font-size: 22px; }
+  .ct-workspace .acc2-row-text { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .ct-workspace :is(.up-v2-pricing-section, .up-v2-features) { grid-template-columns: minmax(0, 1fr); }
+  .ct-workspace .up-v2-steps { flex-wrap: wrap; gap: 12px; }
+}
