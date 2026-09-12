@@ -39,7 +39,8 @@ RUN pip install --no-cache-dir \
     "uvloop>=0.19" \
     "ccxt>=4.3" \
     "aiohttp>=3.9" \
-    "feedparser>=6.0"
+    "feedparser>=6.0" \
+    "boto3>=1.34"
 
 COPY pyproject.toml ./
 COPY src/ ./src/

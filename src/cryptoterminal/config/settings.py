@@ -147,6 +147,9 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "noreply@tradingtools.app"
+    # Amazon SES is used when SMTP credentials are absent and this region is set
+    # (the EC2 instance role provides the credentials).
+    ses_region: str = ""
     app_url: str = "https://tradingtools.app"
 
     # Telegram MTProto Sniper

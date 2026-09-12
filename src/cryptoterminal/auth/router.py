@@ -41,29 +41,53 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=_RT_COOKIE, path="/auth")
 
 
-def _send_reset_email(to: str, reset_link: str) -> None:
-    s = get_settings()
-    if not s.smtp_user or not s.smtp_password:
-        return  # SMTP not configured, skip silently
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Trading Tools — Password Reset"
-    msg["From"]    = s.smtp_from
-    msg["To"]      = to
-    html = f"""
-<div style="font-family:monospace;background:#000;color:#fff;padding:32px;max-width:480px;margin:0 auto;border:1px solid #1a1a1a;">
-  <div style="color:#00d992;font-size:18px;font-weight:700;margin-bottom:24px;">[TT] TRADING TOOLS</div>
-  <p style="color:#aaa;font-size:14px;margin-bottom:24px;">We received a password reset request for your account.</p>
+def _reset_email_html(reset_link: str) -> str:
+    return f"""
+<div style="font-family:Inter,Arial,sans-serif;background:#ffffff;color:#111827;padding:32px;max-width:480px;margin:0 auto;border:1px solid #e5e7eb;border-radius:6px;">
+  <div style="font-size:18px;font-weight:700;margin-bottom:24px;"><span style="color:#9fd400;">TT</span> Trading Tools</div>
+  <p style="color:#374151;font-size:14px;margin-bottom:24px;">We received a password reset request for your account.</p>
   <a href="{reset_link}"
-     style="display:inline-block;background:#00d992;color:#000;padding:12px 24px;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:.05em;">
-    RESET PASSWORD →
+     style="display:inline-block;background:#d5ff5f;color:#17200d;padding:12px 24px;text-decoration:none;font-weight:600;font-size:13px;border-radius:4px;">
+    Reset password
   </a>
-  <p style="color:#555;font-size:12px;margin-top:24px;">This link expires in 1 hour. If you didn't request this, ignore this email.</p>
+  <p style="color:#6b7280;font-size:12px;margin-top:24px;">This link expires in 1 hour. If you didn't request this, ignore this email.</p>
 </div>"""
-    msg.attach(MIMEText(html, "html"))
-    with smtplib.SMTP(s.smtp_host, s.smtp_port) as server:
-        server.starttls()
-        server.login(s.smtp_user, s.smtp_password)
-        server.sendmail(s.smtp_from, to, msg.as_string())
+
+
+def _send_reset_email(to: str, reset_link: str) -> None:
+    """Deliver the reset link over SMTP when credentials exist, otherwise over
+    Amazon SES (instance-role credentials). Raises when no backend is configured
+    so the caller logs it instead of silently pretending the mail went out."""
+    s = get_settings()
+    subject = "Trading Tools — Password Reset"
+    html = _reset_email_html(reset_link)
+
+    if s.smtp_user and s.smtp_password:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = s.smtp_from
+        msg["To"]      = to
+        msg.attach(MIMEText(html, "html"))
+        with smtplib.SMTP(s.smtp_host, s.smtp_port) as server:
+            server.starttls()
+            server.login(s.smtp_user, s.smtp_password)
+            server.sendmail(s.smtp_from, to, msg.as_string())
+        return
+
+    if s.ses_region:
+        import boto3
+        client = boto3.client("sesv2", region_name=s.ses_region)
+        client.send_email(
+            FromEmailAddress=s.smtp_from,
+            Destination={"ToAddresses": [to]},
+            Content={"Simple": {
+                "Subject": {"Data": subject, "Charset": "UTF-8"},
+                "Body": {"Html": {"Data": html, "Charset": "UTF-8"}},
+            }},
+        )
+        return
+
+    raise RuntimeError("no email backend configured (set SMTP_USER/SMTP_PASSWORD or SES_REGION)")
 
 
 async def get_current_user_id(
@@ -213,10 +237,10 @@ async def forgot_password(request: Request, body: dict) -> dict:
             await asyncio.get_event_loop().run_in_executor(
                 None, _send_reset_email, email, reset_link
             )
-        except Exception:
+        except Exception as exc:
             import structlog
             structlog.get_logger("auth.reset").warning(
-                "email_send_failed", link=reset_link
+                "email_send_failed", error=str(exc), link=reset_link
             )
     return {"message": "If this email is registered, a reset link has been sent."}
 
