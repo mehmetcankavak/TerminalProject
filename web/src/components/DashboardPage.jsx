@@ -1,4 +1,6 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useState, useEffect, useRef } from 'react'
+import { BarChart3, TrendingUp, Bell, Newspaper, Users, Plus, X, Search } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import LongShortRatio from './LongShortRatio'
 import LiquidationsStream from './LiquidationsStream'
@@ -219,7 +221,7 @@ function MarketStrip() {
       {fg && (
         <div className="ds-strip-stat">
           <span className="ds-strip-stat-l">Fear &amp; Greed</span>
-          <span className="ds-strip-stat-v" style={{ color: fgColor }}>{fg.value} · {fg.value_classification}</span>
+          <span className="ds-strip-stat-v" style={{ color: workspaceTextColor(fgColor) }}>{fg.value} · {fg.value_classification}</span>
         </div>
       )}
     </div>
@@ -237,6 +239,7 @@ function WatchlistWidget() {
   const tickers           = useBinanceTicker(list)
   const [adding, setAdding] = useState(false)
   const [input, setInput]   = useState('')
+  const [query, setQuery] = useState('')
   const inputRef            = useRef(null)
 
   const allSyms = Object.keys(meta)
@@ -268,9 +271,12 @@ function WatchlistWidget() {
     <div className="ds-watch">
       <div className="ds-watch-hdr">
         <span className="ds-watch-title">Watchlist</span>
-        <button className="ds-watch-add-btn" onClick={() => setAdding(p => !p)}>
-          {adding ? '✕' : '+ Ekle'}
-        </button>
+        <div className="ct-watch-tools">
+          <button className="ds-watch-add-btn" title={adding ? 'Close' : 'Add coin'} aria-label={adding ? 'Close add coin' : 'Add coin'} onClick={() => setAdding(p => !p)}>
+            {adding ? <X size={16} /> : <Plus size={16} />}
+          </button>
+          <label className="ct-watch-search"><Search size={14} /><input aria-label="Search watchlist" placeholder="Search symbols..." value={query} onChange={e => setQuery(e.target.value)} /></label>
+        </div>
       </div>
 
       {adding && (
@@ -288,8 +294,9 @@ function WatchlistWidget() {
         </div>
       )}
 
+      <div className="ct-watch-columns"><span>Symbol</span><span>Price</span><span>24h Change</span><span /></div>
       <div className="ds-watch-list">
-        {list.map(sym => {
+        {list.filter(sym => sym.includes(query.toUpperCase().trim()) || meta[sym]?.name?.toLowerCase().includes(query.toLowerCase().trim())).map(sym => {
           const t   = tickers[sym]
           const m   = meta[sym]
           const chg = t?.chg
@@ -312,7 +319,7 @@ function WatchlistWidget() {
                   ? <span className={`ds-watch-chg ${up ? 'up' : 'dn'}`}>{(up ? '+' : '') + chg.toFixed(2) + '%'}</span>
                   : <span className="ds-watch-chg" style={{ color: 'var(--text-3)' }}>—</span>}
               </div>
-              <button className="ds-watch-remove" onClick={e => { e.stopPropagation(); remove(sym) }}>✕</button>
+              <button className="ds-watch-remove" aria-label={`Remove ${sym}`} title={`Remove ${sym}`} onClick={e => { e.stopPropagation(); remove(sym) }}><X size={14} /></button>
             </div>
           )
         })}
@@ -323,11 +330,11 @@ function WatchlistWidget() {
 }
 
 const TIPS = [
-  { icon: '📊', title: 'Markets',       desc: 'Real-time prices for 200+ coins', page: 'spot-markets'  },
-  { icon: '📈', title: 'Stocks',        desc: 'Track US equities from TradFi futures', page: 'stocks'  },
-  { icon: '🔔', title: 'Custom Alerts', desc: 'Set price alerts for any coin',   page: 'custom-alerts' },
-  { icon: '📰', title: 'Terminal',      desc: 'Live news feed + trade execution', page: 'terminal'      },
-  { icon: '🐋', title: 'Smart Money',   desc: 'Track top trader positions',      page: 'smart-money'   },
+  { icon: BarChart3, title: 'Markets',       desc: 'Real-time prices for 200+ coins', page: 'spot-markets'  },
+  { icon: TrendingUp, title: 'Stocks',        desc: 'Track US equities from TradFi futures', page: 'stocks'  },
+  { icon: Bell, title: 'Custom Alerts', desc: 'Set price alerts for any coin',   page: 'custom-alerts' },
+  { icon: Newspaper, title: 'Terminal',      desc: 'Live news feed + trade execution', page: 'terminal'      },
+  { icon: Users, title: 'Smart Money',   desc: 'Track top trader positions',      page: 'smart-money'   },
 ]
 
 function WelcomeCard() {
@@ -355,7 +362,7 @@ function WelcomeCard() {
       <div className="welcome-tips">
         {TIPS.map(tip => (
           <button key={tip.page} className="welcome-tip" onClick={() => goTo(tip.page)}>
-            <span className="welcome-tip-icon">{tip.icon}</span>
+            <span className="welcome-tip-icon"><tip.icon size={23} strokeWidth={1.6} /></span>
             <span className="welcome-tip-title">{tip.title}</span>
             <span className="welcome-tip-desc">{tip.desc}</span>
           </button>
