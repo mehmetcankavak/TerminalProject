@@ -1,342 +1,128 @@
-import { workspaceTextColor } from '../utils/workspaceTheme'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Search, ChevronDown } from 'lucide-react'
 import { fetchVolumeMonitorFull, formatUSD } from '../services/api'
+import AssetLogo from './AssetLogo'
 
-const COIN_LOGOS = {
-  BTC: 'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png?1696501400',
-  ETH: 'https://coin-images.coingecko.com/coins/images/279/large/ethereum.png?1696501628',
-  SOL: 'https://coin-images.coingecko.com/coins/images/4128/large/solana.png?1718769756',
-  XRP: 'https://coin-images.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png?1696501442',
-  BNB: 'https://coin-images.coingecko.com/coins/images/825/large/bnb-icon2_2x.png?1696501970',
-  DOGE: 'https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png?1696501409',
-  ADA: 'https://coin-images.coingecko.com/coins/images/975/large/cardano.png?1696502090',
-  AVAX: 'https://coin-images.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png?1696512369',
-  SUI: 'https://coin-images.coingecko.com/coins/images/26375/large/sui-ocean-square.png?1727791290',
-  DOT: 'https://coin-images.coingecko.com/coins/images/12171/large/polkadot.jpg?1766533446',
-  LINK: 'https://coin-images.coingecko.com/coins/images/877/large/Chainlink_Logo_500.png?1760023405',
-  TON: 'https://coin-images.coingecko.com/coins/images/17980/large/photo_2024-09-10_17.09.00.jpeg?1725963446',
-  TRX: 'https://coin-images.coingecko.com/coins/images/1094/large/tron-logo.png?1696502193',
-  NEAR: 'https://coin-images.coingecko.com/coins/images/10365/large/near.jpg?1696510367',
-  APT: 'https://coin-images.coingecko.com/coins/images/26455/large/Aptos-Network-Symbol-Black-RGB-1x.png?1761789140',
-  UNI: 'https://coin-images.coingecko.com/coins/images/12504/large/uniswap-logo.png?1720676669',
-  ARB: 'https://coin-images.coingecko.com/coins/images/16547/large/arb.jpg?1721358242',
-  OP: 'https://coin-images.coingecko.com/coins/images/25244/large/Optimism.png?1696524385',
-  ATOM: 'https://coin-images.coingecko.com/coins/images/1481/large/cosmos_hub.png?1696502525',
-  PEPE: 'https://coin-images.coingecko.com/coins/images/29850/large/pepe-token.jpeg?1696528776',
-  INJ: 'https://coin-images.coingecko.com/coins/images/12882/large/Other_200x200.png?1738782212',
-}
+const fmtPrice = p => !p ? '—' : p >= 1000 ? '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : p >= 1 ? '$' + p.toFixed(2) : '$' + p.toFixed(p < 0.001 ? 7 : 4)
+const fmtClock = () => { const d = new Date(); return d.toUTCString().replace(/^(\w+), (\d+) (\w+) (\d+) (\d+:\d+:\d+).*$/, '$1, $3 $2, $4  $5 UTC') }
+const SORTS = [['volume', 'Volume (24h)'], ['change', 'Change (24h)'], ['ratio', 'Anomaly ratio'], ['price', 'Price']]
 
-function coinLogo(sym) {
-  return COIN_LOGOS[sym] ?? `https://assets.coincap.io/assets/icons/${sym.toLowerCase()}@2x.png`
-}
-
-function fmtPrice(p) {
-  if (!p) return '—'
-  if (p >= 1000) return '$' + p.toLocaleString('en-US', { maximumFractionDigits: 2 })
-  if (p >= 1)    return '$' + p.toFixed(3)
-  return '$' + p.toFixed(6)
-}
-
-/* ── Rank Badge ─────────────────────────────────────────────────────── */
-function RankBadge({ rank }) {
-  const cls = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : ''
-  return <div className={`vmx-rank-badge ${cls}`}>{rank}</div>
-}
-
-/* ── Volume Bar ─────────────────────────────────────────────────────── */
-function VolumeBar({ volume, maxVolume }) {
-  const pct = maxVolume > 0 ? Math.min((volume / maxVolume) * 100, 100) : 0
-  return (
-    <div className="vmx-vol-bar-track">
-      <div className="vmx-vol-bar-fill" style={{ width: pct + '%' }} />
-    </div>
-  )
-}
-
-/* ── Band Badge ─────────────────────────────────────────────────────── */
-function BandBadge({ band, ratio }) {
-  if (!band || band === 'normal') return null
-  const cls = band === 'spike' ? 'spike' : 'active'
-  const label = band === 'spike' ? 'SPIKE' : 'ACTIVE'
-  return (
-    <span className={`vmx-band-badge ${cls}`}>{label} · {ratio.toFixed(1)}x</span>
-  )
-}
-
-/* ── Volume Sentiment ───────────────────────────────────────────────── */
-function VolumeSentiment({ sentiment, data }) {
-  if (!sentiment) {
-    return (
-      <div className="vmx-sentiment vmx-sentiment-loading">
-        <div className="vmx-section-label">SENTIMENT · VOLUME · yükleniyor…</div>
-      </div>
-    )
-  }
-
-  const bullVol = sentiment.bull_volume || 0
-  const bearVol = sentiment.bear_volume || 0
-  const score   = sentiment.score || 0
+function Sentiment({ sentiment, data }) {
+  const bull = sentiment?.bull_volume || 0
+  const bear = sentiment?.bear_volume || 0
+  const total = bull + bear
+  const score = sentiment?.score || 0
+  // Neutral shrinks as conviction (|score|) grows; the rest splits by buy / sell share.
+  const neutral = (1 - Math.min(1, Math.abs(score))) * 40
+  const s = total ? (100 - neutral) * (bull / total) : 0
+  const b = total ? (100 - neutral) * (bear / total) : 0
+  const n = neutral
 
   let topBuy = null, topSell = null
-  for (const r of (data || [])) {
-    const v = r.volume24h || 0
-    const p = r.priceChangePct || 0
-    if (p >= 0) {
-      if (!topBuy || (p * v) > (topBuy.priceChangePct * topBuy.volume24h)) topBuy = r
-    } else {
-      if (!topSell || (p * v) < (topSell.priceChangePct * topSell.volume24h)) topSell = r
-    }
+  for (const r of data) {
+    const v = r.volume24h || 0, p = r.priceChangePct || 0
+    if (p >= 0) { if (!topBuy || p * v > topBuy.priceChangePct * topBuy.volume24h) topBuy = r }
+    else if (!topSell || p * v < topSell.priceChangePct * topSell.volume24h) topSell = r
   }
-
-  const verdict = score > 0.3 ? 'BUYING' : score < -0.3 ? 'SELLING' : 'NEUTRAL'
-  const tone    = verdict === 'BUYING' ? '#00e87a' : verdict === 'SELLING' ? '#f43f5e' : '#fbbf24'
-  const pct     = Math.max(0, Math.min(100, (score + 1) * 50))
+  const buyChg = topBuy?.priceChangePct, sellChg = topSell?.priceChangePct
 
   return (
-    <div className="vmx-sentiment">
-      {/* Header row */}
-      <div className="vmx-sentiment-hdr">
-        <span className="vmx-section-label">SENTIMENT · VOLUME × PRICE · 24H</span>
-        <div className="vmx-sentiment-score">
-          <span className="vmx-score-num" style={{ color: workspaceTextColor(tone) }}>
-            {score >= 0 ? '+' : ''}{score.toFixed(2)}
-          </span>
-          <span className="vmx-verdict" style={{ color: workspaceTextColor(tone) }}>{verdict}</span>
+    <div className="ws-card vm-sentiment">
+      <div className="vm-sentiment-main">
+        <div className="ws-h4" style={{ fontSize: 14, marginBottom: 14 }}>Sentiment · Volume × Price · 24H</div>
+        <div className="vm-split">
+          <span style={{ width: `${b}%`, background: '#ef4444' }} />
+          <span style={{ width: `${n}%`, background: '#d1d5db' }} />
+          <span style={{ width: `${s}%`, background: '#22c55e' }} />
+        </div>
+        <div className="vm-split-labels">
+          <div style={{ width: `${b}%` }}><b className="ws-neg">{b.toFixed(0)}%</b><span className="ws-neg">SELLING</span></div>
+          <div style={{ width: `${n}%` }}><b className="ws-muted">{n.toFixed(0)}%</b><span className="ws-muted">NEUTRAL</span></div>
+          <div style={{ width: `${s}%` }}><b className="ws-pos">{s.toFixed(0)}%</b><span className="ws-pos">BUYING</span></div>
         </div>
       </div>
-
-      {/* Gauge */}
-      <div className="vmx-gauge-track">
-        <div className="vmx-gauge-bg" />
-        <div className="vmx-gauge-mid" />
-        <div className="vmx-gauge-dot" style={{ left: pct + '%', background: tone, boxShadow: `0 0 10px ${tone}99` }} />
-      </div>
-      <div className="vmx-gauge-axis">
-        <span>SELLING</span>
-        <span>NEUTRAL</span>
-        <span>BUYING</span>
-      </div>
-
-      {/* 4-stat cards */}
-      <div className="vmx-stat4-grid">
-        <div className="vmx-stat-card buy">
-          <div className="vmx-stat-label">BUY VOLUME</div>
-          <div className="vmx-stat-val" style={{ color: "var(--ct-ink, #fff)" }}>{formatUSD(bullVol)}</div>
-          <div className="vmx-stat-sub">fiyat ↑ hacim</div>
-        </div>
-        <div className="vmx-stat-card sell">
-          <div className="vmx-stat-label" style={{ color: "var(--ct-negative, #f43f5e)" }}>SELL VOLUME</div>
-          <div className="vmx-stat-val" style={{ color: "var(--ct-ink, #fff)" }}>{formatUSD(bearVol)}</div>
-          <div className="vmx-stat-sub">fiyat ↓ hacim</div>
-        </div>
-        <div className="vmx-stat-card buy-soft">
-          <div className="vmx-stat-label">TOP BUY</div>
-          <div className="vmx-stat-val">{topBuy ? topBuy.symbol : '—'}</div>
-          <div className="vmx-stat-sub" style={{ color: "var(--ct-positive, #00e87a)" }}>
-            {topBuy ? '+' + topBuy.priceChangePct.toFixed(2) + '%' : '—'}
-          </div>
-        </div>
-        <div className="vmx-stat-card sell-soft">
-          <div className="vmx-stat-label" style={{ color: "var(--ct-negative, #f43f5e)" }}>TOP SELL</div>
-          <div className="vmx-stat-val">{topSell ? topSell.symbol : '—'}</div>
-          <div className="vmx-stat-sub" style={{ color: "var(--ct-negative, #f43f5e)" }}>
-            {topSell ? topSell.priceChangePct.toFixed(2) + '%' : '—'}
-          </div>
-        </div>
-      </div>
+      <div className="vm-stat"><div className="ws-caps">Buy Volume</div><div className="vm-stat-val ws-pos">{formatUSD(bull)}</div><div className="ws-pos ws-small">{score >= 0 ? '+' : ''}{(score * 100).toFixed(1)}%</div></div>
+      <div className="vm-stat"><div className="ws-caps">Sell Volume</div><div className="vm-stat-val ws-neg">{formatUSD(bear)}</div><div className="ws-neg ws-small">{score <= 0 ? '+' : '-'}{Math.abs(score * 100).toFixed(1)}%</div></div>
+      <div className="vm-stat"><div className="ws-caps">Top Buy</div><div className="vm-stat-val ws-ink">{topBuy ? topBuy.symbol.replace(/USDT$/, '') : '—'}</div><div className="ws-pos ws-small ws-mono">{topBuy ? formatUSD(topBuy.volume24h) : ''}{buyChg != null && <span className="ws-muted"> · +{buyChg.toFixed(2)}%</span>}</div></div>
+      <div className="vm-stat"><div className="ws-caps">Top Sell</div><div className="vm-stat-val ws-ink">{topSell ? topSell.symbol.replace(/USDT$/, '') : '—'}</div><div className="ws-neg ws-small ws-mono">{topSell ? formatUSD(topSell.volume24h) : ''}{sellChg != null && <span className="ws-muted"> · {sellChg.toFixed(2)}%</span>}</div></div>
     </div>
   )
 }
 
-/* ── Major Card ─────────────────────────────────────────────────────── */
-function MajorCard({ m }) {
-  const [imgErr, setImgErr] = useState(false)
-  const isUp = m.priceChangePct >= 0
-  const tone = isUp ? '#00e87a' : '#f43f5e'
-  return (
-    <div className="vmx-major-card">
-      <div className="vmx-major-top">
-        <div className="vmx-major-identity">
-          <div className="vmx-major-logo">
-            {!imgErr
-              ? <img src={coinLogo(m.symbol)} alt={m.symbol} onError={() => setImgErr(true)} />
-              : <span>{m.symbol.slice(0, 2)}</span>
-            }
-          </div>
-          <span className="vmx-major-sym">{m.symbol}</span>
-        </div>
-        <span className="vmx-major-ratio">{m.ratio.toFixed(1)}x</span>
-      </div>
-      <div className="vmx-major-chg" style={{ color: workspaceTextColor(tone) }}>
-        {isUp ? '+' : ''}{m.priceChangePct.toFixed(2)}%
-      </div>
-      <div className="vmx-major-vol">{formatUSD(m.volume24h)}</div>
-    </div>
-  )
-}
-
-function MajorsStrip({ majors }) {
-  if (!majors?.length) return null
-  return (
-    <div className="vmx-majors-strip">
-      {majors.map(m => <MajorCard key={m.symbol} m={m} />)}
-    </div>
-  )
-}
-
-/* ── Coin Row ───────────────────────────────────────────────────────── */
-function CoinRow({ row, maxVolume }) {
-  const [imgErr, setImgErr] = useState(false)
-  const isUp = row.priceChangePct >= 0
-  return (
-    <div className="vmx-coin-row">
-      <RankBadge rank={row.rank} />
-
-      <div className="vmx-logo">
-        {!imgErr
-          ? <img src={coinLogo(row.symbol)} alt={row.symbol} onError={() => setImgErr(true)} />
-          : <span>{row.symbol.slice(0, 3)}</span>
-        }
-      </div>
-
-      <div className="vmx-name-block">
-        <div className="vmx-sym-row">
-          <span className="vmx-sym">{row.symbol}</span>
-          <span className="vmx-pair">/USDT</span>
-          <BandBadge band={row.band} ratio={row.ratio} />
-        </div>
-        <VolumeBar volume={row.volume24h} maxVolume={maxVolume} />
-        <div className="vmx-vol-amount">{formatUSD(row.volume24h)}</div>
-      </div>
-
-      <div className="vmx-price-block">
-        <div className="vmx-price">{fmtPrice(row.price)}</div>
-        <div className={`vmx-change ${isUp ? 'up' : 'dn'}`}>
-          {isUp ? '+' : ''}{row.priceChangePct.toFixed(2)}%
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ── Skeleton ───────────────────────────────────────────────────────── */
-function Skeleton() {
-  return (
-    <>
-      {Array.from({ length: 12 }).map((_, i) => (
-        <div key={i} className="vmx-skeleton-row">
-          <div className="vmx-skel-circle" style={{ width: 26, height: 26 }} />
-          <div className="vmx-skel-circle" style={{ width: 40, height: 40 }} />
-          <div style={{ flex: 1 }}>
-            <div className="vmx-skel-rect" style={{ width: 70, height: 14, marginBottom: 6 }} />
-            <div className="vmx-skel-rect" style={{ width: '100%', height: 3 }} />
-            <div className="vmx-skel-rect" style={{ width: 90, height: 11, marginTop: 5 }} />
-          </div>
-          <div>
-            <div className="vmx-skel-rect" style={{ width: 80, height: 13, marginBottom: 4 }} />
-            <div className="vmx-skel-rect" style={{ width: 55, height: 12 }} />
-          </div>
-        </div>
-      ))}
-    </>
-  )
-}
-
-/* ── Main ───────────────────────────────────────────────────────────── */
 export default function VolumeMonitor() {
-  const [data,      setData]      = useState([])
-  const [majors,    setMajors]    = useState([])
+  const [data, setData]           = useState([])
   const [sentiment, setSentiment] = useState(null)
-  const [loading,   setLoading]   = useState(true)
-  const [limit,     setLimit]     = useState(50)
-  const [lastUpd,   setLastUpd]   = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [limit, setLimit]         = useState(50)
+  const [query, setQuery]         = useState('')
+  const [sortKey, setSortKey]     = useState('volume')
+  const [clock, setClock]         = useState(fmtClock)
+
+  useEffect(() => { const id = setInterval(() => setClock(fmtClock()), 1000); return () => clearInterval(id) }, [])
 
   const load = useCallback(async () => {
     try {
       const result = await fetchVolumeMonitorFull(limit)
-      if (result?.items?.length) {
-        setData(result.items)
-        setMajors(result.majors || [])
-        setSentiment(result.sentiment || null)
-        setLastUpd(new Date())
-      }
-    } catch (e) {
-      console.warn('Volume fetch error:', e)
-    } finally {
-      setLoading(false)
-    }
+      if (result?.items?.length) { setData(result.items); setSentiment(result.sentiment || null) }
+    } catch (e) { console.warn('Volume fetch error:', e) }
+    finally { setLoading(false) }
   }, [limit])
 
-  useEffect(() => {
-    setLoading(true)
-    load()
-    const id = setInterval(load, 30_000)
-    return () => clearInterval(id)
-  }, [load])
+  useEffect(() => { setLoading(true); load(); const id = setInterval(load, 30_000); return () => clearInterval(id) }, [load])
 
-  const maxVolume  = data.length ? Math.max(...data.map(d => d.volume24h)) : 1
-  const totalVolume = data.reduce((s, d) => s + d.volume24h, 0)
-  const LIMIT_OPTIONS = [25, 50, 75, 100]
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = data.filter(r => !q || r.symbol.toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q))
+    list.sort((a, b) => sortKey === 'change' ? (b.priceChangePct || 0) - (a.priceChangePct || 0) : sortKey === 'ratio' ? (b.ratio || 0) - (a.ratio || 0) : sortKey === 'price' ? (b.price || 0) - (a.price || 0) : (b.volume24h || 0) - (a.volume24h || 0))
+    return list
+  }, [data, query, sortKey])
+  const maxVolume = data.length ? Math.max(...data.map(d => d.volume24h)) : 1
 
   return (
-    <div className="vmx-page">
+    <div className="ws-page">
+      <div className="ws-page-head">
+        <div className="ws-page-head-left"><h1 className="ws-title">Volume Monitor</h1></div>
+        <div className="ws-page-head-right"><span className="ws-meta-stamp">{clock}</span></div>
+      </div>
 
-      {/* Header */}
-      <div className="vmx-page-header">
-        <div>
-          <div className="vmx-page-title">Volume Monitor</div>
-          <div className="vmx-page-subtitle">
-            <span className="vmx-live-dot" />
-            Binance Perp · Anomaly · 24h vs 7g avg
-            {lastUpd && (
-              <span className="vmx-updated">
-                ↻ {lastUpd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
+      <Sentiment sentiment={sentiment} data={data} />
+
+      <div className="ws-row ws-mt-16" style={{ marginBottom: 14 }}>
+        <div className="ws-search" style={{ width: 330 }}><Search size={16} /><input className="ws-input ws-input-lg" placeholder="Search symbol..." value={query} onChange={e => setQuery(e.target.value)} /></div>
+        <div className="ws-row" style={{ marginLeft: 'auto' }}>
+          <span className="ws-text">Sort by</span>
+          <div className="ws-inline-select" style={{ minWidth: 190, height: 44 }}>{SORTS.find(s => s[0] === sortKey)[1]}<ChevronDown size={15} />
+            <select value={sortKey} onChange={e => setSortKey(e.target.value)}>{SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           </div>
-        </div>
-        <div className="vmx-toolbar-right">
-          {totalVolume > 0 && (
-            <div className="vmx-total-vol">
-              <span className="vmx-total-label">TOP {limit}</span>
-              <span className="vmx-total-num">{formatUSD(totalVolume)}</span>
-            </div>
-          )}
-          <div className="vmx-limit-btns">
-            {LIMIT_OPTIONS.map(n => (
-              <button
-                key={n}
-                className={`vmx-limit-btn ${limit === n ? 'active' : ''}`}
-                onClick={() => setLimit(n)}
-              >
-                {n}
-              </button>
-            ))}
+          <div className="ws-inline-select" style={{ minWidth: 110, height: 44 }}>Top {limit}<ChevronDown size={15} />
+            <select value={limit} onChange={e => setLimit(Number(e.target.value))}>{[25, 50, 75, 100].map(n => <option key={n} value={n}>Top {n}</option>)}</select>
           </div>
         </div>
       </div>
 
-      {/* Sentiment panel */}
-      <VolumeSentiment sentiment={sentiment} data={data} />
-
-      {/* Majors strip */}
-      <MajorsStrip majors={majors} />
-
-      {/* Column labels */}
-      <div className="vmx-col-labels">
-        <span style={{ width: 26 }}>#</span>
-        <span style={{ width: 40 }} />
-        <span style={{ flex: 1 }}>SYMBOL · VOLUME</span>
-        <span>PRICE · CHANGE</span>
+      <div className="ws-table-wrap">
+        <table className="ws-table ws-table-tall vm-table">
+          <thead><tr><th className="ws-th-caps">#</th><th className="ws-th-caps">Symbol</th><th className="ws-th-caps" colSpan={2}><span className="ws-th-sort" onClick={() => setSortKey('volume')}>Volume (24h) <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M7 15l5 5 5-5M7 9l5-5 5 5" /></svg></span></th><th className="ws-th-caps ws-right">Price</th><th className="ws-th-caps ws-right">Change (24h)</th></tr></thead>
+          <tbody>
+            {loading ? <tr><td colSpan={6}><div className="ws-loading"><span className="ws-spinner" /> Loading volumes…</div></td></tr>
+            : rows.length === 0 ? <tr><td colSpan={6}><div className="ws-empty"><div className="ws-empty-title">No symbols match.</div></div></td></tr>
+            : rows.map((r, i) => {
+              const up = (r.priceChangePct || 0) >= 0
+              const sym = r.symbol.replace(/USDT$/, '')
+              return (
+                <tr key={r.symbol}>
+                  <td className="ws-muted">{i + 1}</td>
+                  <td><div className="ws-asset"><span className="ws-asset-logo"><AssetLogo symbol={sym} type="crypto" size={28} radius={14} /></span><span className="ws-asset-sym">{sym}</span><span className="ws-asset-name" style={{ fontSize: 13 }}>{r.name || ''}</span></div></td>
+                  <td className="ws-mono ws-ink" style={{ width: 90 }}>{formatUSD(r.volume24h)}</td>
+                  <td style={{ width: '32%' }}><div className="ws-bar ws-bar-xl" style={{ height: 22 }}><div className={`ws-bar-fill ${up ? '' : 'neg'}`} style={{ width: `${Math.max(2, (r.volume24h / maxVolume) * 100)}%` }} /></div></td>
+                  <td className="ws-right ws-mono ws-ink">{fmtPrice(r.price)}</td>
+                  <td className={`ws-right ws-mono ${up ? 'ws-pos' : 'ws-neg'}`}>{up ? '+' : ''}{(r.priceChangePct || 0).toFixed(2)}%</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
-
-      {/* List */}
-      <div className="vmx-coin-list">
-        {loading ? <Skeleton /> : data.map(row => (
-          <CoinRow key={row.symbol} row={row} maxVolume={maxVolume} />
-        ))}
-      </div>
-
     </div>
   )
 }

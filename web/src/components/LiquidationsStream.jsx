@@ -1,258 +1,212 @@
-import { workspaceTextColor } from '../utils/workspaceTheme'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { RotateCcw, ChevronDown } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
-import FeatureSpotlight from './FeatureSpotlight'
+import { useWebSocket } from '../hooks/useWebSocket'
 
-// Honest data architecture:
-//   • Global 24H total + per-coin breakdown → CMC public liquidation API (no key, real numbers, 3min refresh)
-//   • Live ticker → backend WS broadcast from OKX + Bybit perp streams (only CEXes still publishing
-//     public liquidation events as of 2026). Anything below $10K filtered.
+// Global 24H totals + per-coin breakdown come from the backend (/api/liq-stats, 3 min refresh).
+// The timeline and the recent table are built from the live liquidation stream the backend
+// broadcasts over the WS (OKX + Bybit perps, everything under $10K filtered server-side).
 
-function fmtM(v) {
-  if (!v) return '$0'
-  if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B'
-  if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M'
-  if (v >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K'
-  return '$' + v.toFixed(0)
-}
+const PERIODS = [['h1', '1H', 1], ['h4', '4H', 4], ['h12', '12H', 12], ['h24', '24H', 24]]
+const fmtUSD = v => !v ? '$0' : '$' + Math.round(v).toLocaleString('en-US')
+const fmtUSDShort = v => !v ? '$0' : v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(0) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'
+const fmtPrice = p => p >= 1000 ? p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : p >= 1 ? p.toFixed(2) : p.toFixed(4)
+const fmtQty = q => q >= 1000 ? Math.round(q).toLocaleString('en-US') : q.toFixed(2)
+const fmtTime = ts => { const d = new Date(ts); return d.toISOString().slice(0, 10) + ' ' + d.toTimeString().slice(0, 8) }
+const fmtClock = () => { const d = new Date(); return d.toUTCString().replace(/^(\w+), (\d+) (\w+) (\d+) (\d+:\d+:\d+).*$/, '$1, $3 $2, $4  $5 UTC') }
+const isLong = side => /long|buy/i.test(side || '')
 
-const PERIODS = [
-  { key: 'h1',  label: '1H'  },
-  { key: 'h4',  label: '4H'  },
-  { key: 'h12', label: '12H' },
-  { key: 'h24', label: '24H' },
-]
+/* ── Timeline (bucketed live events) ───────────────────────────────────── */
+function Timeline({ feed, hours }) {
+  const buckets = useMemo(() => {
+    const n = hours <= 1 ? 12 : hours <= 4 ? 16 : hours <= 12 ? 24 : 48
+    const span = hours * 3600000
+    const now = Date.now()
+    const arr = Array.from({ length: n }, (_, i) => ({ t: now - span + (i + 0.5) * (span / n), long: 0, short: 0 }))
+    for (const e of feed) {
+      const idx = Math.floor((e.ts - (now - span)) / (span / n))
+      if (idx < 0 || idx >= n) continue
+      if (isLong(e.side)) arr[idx].long += e.usd; else arr[idx].short += e.usd
+    }
+    return arr
+  }, [feed, hours])
 
-// Contrarian reading: long liq = longs flushed = BULLISH; short liq = shorts squeezed = BEARISH
-// score = (long - short) / total, range -1..+1
-function LiqSentiment({ stats, h1Pressure }) {
-  if (!stats?.h24) {
-    return (
-      <div className="liq-sentiment-wrap liq-sentiment-loading">
-        <div className="liq-section-hdr">SENTIMENT · LOADING…</div>
-      </div>
-    )
+  const max = Math.max(...buckets.map(b => Math.max(b.long, b.short)), 1)
+  const W = 1000, H = 220, mid = H / 2, pad = 6
+  const bw = W / buckets.length
+  const ticks = [1, 0.5, 0, -0.5, -1]
+  const labelEvery = Math.max(1, Math.round(buckets.length / 8))
+
+  if (!feed.length) {
+    return <div className="ws-empty" style={{ padding: '60px 20px' }}><div className="ws-empty-title">Collecting live liquidations…</div><div className="ws-empty-sub">The timeline fills as OKX / Bybit events stream in ($10K+ only).</div></div>
   }
-  const longL  = stats.h24.long  || 0
-  const shortL = stats.h24.short || 0
-  const total  = longL + shortL
-  const score  = total > 0 ? (longL - shortL) / total : 0
-  const verdict = score >  0.3 ? 'BULLISH' : score < -0.3 ? 'BEARISH' : 'NEUTRAL'
-  const tone    = verdict === 'BULLISH' ? '#00e87a' : verdict === 'BEARISH' ? '#f43f5e' : '#aaa'
-  const pct     = Math.max(0, Math.min(100, (score + 1) * 50))
-  const dominant = longL > shortL * 1.5 ? 'LONG WIPED'
-                 : shortL > longL * 1.5 ? 'SHORT SQUEEZE'
-                 :                        'BALANCED'
 
   return (
-    <div className="liq-sentiment-wrap">
-      <div className="liq-sentiment-top">
-        <div className="liq-section-hdr">SENTIMENT · LIQUIDATION · 24H</div>
-        <div className="liq-sentiment-verdict" style={{ color: workspaceTextColor(tone) }}>
-          <span className="liq-sentiment-score">{score >= 0 ? '+' : ''}{score.toFixed(2)}</span>
-          <span className="liq-sentiment-label">{verdict}</span>
-        </div>
+    <div className="liq-timeline">
+      <div className="liq-timeline-y">
+        {ticks.map(t => <span key={t}>{t === 0 ? '$0' : (t > 0 ? '' : '-') + fmtUSDShort(Math.abs(t) * max).replace('$', '$')}</span>)}
       </div>
-
-      <div className="liq-gauge-wrap">
-        <div className="liq-gauge-track">
-          <div className="liq-gauge-gradient" />
-          <div className="liq-gauge-center-line" />
-          <div className="liq-gauge-dot" style={{ left: pct + '%', background: tone, boxShadow: `0 0 10px ${tone}99` }} />
-        </div>
-        <div className="liq-gauge-labels">
-          <span>BEARISH</span>
-          <span>NEUTRAL</span>
-          <span>BULLISH</span>
-        </div>
-      </div>
-
-      <div className="liq-sub-cards">
-        <div className="liq-sub-card" style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.15)' }}>
-          <div className="liq-sub-card-title" style={{ color: "var(--ct-negative, #f43f5e)" }}>LONG LIQ</div>
-          <div className="liq-sub-card-value">{fmtM(longL)}</div>
-          <div className="liq-sub-card-note">longs flushed</div>
-        </div>
-        <div className="liq-sub-card" style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)' }}>
-          <div className="liq-sub-card-title" style={{ color: "var(--ct-positive, #00e87a)" }}>SHORT LIQ</div>
-          <div className="liq-sub-card-value">{fmtM(shortL)}</div>
-          <div className="liq-sub-card-note">shorts squeezed</div>
-        </div>
-        <div className="liq-sub-card" style={{ background: "var(--ct-wash, rgba(255,255,255,0.03))", border: "1px solid var(--ct-line, rgba(255,255,255,0.06))" }}>
-          <div className="liq-sub-card-title" style={{ color: "var(--ct-muted, #aaa)" }}>DOMINANT</div>
-          <div className="liq-sub-card-value" style={{ color: workspaceTextColor(tone), fontSize: 13 }}>{dominant}</div>
-          <div className="liq-sub-card-note">
-            {longL > 0 && shortL > 0
-              ? (longL > shortL ? (longL / shortL).toFixed(1) + 'x long' : (shortL / longL).toFixed(1) + 'x short')
-              : '—'}
-          </div>
-        </div>
-        <div className="liq-sub-card" style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)' }}>
-          <div className="liq-sub-card-title" style={{ color: "var(--ct-warning, #fbbf24)" }}>1H PRESSURE</div>
-          <div className="liq-sub-card-value">{fmtM(h1Pressure)}</div>
-          <div className="liq-sub-card-note">last hour pace</div>
+      <div className="liq-timeline-plot">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H}>
+          {ticks.map(t => <line key={t} x1="0" x2={W} y1={mid - t * (mid - pad)} y2={mid - t * (mid - pad)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray={t === 0 ? '' : '3 4'} />)}
+          {buckets.map((b, i) => {
+            const lh = (b.long / max) * (mid - pad)
+            const sh = (b.short / max) * (mid - pad)
+            return (
+              <g key={i}>
+                {lh > 0 && <rect x={i * bw + bw * 0.2} y={mid - lh} width={bw * 0.6} height={lh} fill="#22c55e" rx="1" />}
+                {sh > 0 && <rect x={i * bw + bw * 0.2} y={mid} width={bw * 0.6} height={sh} fill="#ef4444" rx="1" />}
+              </g>
+            )
+          })}
+        </svg>
+        <div className="liq-timeline-x">
+          {buckets.map((b, i) => i % labelEvery === 0 ? (
+            <span key={i} style={{ left: `${(i + 0.5) / buckets.length * 100}%` }}>
+              {new Date(b.t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}<br />{new Date(b.t).toTimeString().slice(0, 5)}
+            </span>
+          ) : null)}
         </div>
       </div>
     </div>
   )
 }
 
-function PeriodCard({ label, total, long, short, active, onClick }) {
-  const longPct = total > 0 ? (long / total) * 100 : 50
-  return (
-    <button className={`liq-period-card ${active ? 'active' : ''}`} onClick={onClick}>
-      <div className="liq-period-label">{label}</div>
-      <div className="liq-period-total">{fmtM(total)}</div>
-      <div className="liq-period-bar-track">
-        <div className="liq-period-bar-fill" style={{ width: longPct + '%' }} />
-      </div>
-      <div className="liq-period-bar-labels">
-        <span style={{ color: "var(--ct-positive, #00e87a)" }}>L {Math.round(longPct)}%</span>
-        <span style={{ color: "var(--ct-negative, #f43f5e)" }}>S {Math.round(100 - longPct)}%</span>
-      </div>
-    </button>
-  )
-}
-
-function HotCoinRow({ rank, coin, long, short }) {
-  const total   = long + short
-  const longPct = total > 0 ? (long / total) * 100 : 50
-  return (
-    <div className="liq-hot-row">
-      <div className="liq-hot-rank">#{rank}</div>
-      <div className="liq-hot-coin">{coin}</div>
-      <div className="liq-hot-bar-col">
-        <div className="liq-hot-bar-track">
-          <div className="liq-hot-bar-fill" style={{ width: longPct + '%' }} />
-        </div>
-        <div className="liq-hot-bar-subs">
-          <span style={{ color: "var(--ct-positive, #00e87a)" }}>Long {fmtM(long)}</span>
-          <span style={{ color: "var(--ct-negative, #f43f5e)" }}>Short {fmtM(short)}</span>
-        </div>
-      </div>
-      <div className="liq-hot-total">{fmtM(total)}</div>
-    </div>
-  )
-}
-
-function CardSkeleton() {
-  return (
-    <div className="liq-period-card">
-      <div style={{ height: 13, width: 24, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.06))", marginBottom: 8 }} />
-      <div style={{ height: 16, width: 52, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.08))", marginBottom: 9 }} />
-      <div style={{ height: 3, borderRadius: 2, background: "var(--ct-wash, rgba(255,255,255,0.05))" }} />
-    </div>
-  )
-}
-
+/* ── Page ───────────────────────────────────────────────────────────────── */
 export default function LiquidationsStream() {
-  const [stats,        setStats]        = useState(null)
-  const [coinMap,      setCoinMap]      = useState({})
-  const [activePeriod, setActivePeriod] = useState('h24')
+  const { token } = useAuth()
+  const [stats, setStats]     = useState(null)
+  const [period, setPeriod]   = useState('h24')
+  const [feed, setFeed]       = useState([])
+  const [symbol, setSymbol]   = useState('ALL')
+  const [side, setSide]       = useState('ALL')
+  const [minUsd, setMinUsd]   = useState('')
+  const [clock, setClock]     = useState(fmtClock)
+  const seenRef = useRef(new Set())
+
+  useEffect(() => { const id = setInterval(() => setClock(fmtClock()), 1000); return () => clearInterval(id) }, [])
 
   const fetchStats = useCallback(async () => {
     try {
-      const res  = await fetch(`${API_BASE}/api/liq-stats`)
+      const res = await fetch(`${API_BASE}/api/liq-stats`)
       const data = await res.json()
       if (data?.stats) setStats(data.stats)
-      if (data?.coins) setCoinMap(data.coins)
-    } catch {}
+    } catch { /* keep the last snapshot */ }
   }, [])
+  useEffect(() => { fetchStats(); const id = setInterval(fetchStats, 3 * 60_000); return () => clearInterval(id) }, [fetchStats])
 
-  useEffect(() => {
-    fetchStats()
-    const id = setInterval(fetchStats, 3 * 60_000)
-    return () => clearInterval(id)
-  }, [fetchStats])
+  const onWsMessage = useCallback(msg => {
+    if (!msg || msg.type !== 'liquidation') return
+    const key = `${msg.exchange}:${msg.symbol}:${msg.ts}:${msg.usd}`
+    if (seenRef.current.has(key)) return
+    seenRef.current.add(key)
+    setFeed(prev => [msg, ...prev].slice(0, 2000))
+  }, [])
+  useWebSocket(onWsMessage, [], { token })
 
-  const topCoins = Object.entries(coinMap)
-    .map(([coin, v]) => ({ coin, long: v.long || 0, short: v.short || 0, total: (v.long || 0) + (v.short || 0) }))
-    .filter(x => x.total > 0)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 20)
+  const p = stats?.[period] || { long: 0, short: 0 }
+  const total = (p.long || 0) + (p.short || 0)
+  const longPct = total > 0 ? (p.long / total) * 100 : 50
+  const hours = PERIODS.find(x => x[0] === period)[2]
 
-  const periodCards = PERIODS.map(({ key, label }) => ({
-    key, label,
-    total: (stats?.[key]?.long || 0) + (stats?.[key]?.short || 0),
-    long:   stats?.[key]?.long  || 0,
-    short:  stats?.[key]?.short || 0,
-  }))
-
-  const total24 = (stats?.h24?.long || 0) + (stats?.h24?.short || 0)
-  const long24  = stats?.h24?.long  || 0
-  const short24 = stats?.h24?.short || 0
+  const symbols = useMemo(() => [...new Set(feed.map(e => e.symbol))].sort(), [feed])
+  const rows = useMemo(() => {
+    const min = parseFloat(minUsd) || 0
+    return feed
+      .filter(e => symbol === 'ALL' || e.symbol === symbol)
+      .filter(e => side === 'ALL' || (side === 'long' ? isLong(e.side) : !isLong(e.side)))
+      .filter(e => e.usd >= min)
+      .slice(0, 50)
+  }, [feed, symbol, side, minUsd])
 
   return (
-    <div className="liq-page">
-
-      <FeatureSpotlight
-        featureKey="liquidations"
-        title="Likidasyonlar Akışı"
-        description="Binance, OKX ve Bybit'ten anlık long/short likidasyon verilerini takip edin. Büyük likidasyon dalgaları kısa vadeli trend dönüşlerini işaret edebilir."
-      />
-
-      {/* Header */}
-      <div className="liq-page-header">
-        <div>
-          <div className="liq-page-title">Liquidation Stream</div>
-          <div className="liq-page-subtitle">
-            <span className="liq-page-source">CMC public liquidation data · refreshes every 3 min</span>
-          </div>
-        </div>
-        {total24 > 0 && (
-          <div className="liq-page-24h">
-            <div className="liq-page-24h-label">24H GLOBAL</div>
-            <div className="liq-page-24h-total">{fmtM(total24)}</div>
-            <div className="liq-page-24h-subs">
-              <span style={{ color: "var(--ct-positive, #00e87a)" }}>Long {fmtM(long24)}</span>
-              <span style={{ color: "var(--ct-negative, #f43f5e)" }}>Short {fmtM(short24)}</span>
-            </div>
-          </div>
-        )}
+    <div className="ws-page">
+      <div className="ws-page-head">
+        <div className="ws-page-head-left"><h1 className="ws-title">Liquidations</h1></div>
+        <div className="ws-page-head-right"><span className="ws-meta-stamp">{clock}</span></div>
       </div>
 
-      {/* Sentiment gauge */}
-      <LiqSentiment stats={stats} h1Pressure={(stats?.h1?.long || 0) + (stats?.h1?.short || 0)} />
-
-      {/* Period cards */}
-      <div className="liq-section">
-        <div className="liq-section-hdr liq-section-hdr-row">
-          <span>PERIOD SUMMARY · GLOBAL</span>
+      {/* KPI cards */}
+      <div className="ws-grid ws-grid-4">
+        <div className="ws-kpi">
+          <div className="ws-kpi-label">Total Liquidation Value</div>
+          <div className="ws-kpi-value ws-kpi-mono">{stats ? fmtUSD(total) : '—'}</div>
+          <div className="ws-kpi-sub"><span className={longPct >= 50 ? 'ws-pos' : 'ws-neg'}>{longPct >= 50 ? '▲' : '▼'} {longPct >= 50 ? 'long-heavy' : 'short-heavy'}</span> last {hours}h · all exchanges</div>
         </div>
-        <div className="liq-period-row">
-          {stats === null
-            ? PERIODS.map(p => <CardSkeleton key={p.key} />)
-            : periodCards.map(c => (
-                <PeriodCard
-                  key={c.key}
-                  label={c.label}
-                  total={c.total}
-                  long={c.long}
-                  short={c.short}
-                  active={activePeriod === c.key}
-                  onClick={() => setActivePeriod(c.key)}
-                />
-              ))
-          }
+        <div className="ws-kpi">
+          <div className="ws-kpi-label">Long Liquidations</div>
+          <div className="ws-kpi-value ws-kpi-mono">{stats ? fmtUSD(p.long) : '—'}</div>
+          <div className="ws-kpi-sub"><span className="ws-pos">▲ {longPct.toFixed(1)}%</span></div>
+        </div>
+        <div className="ws-kpi">
+          <div className="ws-kpi-label">Short Liquidations</div>
+          <div className="ws-kpi-value ws-kpi-mono">{stats ? fmtUSD(p.short) : '—'}</div>
+          <div className="ws-kpi-sub"><span className="ws-neg">▲ {(100 - longPct).toFixed(1)}%</span></div>
+        </div>
+        <div className="ws-kpi">
+          <div className="ws-kpi-label">Long / Short Ratio</div>
+          <div className="ws-split ws-split-lg" style={{ marginTop: 10 }}>
+            <span className="l" style={{ width: `${longPct}%` }}>{longPct.toFixed(1)}%</span>
+            <span className="s" style={{ width: `${100 - longPct}%` }}>{(100 - longPct).toFixed(1)}%</span>
+          </div>
         </div>
       </div>
 
-      {/* Most liquidated — full width expanded */}
-      <div className="liq-section liq-section-expanded">
-        <div className="liq-section-hdr liq-section-hdr-row">
-          <span>MOST LIQUIDATED · 24H</span>
-          <span className="liq-section-count">{topCoins.length} coins</span>
+      {/* Timeline */}
+      <div className="ws-card ws-mt-16">
+        <div className="ws-card-head">
+          <h3 className="ws-h3">Liquidations Timeline</h3>
+          <div className="ws-seg">{PERIODS.map(([k, l]) => <button key={k} className={period === k ? 'active' : ''} onClick={() => setPeriod(k)}>{l}</button>)}</div>
         </div>
-        <div className="liq-panel">
-          {topCoins.length === 0 ? (
-            <div className="liq-empty">Loading data…</div>
-          ) : (
-            <div className="liq-hot-grid">
-              {topCoins.map((c, i) => (
-                <HotCoinRow key={c.coin} rank={i + 1} coin={c.coin} long={c.long} short={c.short} />
+        <div className="ws-card-body">
+          <Timeline feed={feed} hours={hours} />
+          <div className="ws-chart-legend" style={{ justifyContent: 'center', marginTop: 14 }}>
+            <span><i style={{ background: '#22c55e' }} /> Long Liquidations</span>
+            <span><i style={{ background: '#ef4444' }} /> Short Liquidations</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="ws-card ws-mt-16">
+        <div className="ws-card-body liq-filters">
+          <span className="ws-text">Symbol</span>
+          <div className="ws-inline-select" style={{ minWidth: 190 }}>{symbol === 'ALL' ? 'All Symbols' : symbol}<ChevronDown size={14} />
+            <select value={symbol} onChange={e => setSymbol(e.target.value)}><option value="ALL">All Symbols</option>{symbols.map(s => <option key={s} value={s}>{s}</option>)}</select>
+          </div>
+          <span className="ws-text">Side</span>
+          <div className="ws-inline-select" style={{ minWidth: 150 }}>{side === 'ALL' ? 'All' : side === 'long' ? 'Long' : 'Short'}<ChevronDown size={14} />
+            <select value={side} onChange={e => setSide(e.target.value)}><option value="ALL">All</option><option value="long">Long</option><option value="short">Short</option></select>
+          </div>
+          <span className="ws-text">Min. Value (USD)</span>
+          <input className="ws-input ws-mono" style={{ width: 180 }} placeholder="1,000,000" value={minUsd} onChange={e => setMinUsd(e.target.value)} />
+          <button className="ws-btn" style={{ marginLeft: 'auto' }} onClick={() => { setSymbol('ALL'); setSide('ALL'); setMinUsd('') }}><RotateCcw size={14} /> Reset</button>
+        </div>
+      </div>
+
+      {/* Recent */}
+      <div className="ws-card ws-mt-16">
+        <div className="ws-card-head"><h3 className="ws-h3">Recent Liquidations</h3><span className="ws-meta">{feed.length} live events</span></div>
+        <div className="ws-table-wrap">
+          <table className="ws-table ws-table-dense">
+            <thead><tr><th>#</th><th>Symbol</th><th>Side</th><th className="ws-right">Price (USD)</th><th className="ws-right">Amount</th><th className="ws-right">Value (USD)</th><th>Time</th></tr></thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr><td colSpan={7}><div className="ws-empty"><div className="ws-empty-title">Waiting for live liquidations…</div><div className="ws-empty-sub">Events above $10K appear here as OKX / Bybit publish them.</div></div></td></tr>
+              ) : rows.map((e, i) => (
+                <tr key={`${e.exchange}:${e.symbol}:${e.ts}:${i}`}>
+                  <td className="ws-muted">{i + 1}</td>
+                  <td className="ws-ink ws-bold">{e.symbol}</td>
+                  <td><span className={`ws-badge ${isLong(e.side) ? 'ws-badge-pos' : 'ws-badge-neg'}`}>{isLong(e.side) ? 'Long' : 'Short'}</span></td>
+                  <td className="ws-right ws-mono ws-ink">{fmtPrice(e.price || 0)}</td>
+                  <td className="ws-right ws-mono ws-text">{fmtQty(e.qty || 0)} {String(e.symbol || '').replace(/USDT$|USD$/, '')}</td>
+                  <td className="ws-right ws-mono ws-ink">{Math.round(e.usd).toLocaleString('en-US')}</td>
+                  <td className="ws-mono ws-text">{fmtTime(e.ts)}</td>
+                </tr>
               ))}
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

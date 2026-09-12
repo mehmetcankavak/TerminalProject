@@ -1,532 +1,247 @@
-import { workspaceTextColor } from '../utils/workspaceTheme'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Search, ArrowRight, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
 import { useWebSocket } from '../hooks/useWebSocket'
-import FeatureSpotlight from './FeatureSpotlight'
+import AssetLogo from './AssetLogo'
 
-// Real on-chain big transfers fed by backend trackers:
-//   • BTC: mempool.space WebSocket (free, no key)
-//   • ETH USDT/USDC: dRPC/PublicNode WSS RPC (free, no key)
-// One row per (chain, tx_hash, asset). Backend persists; we poll + listen WS.
+// Real on-chain big transfers fed by backend trackers (BTC mempool, ETH/TRON stablecoins).
+// One row per (chain, tx_hash, asset). Backend persists; we poll + listen on the WS.
 
-const THRESHOLDS    = [500_000, 1_000_000, 5_000_000, 10_000_000]
-const CHAIN_FILTERS = ['ALL', 'BTC', 'ETH', 'TRON']
-const ASSET_FILTERS = ['ALL', 'BTC', 'ETH', 'USDT', 'USDC']
-
-const FLOW_FILTERS = [
-  { id: 'ALL',         label: 'All'           },
-  { id: 'CEX_FLOW',    label: 'Exchange Flow' },
-  { id: 'cex_inflow',  label: 'Inflow'        },
-  { id: 'cex_outflow', label: 'Outflow'       },
-  { id: 'mint',        label: 'Mint'          },
+const THRESHOLDS = [
+  { v: 100_000,    label: 'All sizes' },
+  { v: 500_000,    label: '$500K+' },
+  { v: 1_000_000,  label: '$1M+' },
+  { v: 5_000_000,  label: '$5M+' },
+  { v: 10_000_000, label: '$10M+' },
 ]
-
-const FLOW_META = {
-  cex_inflow:   { label: 'INFLOW',   tone: '#f43f5e', bg: 'rgba(244,63,94,0.12)',   arrow: '→' },
-  cex_outflow:  { label: 'OUTFLOW',  tone: '#00e87a', bg: 'rgba(0,232,122,0.12)',   arrow: '←' },
-  cex_internal: { label: 'INTERNAL', tone: '#888',    bg: 'rgba(255,255,255,0.05)', arrow: '⇄' },
-  mint:         { label: 'MINT',     tone: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  arrow: '✦' },
-  burn:         { label: 'BURN',     tone: '#a855f7', bg: 'rgba(168,85,247,0.12)',  arrow: '✦' },
-  unknown:      { label: '',         tone: '#666',    bg: 'transparent',            arrow: '→' },
-}
-
+const FLOW_FILTERS = [
+  { id: 'ALL',         label: 'All' },
+  { id: 'CEX_FLOW',    label: 'Exchange Flow' },
+  { id: 'cex_inflow',  label: 'Inflow' },
+  { id: 'cex_outflow', label: 'Outflow' },
+  { id: 'mint',        label: 'Mint' },
+]
+const FLOW_BADGE = { cex_inflow: ['IN', 'ws-badge-pos'], cex_outflow: ['OUT', 'ws-badge-neg'], inflow: ['IN', 'ws-badge-pos'], outflow: ['OUT', 'ws-badge-neg'], mint: ['MINT', 'ws-badge-pos'], burn: ['BURN', 'ws-badge-neg'], cex_internal: ['INT', ''], unknown: ['—', ''] }
 const STABLE_SYMS = new Set(['USDT', 'USDC', 'DAI', 'FDUSD', 'PYUSD', 'USDP', 'TUSD', 'BUSD'])
-const BULL = { tone: '#00e87a', bg: 'rgba(0,232,122,0.12)' }
-const BEAR = { tone: '#f43f5e', bg: 'rgba(244,63,94,0.12)' }
+const CHAIN_NAME = { btc: 'Bitcoin', eth: 'Ethereum', tron: 'Tron', sol: 'Solana', arb: 'Arbitrum', base: 'Base', bsc: 'BNB Chain', bnb: 'BNB Chain' }
+const CHAIN_LOGO = { btc: 'BTC', eth: 'ETH', tron: 'TRX', sol: 'SOL', arb: 'ARB', base: 'BASE', bsc: 'BNB', bnb: 'BNB' }
+const PAGE_SIZE = 15
 
-function flowMeta(flowCat, asset) {
-  const base = FLOW_META[flowCat] || FLOW_META.unknown
-  if (flowCat === 'cex_inflow' || flowCat === 'cex_outflow') {
-    const stable   = STABLE_SYMS.has((asset || '').toUpperCase())
-    const bullish  = flowCat === 'cex_inflow' ? stable : !stable
-    return { ...base, ...(bullish ? BULL : BEAR) }
-  }
-  return base
+const fmtUSD = n => n == null || isNaN(n) ? '—' : n >= 1e9 ? '$' + (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? '$' + (n / 1e6).toFixed(1) + 'M' : '$' + Math.round(n).toLocaleString('en-US')
+const fmtUSDFull = n => n == null || isNaN(n) ? '—' : '$' + Math.round(n).toLocaleString('en-US')
+const fmtAmount = n => n == null || isNaN(n) ? '—' : n >= 1000 ? Math.round(n).toLocaleString('en-US') : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const shortAddr = a => !a ? '—' : a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-4) : a
+const fmtTime = ts => {
+  if (!ts) return '—'
+  const d = new Date(ts < 1e12 ? ts * 1000 : ts)
+  return d.toISOString().slice(0, 10) + ' ' + d.toTimeString().slice(0, 8)
 }
+const fmtClock = () => { const d = new Date(); return d.toUTCString().replace(/^(\w+), (\d+) (\w+) (\d+) (\d+:\d+:\d+).*$/, '$1, $3 $2, $4  $5 UTC') }
+const isBullish = t => (t.flow_category === 'cex_inflow') === STABLE_SYMS.has((t.asset || '').toUpperCase())
 
-const ASSET_COLOR = {
-  BTC:  '#f7931a', WBTC: '#f7931a',
-  ETH:  '#627eea', WETH: '#627eea',
-  USDT: '#26a17b',
-  USDC: '#2775ca',
-}
-
-function fmtUSD(n) {
-  if (n == null || isNaN(n)) return '—'
-  if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B'
-  if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M'
-  if (n >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K'
-  return '$' + n.toFixed(0)
-}
-
-function timeAgo(ts) {
-  const s = Math.floor(Date.now() / 1000 - ts)
-  if (s < 0)    return 'just now'
-  if (s < 60)   return s + 's'
-  if (s < 3600) return Math.floor(s / 60) + 'm'
-  return Math.floor(s / 3600) + 'h'
-}
-
-function shortAddr(a) {
-  if (!a) return '—'
-  return a.slice(0, 6) + '…' + a.slice(-4)
-}
-
-function chainBadge(chain) {
-  if (chain === 'btc')  return { label: 'BTC',  color: '#f7931a' }
-  if (chain === 'eth')  return { label: 'ETH',  color: '#627eea' }
-  if (chain === 'tron') return { label: 'TRON', color: '#eb0029' }
-  return { label: (chain || '').toUpperCase().slice(0, 4), color: '#888' }
-}
-
-// ─── Transfer Row ─────────────────────────────────────────────────────────────
-function TransferRow({ t }) {
-  const cb         = chainBadge(t.chain)
-  const assetColor = ASSET_COLOR[t.asset] || '#fff'
-  const flow       = flowMeta(t.flow_category, t.asset)
-  const fromText   = t.from_label || shortAddr(t.from)
-  const toText     = t.to_label   || shortAddr(t.to)
-  const fromBold   = !!t.from_label
-  const toBold     = !!t.to_label
-
-  return (
-    <div className="ct-transfer-row"
-      onClick={() => { if (t.link) window.open(t.link, '_blank') }}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 20px',
-        borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))",
-        borderLeft: `3px solid ${flow.tone}55`,
-        cursor: t.link ? 'pointer' : 'default',
-        transition: 'background 0.15s',
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-    >
-      {/* Chain badge */}
-      <div style={{
-        width: 40, flexShrink: 0, textAlign: 'center',
-        padding: '3px 0', borderRadius: 6,
-        background: `${cb.color}22`,
-        fontSize: 10, fontWeight: 900, letterSpacing: 0.5,
-        color: workspaceTextColor(cb.color),
-      }}>
-        {cb.label}
-      </div>
-
-      {/* Asset */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 60, flexShrink: 0 }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%', background: assetColor, flexShrink: 0 }} />
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ct-ink, #fff)" }}>{t.asset}</div>
-      </div>
-
-      {/* Amount + flow + address */}
-      <div className="ct-transfer-value" style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: "var(--ct-ink, #fff)" }}>
-            {fmtUSD(t.amount_usd)}
-          </div>
-          {flow.label && (
-            <div style={{
-              fontSize: 9, fontWeight: 900, letterSpacing: 0.5,
-              padding: '2px 6px', borderRadius: 4,
-              background: flow.bg, color: workspaceTextColor(flow.tone),
-            }}>
-              {flow.label}
-            </div>
-          )}
-        </div>
-        <div className="ct-transfer-address" style={{
-          fontSize: 10, fontFamily: 'var(--font-mono)', marginTop: 2, color: "var(--ct-muted, rgba(255,255,255,0.4))",
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          <span style={{ color: workspaceTextColor(fromBold ? flow.tone : "var(--ct-muted, rgba(255,255,255,0.5))"), fontWeight: fromBold ? 700 : 400 }}>
-            {fromText}
-          </span>
-          <span style={{ color: "var(--ct-subtle, #555)" }}> {flow.arrow} </span>
-          <span style={{ color: workspaceTextColor(toBold ? flow.tone : "var(--ct-muted, rgba(255,255,255,0.5))"), fontWeight: toBold ? 700 : 400 }}>
-            {toText}
-          </span>
-        </div>
-      </div>
-
-      {/* Time */}
-      <div style={{ fontSize: 11, color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
-        {timeAgo(t.ts)}
-      </div>
-    </div>
-  )
-}
-
-// ─── Sentiment Gauge ──────────────────────────────────────────────────────────
-function SentimentGauge({ aggregates, onOpen }) {
-  if (!aggregates?.sentiment) {
-    return (
-      <div style={{ padding: '14px 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))" }}>
-        <div style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.22))", fontWeight: 700, letterSpacing: 0.5 }}>
-          SENTIMENT (24H) · loading…
-        </div>
-      </div>
-    )
-  }
-  const bk      = aggregates.sentiment
-  const score   = bk.score
-  const verdict = bk.verdict
-  const tone    = verdict === 'BULLISH' ? '#00e87a' : verdict === 'BEARISH' ? '#f43f5e' : '#aaa'
-  const pct     = Math.max(0, Math.min(100, (score + 1) * 50))
-
-  const coinNet   = aggregates?.coin   ? (aggregates.coin.outflow  - aggregates.coin.inflow)   : 0
-  const stableNet = aggregates?.stable ? (aggregates.stable.inflow - aggregates.stable.outflow) : 0
-  const hasCoin   = aggregates?.coin   && (aggregates.coin.inflow   + aggregates.coin.outflow)   > 0
-  const hasStable = aggregates?.stable && (aggregates.stable.inflow + aggregates.stable.outflow) > 0
-  const mint      = aggregates?.mint?.sum_usd || 0
-  const burn      = aggregates?.burn?.sum_usd || 0
-
-  return (
-    <div
-      onClick={onOpen}
-      style={{
-        padding: '14px 20px 16px',
-        borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))",
-        cursor: 'pointer',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.28))", fontWeight: 700, letterSpacing: 0.8 }}>
-          SENTIMENT · 24H
-          <span style={{ color: "var(--ct-positive, #00e87a)", marginLeft: 8, fontWeight: 800 }}>· ANALYSIS ›</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(tone) }}>
-            {score >= 0 ? '+' : ''}{score.toFixed(2)}
-          </span>
-          <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.6, color: workspaceTextColor(tone) }}>{verdict}</span>
-        </div>
-      </div>
-
-      <div style={{ position: 'relative', height: 8, marginBottom: 8 }}>
-        <div style={{
-          position: 'absolute', inset: 0, borderRadius: 4,
-          background: 'linear-gradient(to right, rgba(244,63,94,0.5) 0%, rgba(244,63,94,0.15) 35%, rgba(255,255,255,0.06) 50%, rgba(0,232,122,0.15) 65%, rgba(0,232,122,0.5) 100%)',
-        }} />
-        <div style={{
-          position: 'absolute', top: -2, bottom: -2, left: '50%',
-          width: 1, background: "var(--ct-wash, rgba(255,255,255,0.18))", transform: 'translateX(-50%)',
-        }} />
-        <div style={{
-          position: 'absolute', top: '50%', left: `${pct}%`,
-          width: 12, height: 12, borderRadius: '50%', background: tone,
-          boxShadow: `0 0 10px ${tone}99`, border: "2px solid var(--ct-line-strong, #000)",
-          transform: 'translate(-50%, -50%)',
-          transition: 'left 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-        }} />
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, color: "var(--ct-subtle, rgba(255,255,255,0.2))", fontWeight: 700, letterSpacing: 0.5, marginBottom: 8 }}>
-        <span>BEARISH</span><span>NEUTRAL</span><span>BULLISH</span>
-      </div>
-
-      <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', lineHeight: 1.7, color: "var(--ct-muted, rgba(255,255,255,0.55))" }}>
-        <span style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))" }}>Coin </span>
-        {hasCoin
-          ? <span style={{ color: workspaceTextColor(coinNet >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
-              {coinNet >= 0 ? '+' : '−'}{fmtUSD(Math.abs(coinNet))} {coinNet >= 0 ? 'outflow' : 'inflow'}
-            </span>
-          : <span style={{ color: "var(--ct-subtle, #555)" }}>—</span>}
-        <span style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))" }}>{'  ·  '}Stable </span>
-        {hasStable
-          ? <span style={{ color: workspaceTextColor(stableNet >= 0 ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
-              {stableNet >= 0 ? '+' : '−'}{fmtUSD(Math.abs(stableNet))} {stableNet >= 0 ? 'inflow' : 'outflow'}
-            </span>
-          : <span style={{ color: "var(--ct-subtle, #555)" }}>—</span>}
-        <br />
-        <span style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))" }}>Mint </span>
-        <span style={{ color: workspaceTextColor(mint > 0 ? '#3b82f6' : "var(--ct-subtle, #555)") }}>{mint > 0 ? '+' + fmtUSD(mint) : '—'}</span>
-        <span style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))" }}>{'  ·  '}Burn </span>
-        <span style={{ color: workspaceTextColor(burn > 0 ? '#a855f7' : "var(--ct-subtle, #555)") }}>{burn > 0 ? '−' + fmtUSD(burn) : '—'}</span>
-      </div>
-    </div>
-  )
-}
-
-// ─── Flow Summary Cards ───────────────────────────────────────────────────────
-function FlowSummary({ aggregates, flowFilter, assetClass, setFlowFilter, setAssetClass }) {
+/* ── KPI strip ──────────────────────────────────────────────────────────── */
+function KpiCards({ aggregates }) {
   const coin   = aggregates?.coin   || { inflow: 0, outflow: 0 }
   const stable = aggregates?.stable || { inflow: 0, outflow: 0 }
   const mint   = aggregates?.mint   || { count: 0, sum_usd: 0 }
   const burn   = aggregates?.burn   || { count: 0, sum_usd: 0 }
-  const GREEN = '#00e87a', RED = '#f43f5e'
-  const gBg = 'rgba(0,232,122,0.1)', rBg = 'rgba(244,63,94,0.1)'
-
+  const inflowCount  = aggregates?.cex_inflow?.count  || 0
+  const outflowCount = aggregates?.cex_outflow?.count || 0
   const cards = [
-    { label: 'COIN IN',    val: coin.inflow,    color: RED,                      bg: rBg,                       sub: 'sell pressure',  ac: 'coin',   ff: 'cex_inflow'  },
-    { label: 'COIN OUT',   val: coin.outflow,   color: GREEN,                    bg: gBg,                       sub: 'accumulation',   ac: 'coin',   ff: 'cex_outflow' },
-    { label: 'STABLE IN',  val: stable.inflow,  color: GREEN,                    bg: gBg,                       sub: 'buying power',   ac: 'stable', ff: 'cex_inflow'  },
-    { label: 'STABLE OUT', val: stable.outflow, color: RED,                      bg: rBg,                       sub: 'power exit',     ac: 'stable', ff: 'cex_outflow' },
-    { label: 'MINT',       val: mint.sum_usd,   color: FLOW_META.mint.tone,      bg: FLOW_META.mint.bg,         sub: `${mint.count} tx`, ac: null, ff: 'mint'       },
-    { label: 'BURN',       val: burn.sum_usd,   color: FLOW_META.burn.tone,      bg: FLOW_META.burn.bg,         sub: `${burn.count} tx`, ac: null, ff: 'burn'       },
+    { label: 'COIN IN',    val: coin.inflow,    tone: 'ws-pos', sub: `${inflowCount} tx` },
+    { label: 'COIN OUT',   val: coin.outflow,   tone: 'ws-neg', sub: `${outflowCount} tx` },
+    { label: 'STABLE IN',  val: stable.inflow,  tone: 'ws-pos', sub: 'buying power' },
+    { label: 'STABLE OUT', val: stable.outflow, tone: 'ws-neg', sub: 'power exit' },
+    { label: 'MINT',       val: mint.sum_usd,   tone: 'ws-pos', sub: `${mint.count} tx` },
+    { label: 'BURN',       val: burn.sum_usd,   tone: 'ws-neg', sub: `${burn.count} tx` },
   ]
-
-  const isActive = (c) => c.ac != null
-    ? (assetClass === c.ac && flowFilter === c.ff)
-    : (flowFilter === c.ff)
-
-  const apply = (c) => {
-    if (isActive(c)) { setAssetClass('ALL'); setFlowFilter('CEX_FLOW') }
-    else { setAssetClass(c.ac || 'ALL'); setFlowFilter(c.ff) }
-  }
-
   return (
-    <div style={{
-      display: 'flex', gap: 8, flexWrap: 'wrap',
-      padding: '12px 20px 14px',
-      borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))",
-    }}>
-      {cards.map(c => {
-        const active = isActive(c)
-        return (
-          <button key={c.label}
-            onClick={() => apply(c)}
-            style={{
-              flex: '1 1 calc(33% - 8px)', minWidth: 90, maxWidth: 160,
-              background: active ? c.bg : "var(--ct-wash, rgba(255,255,255,0.025))",
-              border: `1px solid ${active ? c.color + '55' : 'rgba(255,255,255,0.07)'}`,
-              borderRadius: 10, padding: '10px 12px', cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
-              transition: 'background 0.15s, border-color 0.15s',
-            }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: workspaceTextColor(c.color), whiteSpace: 'nowrap' }}>{c.label}</div>
-            <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', color: "var(--ct-ink, #fff)", marginTop: 4, whiteSpace: 'nowrap' }}>{fmtUSD(c.val)}</div>
-            <div style={{ fontSize: 9, color: workspaceTextColor(c.color), fontFamily: 'var(--font-mono)', opacity: 0.8, whiteSpace: 'nowrap' }}>{c.sub}</div>
-          </button>
-        )
-      })}
+    <div className="ws-kpi-strip ws-kpi-strip-bare bt-kpis">
+      {cards.map(c => (
+        <div key={c.label}>
+          <div className="ws-kpi-label ws-caps">{c.label}</div>
+          <div className={`ws-kpi-value ws-kpi-mono ${c.tone}`}>{aggregates ? fmtUSD(c.val) : '—'}</div>
+          <div className="ws-kpi-sub"><span className={c.tone}>▲</span> {c.sub} <span className="ws-subtle">24h</span></div>
+        </div>
+      ))}
     </div>
   )
 }
 
-// ─── Flow Insights Sheet (desktop modal) ─────────────────────────────────────
-function FlowInsightsSheet({ open, onClose, token }) {
-  const [data,        setData]        = useState(null)
-  const [loading,     setLoading]     = useState(false)
-  const [tab,         setTab]         = useState('flow')
-  const [corridors,   setCorridors]   = useState(null)
-  const [corrLoading, setCorrLoading] = useState(false)
-
-  useEffect(() => {
-    if (!open || !token) return
-    let alive = true
-    setLoading(true)
-    fetch(`${API_BASE}/api/big-transfers/insights?window_sec=86400`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null).catch(() => null)
-      .then(d => { if (alive) { setData(d); setLoading(false) } })
-    return () => { alive = false }
-  }, [open, token])
-
-  useEffect(() => {
-    if (!open || !token || tab !== 'corridors' || corridors !== null) return
-    let alive = true
-    setCorrLoading(true)
-    fetch(`${API_BASE}/api/big-transfers/corridors?window_sec=86400&min_count=3`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null).catch(() => null)
-      .then(d => { if (alive) { setCorridors(d?.corridors || []); setCorrLoading(false) } })
-    return () => { alive = false }
-  }, [open, token, tab, corridors])
-
-  if (!open) return null
-
-  const toneColor = t => t === 'bull' ? '#00e87a' : t === 'bear' ? '#f43f5e' : t === 'warn' ? '#f59e0b' : '#888'
-  const s = data?.sentiment
-  const verdictColor = s?.verdict === 'BULLISH' ? '#00e87a' : s?.verdict === 'BEARISH' ? '#f43f5e' : '#aaa'
+/* ── Flow table ─────────────────────────────────────────────────────────── */
+function FlowTable({ rows, page, setPage }) {
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const cur = Math.min(page, pages)
+  const slice = rows.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
+  const pageNums = useMemo(() => {
+    const s = new Set([1, 2, 3, 4, 5, pages, cur - 1, cur, cur + 1].filter(n => n >= 1 && n <= pages))
+    return [...s].sort((a, b) => a - b)
+  }, [pages, cur])
 
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: "var(--ct-surface, rgba(0,0,0,0.85))", display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      <div style={{ width: '90%', maxWidth: 640, maxHeight: '85vh', background: "var(--ct-surface, #0a0a0a)", borderRadius: 16, border: "1px solid var(--ct-line, rgba(255,255,255,0.1))", display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{ padding: '16px 20px 14px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.06))", display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: "var(--ct-muted, #aaa)", fontSize: 20, padding: 0, cursor: 'pointer', lineHeight: 1 }}>✕</button>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ct-ink, #fff)" }}>Flow Analysis</div>
-            <div style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.3))", marginTop: 2 }}>
-              {tab === 'flow' ? 'Last 24h · where money moved'
-                : tab === 'corridors' ? 'Recurring routes · who feeds who'
-                : 'Why the sentiment score is here'}
-            </div>
-          </div>
-          {s && <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: 0.6, color: workspaceTextColor(verdictColor) }}>{s.verdict}</span>}
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', padding: '8px 20px 0', gap: 6, borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.05))" }}>
-          {[{ id: 'flow', label: 'FLOW' }, { id: 'corridors', label: 'CORRIDORS' }, { id: 'breakdown', label: 'BREAKDOWN' }].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              style={{
-                flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
-                padding: '8px 4px 10px', fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
-                color: workspaceTextColor(tab === t.id ? "var(--ct-positive, #00e87a)" : "var(--ct-subtle, rgba(255,255,255,0.28))"),
-                borderBottom: `2px solid ${tab === t.id ? '#00e87a' : 'transparent'}`,
-              }}>{t.label}</button>
+    <>
+      <div className="ws-table-wrap">
+        <table className="ws-table bt-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Asset</th><th className="ws-right">Amount</th><th className="ws-right">USD Value</th>
+              <th>From</th><th /><th>To</th><th>Chain</th><th>Time</th><th className="ws-center">Flow</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slice.length === 0 ? (
+              <tr><td colSpan={10}><div className="ws-empty"><div className="ws-empty-title">No transfers match these filters yet.</div><div className="ws-empty-sub">Tracking BTC mempool and ETH / TRON stablecoins in real time.</div></div></td></tr>
+            ) : slice.map((t, i) => {
+              const [flowLabel, flowCls] = FLOW_BADGE[t.flow_category] || FLOW_BADGE.unknown
+              const bullish = isBullish(t)
+              return (
+                <tr key={`${t.chain}:${t.asset}:${t.tx_hash}`} className={t.link ? 'ws-table-click' : ''} onClick={() => { if (t.link) window.open(t.link, '_blank') }}>
+                  <td className="ws-muted">{(cur - 1) * PAGE_SIZE + i + 1}</td>
+                  <td><div className="ws-asset"><span className="ws-asset-logo ws-asset-logo-sm"><AssetLogo symbol={t.asset} type="crypto" size={20} radius={10} /></span><span className="ws-asset-sym" style={{ fontWeight: 600 }}>{t.asset}</span></div></td>
+                  <td className={`ws-right ws-mono ${bullish ? 'ws-pos' : 'ws-neg'}`}>{fmtAmount(t.amount)}</td>
+                  <td className="ws-right ws-mono ws-ink">{fmtUSDFull(t.amount_usd)}</td>
+                  <td className={t.from_label ? 'ws-ink' : 'ws-mono ws-text'}>{t.from_label || shortAddr(t.from)}</td>
+                  <td className="ws-subtle"><ArrowRight size={14} /></td>
+                  <td className={t.to_label ? 'ws-ink' : 'ws-mono ws-text'}>{t.to_label || shortAddr(t.to)}</td>
+                  <td><div className="ws-asset"><span className="ws-asset-logo ws-asset-logo-sm"><AssetLogo symbol={CHAIN_LOGO[t.chain] || t.chain} type="crypto" size={20} radius={10} /></span><span>{CHAIN_NAME[t.chain] || String(t.chain || '').toUpperCase()}</span></div></td>
+                  <td className="ws-mono ws-text">{fmtTime(t.ts)}</td>
+                  <td className="ws-center"><span className={`ws-badge ws-badge-mono ${flowCls}`}>{flowLabel}</span></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="ws-row-between ws-mt-16">
+        <span className="ws-text">Showing {rows.length ? (cur - 1) * PAGE_SIZE + 1 : 0} – {Math.min(cur * PAGE_SIZE, rows.length)} of {rows.length.toLocaleString('en-US')} transfers</span>
+        <div className="ws-pager">
+          <button disabled={cur <= 1} onClick={() => setPage(cur - 1)}><ChevronLeft size={16} /></button>
+          {pageNums.map((n, i) => (
+            <span key={n} style={{ display: 'contents' }}>
+              {i > 0 && pageNums[i - 1] !== n - 1 && <span>…</span>}
+              <button className={n === cur ? 'active' : ''} onClick={() => setPage(n)}>{n}</button>
+            </span>
           ))}
+          <button disabled={cur >= pages} onClick={() => setPage(cur + 1)}><ChevronRight size={16} /></button>
         </div>
+      </div>
+    </>
+  )
+}
 
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 24px' }}>
-          {loading && <div style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontSize: 12, textAlign: 'center', padding: 30 }}>Loading…</div>}
-          {!loading && !data && <div style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontSize: 12, textAlign: 'center', padding: 30 }}>No data available.</div>}
+/* ── Corridors / breakdown ─────────────────────────────────────────────── */
+function CorridorsTab({ token }) {
+  const [rows, setRows] = useState(null)
+  useEffect(() => {
+    if (!token) return
+    let alive = true
+    fetch(`${API_BASE}/api/big-transfers/corridors?window_sec=86400&min_count=3`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null).catch(() => null)
+      .then(d => { if (alive) setRows(d?.corridors || []) })
+    return () => { alive = false }
+  }, [token])
+  if (rows === null) return <div className="ws-loading"><span className="ws-spinner" /> Loading corridors…</div>
+  return (
+    <div className="ws-table-wrap">
+      <table className="ws-table bt-table">
+        <thead><tr><th>#</th><th>From</th><th /><th>To</th><th>Asset</th><th className="ws-right">Transfers</th><th className="ws-right">Total</th><th>Last</th><th>Read</th></tr></thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr><td colSpan={9}><div className="ws-empty"><div className="ws-empty-title">No recurring corridors in the last 24 hours.</div><div className="ws-empty-sub">The same address pair with 3+ transfers will appear here.</div></div></td></tr>
+          ) : rows.map((c, i) => (
+            <tr key={i}>
+              <td className="ws-muted">{i + 1}</td>
+              <td className={c.from_label ? 'ws-ink' : 'ws-mono'}>{c.from_label || shortAddr(c.from_addr)}</td>
+              <td className="ws-subtle"><ArrowRight size={14} /></td>
+              <td className={c.to_label ? 'ws-ink' : 'ws-mono'}>{c.to_label || shortAddr(c.to_addr)}</td>
+              <td className="ws-ink">{c.asset || '—'}</td>
+              <td className="ws-right ws-mono">{c.count}×</td>
+              <td className={`ws-right ws-mono ${c.tone === 'bull' ? 'ws-pos' : c.tone === 'bear' ? 'ws-neg' : 'ws-ink'}`}>{fmtUSD(c.total_usd)}</td>
+              <td className="ws-mono ws-text">{fmtTime(c.last_ts)}</td>
+              <td className="ws-muted" style={{ whiteSpace: 'normal', minWidth: 240 }}>{c.read}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
-          {!loading && data && tab === 'flow' && (
-            <>
-              {data.coin_flow && (data.coin_flow.inflow + data.coin_flow.outflow) > 0 && (() => {
-                const net = data.coin_flow.net
-                const pos = net >= 0
-                return (
-                  <div style={{ marginBottom: 16, padding: '12px 14px', background: "var(--ct-wash, rgba(255,255,255,0.03))", borderRadius: 10, border: `1px solid ${pos ? 'rgba(0,232,122,0.25)' : 'rgba(244,63,94,0.25)'}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontWeight: 700, letterSpacing: 0.6 }}>COIN NETFLOW · BTC/ETH</span>
-                      <span style={{ fontSize: 13, fontWeight: 900, fontFamily: 'var(--font-mono)', color: workspaceTextColor(pos ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)") }}>
-                        {pos ? '+' : '−'}{fmtUSD(Math.abs(net))}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--ct-muted, rgba(255,255,255,0.6))", lineHeight: 1.4 }}>
-                      {pos ? 'Net outflow → accumulation signal' : 'Net inflow → sell pressure signal'}
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {(data.insights || []).map((ins, i) => (
-                <div key={i} style={{ display: 'flex', gap: 10, padding: '12px 0', borderBottom: i < data.insights.length - 1 ? "1px solid var(--ct-line, rgba(255,255,255,0.05))" : 'none' }}>
-                  <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: toneColor(ins.tone), flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, color: workspaceTextColor(toneColor(ins.tone)), marginBottom: 3 }}>{ins.tag}</div>
-                    <div style={{ fontSize: 12, color: "var(--ct-ink, rgba(255,255,255,0.75))", lineHeight: 1.45 }}>{ins.text}</div>
-                  </div>
-                </div>
-              ))}
-
-              {data.exchanges?.length > 0 && (() => {
-                const maxAbs = Math.max(...data.exchanges.map(e => Math.abs(e.net)), 1)
-                return (
-                  <div style={{ marginTop: 18 }}>
-                    <div style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>PER-EXCHANGE NET FLOW</div>
-                    {data.exchanges.map((e, i) => {
-                      const pos = e.net >= 0
-                      const w = Math.max(4, Math.round(Math.abs(e.net) / maxAbs * 100))
-                      return (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ct-ink, rgba(255,255,255,0.75))", width: 90, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.venue}</span>
-                          <div style={{ flex: 1, height: 6, background: "var(--ct-wash, rgba(255,255,255,0.04))", borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ width: `${w}%`, height: '100%', background: pos ? '#00e87a' : '#f43f5e', opacity: 0.8 }} />
-                          </div>
-                          <span style={{ fontSize: 10, fontWeight: 800, fontFamily: 'var(--font-mono)', color: workspaceTextColor(pos ? "var(--ct-positive, #00e87a)" : "var(--ct-negative, #f43f5e)"), width: 64, textAlign: 'right', flexShrink: 0 }}>
-                            {pos ? '+' : '−'}{fmtUSD(Math.abs(e.net))}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
-            </>
-          )}
-
-          {!loading && tab === 'corridors' && (
-            <>
-              {corrLoading && <div style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontSize: 12, textAlign: 'center', padding: 30 }}>Loading…</div>}
-              {!corrLoading && (!corridors || corridors.length === 0) && (
-                <div style={{ color: "var(--ct-subtle, rgba(255,255,255,0.3))", fontSize: 12, textAlign: 'center', padding: 30, lineHeight: 1.5 }}>
-                  No recurring corridors in this window.<br />
-                  <span style={{ fontSize: 10, color: "var(--ct-subtle, rgba(255,255,255,0.18))" }}>Same address pair with 3+ transfers will appear here.</span>
-                </div>
-              )}
-              {!corrLoading && corridors?.length > 0 && corridors.map((c, i) => {
-                const tone = toneColor(c.tone)
-                return (
-                  <div key={i} style={{ display: 'flex', gap: 10, padding: '11px 0', borderBottom: i < corridors.length - 1 ? "1px solid var(--ct-line, rgba(255,255,255,0.05))" : 'none' }}>
-                    <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: tone, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
-                        <span style={{ fontSize: 12, color: "var(--ct-ink, #fff)", fontWeight: 700, fontFamily: c.from_label ? 'inherit' : 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {c.from_label || shortAddr(c.from_addr)} <span style={{ color: workspaceTextColor(tone), fontWeight: 900 }}>{c.arrow}</span> {c.to_label || shortAddr(c.to_addr)}
-                        </span>
-                        <span style={{ fontSize: 12, fontWeight: 900, fontFamily: 'var(--font-mono)', color: workspaceTextColor(tone), flexShrink: 0 }}>{fmtUSD(c.total_usd)}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ct-ink, #fff)", background: "var(--ct-wash, rgba(255,255,255,0.08))", padding: '1px 5px', borderRadius: 4 }}>{c.count}× transfers</span>
-                        {c.asset && <span style={{ fontSize: 10, color: workspaceTextColor(ASSET_COLOR[c.asset] || '#999'), fontWeight: 700 }}>{c.asset}</span>}
-                        <span style={{ fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.25))" }}>last {timeAgo(c.last_ts)} ago</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--ct-muted, rgba(255,255,255,0.6))", lineHeight: 1.4 }}>{c.read}</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </>
-          )}
+function BreakdownTab({ token }) {
+  const [data, setData] = useState(null)
+  useEffect(() => {
+    if (!token) return
+    let alive = true
+    fetch(`${API_BASE}/api/big-transfers/insights?window_sec=86400`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null).catch(() => null)
+      .then(d => { if (alive) setData(d || {}) })
+    return () => { alive = false }
+  }, [token])
+  if (data === null) return <div className="ws-loading"><span className="ws-spinner" /> Loading breakdown…</div>
+  const exchanges = data.exchanges || []
+  const maxAbs = Math.max(...exchanges.map(e => Math.abs(e.net)), 1)
+  const net = data.coin_flow?.net
+  return (
+    <div className="ws-grid ws-grid-2">
+      <div className="ws-card">
+        <div className="ws-card-head"><h3 className="ws-h4">Coin netflow · BTC / ETH</h3>{data.sentiment && <span className={`ws-badge ${data.sentiment.verdict === 'BULLISH' ? 'ws-badge-pos' : data.sentiment.verdict === 'BEARISH' ? 'ws-badge-neg' : ''}`}>{data.sentiment.verdict}</span>}</div>
+        <div className="ws-card-body">
+          {net != null && <div className={`ws-kpi-value ws-kpi-mono ${net >= 0 ? 'ws-pos' : 'ws-neg'}`}>{net >= 0 ? '+' : '−'}{fmtUSD(Math.abs(net))}</div>}
+          <div className="ws-muted ws-mt-8">{net == null ? 'No coin flow in this window.' : net >= 0 ? 'Net outflow → accumulation signal' : 'Net inflow → sell pressure signal'}</div>
+          <ul className="mc-caution ws-mt-16">{(data.insights || []).map((ins, i) => <li key={i}><b className="ws-caps" style={{ marginRight: 6 }}>{ins.tag}</b>{ins.text}</li>)}</ul>
+        </div>
+      </div>
+      <div className="ws-card">
+        <div className="ws-card-head"><h3 className="ws-h4">Per-exchange net flow</h3></div>
+        <div className="ws-card-body">
+          {exchanges.length === 0 ? <div className="ws-muted">No exchange flow yet.</div> : exchanges.map((e, i) => {
+            const pos = e.net >= 0
+            return (
+              <div key={i} className="ws-row" style={{ padding: '7px 0' }}>
+                <span className="ws-ink" style={{ width: 110 }}>{e.venue}</span>
+                <div className="ws-bar ws-flex-1"><div className={`ws-bar-fill ${pos ? '' : 'neg'}`} style={{ width: `${Math.max(4, Math.abs(e.net) / maxAbs * 100)}%` }} /></div>
+                <span className={`ws-mono ${pos ? 'ws-pos' : 'ws-neg'}`} style={{ width: 80, textAlign: 'right' }}>{pos ? '+' : '−'}{fmtUSD(Math.abs(e.net))}</span>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
   )
 }
 
-function Skeleton() {
-  return (
-    <>
-      {Array.from({ length: 10 }).map((_, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.04))" }}>
-          <div style={{ width: 40, height: 22, borderRadius: 6, background: "var(--ct-wash, rgba(255,255,255,0.06))", flexShrink: 0 }} />
-          <div style={{ width: 60, flexShrink: 0 }}>
-            <div style={{ height: 13, width: 36, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.07))" }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ height: 14, width: 90, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.08))", marginBottom: 5 }} />
-            <div style={{ height: 10, width: 180, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.04))" }} />
-          </div>
-          <div style={{ height: 11, width: 28, borderRadius: 4, background: "var(--ct-wash, rgba(255,255,255,0.04))", flexShrink: 0 }} />
-        </div>
-      ))}
-    </>
-  )
-}
-
+/* ── Page ──────────────────────────────────────────────────────────────── */
 export default function BigTransfers() {
   const { token } = useAuth()
-  const [transfers,    setTransfers]    = useState([])
-  const [aggregates,   setAggregates]   = useState(null)
-  const [loading,      setLoading]      = useState(true)
-  const [connected,    setConnected]    = useState(false)
-  const [chainFilter,  setChainFilter]  = useState('ALL')
-  const [assetFilter,  setAssetFilter]  = useState('ALL')
-  const [flowFilter,   setFlowFilter]   = useState('CEX_FLOW')
-  const [assetClass,   setAssetClass]   = useState('ALL')
-  const [threshold,    setThreshold]    = useState(500_000)
-  const [insightsOpen, setInsightsOpen] = useState(false)
-  const seenRef    = useRef(new Set())
-  const lastTsRef  = useRef(0)
+  const [transfers, setTransfers]   = useState([])
+  const [aggregates, setAggregates] = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [tab, setTab]               = useState('flow')
+  const [flowFilter, setFlowFilter] = useState('ALL')
+  const [threshold, setThreshold]   = useState(500_000)
+  const [query, setQuery]           = useState('')
+  const [page, setPage]             = useState(1)
+  const [clock, setClock]           = useState(fmtClock)
+  const seenRef   = useRef(new Set())
+  const lastTsRef = useRef(0)
 
-  const ingest = useCallback((rows) => {
+  useEffect(() => { const id = setInterval(() => setClock(fmtClock()), 1000); return () => clearInterval(id) }, [])
+
+  const ingest = useCallback(rows => {
     if (!Array.isArray(rows) || !rows.length) return
     setTransfers(prev => {
-      const seen  = seenRef.current
       const fresh = rows.filter(r => {
         if (!r || !r.tx_hash) return false
         const key = `${r.chain}:${r.asset}:${r.tx_hash}`
-        if (seen.has(key)) return false
-        seen.add(key)
+        if (seenRef.current.has(key)) return false
+        seenRef.current.add(key)
         return true
       })
       if (!fresh.length) return prev
       const merged = [...fresh, ...prev]
       merged.sort((a, b) => (b.ts || 0) - (a.ts || 0))
-      return merged.slice(0, 1000)
+      return merged.slice(0, 2000)
     })
   }, [])
 
@@ -537,21 +252,16 @@ export default function BigTransfers() {
       try {
         const params = new URLSearchParams({ min_usd: '0', limit: '1000' })
         if (lastTsRef.current) params.set('since', String(lastTsRef.current))
-        const r = await fetch(`${API_BASE}/api/big-transfers/feed?${params}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        const r = await fetch(`${API_BASE}/api/big-transfers/feed?${params}`, { headers: { Authorization: `Bearer ${token}` } })
         if (!alive) return
         if (!r.ok) { setLoading(false); return }
-        const data = await r.json()
-        const rows = data?.transfers || []
+        const rows = (await r.json())?.transfers || []
         if (rows.length) {
           ingest(rows)
-          const maxTs = rows.reduce((m, x) => Math.max(m, x.ts || 0), lastTsRef.current)
-          if (maxTs > lastTsRef.current) lastTsRef.current = maxTs
+          lastTsRef.current = rows.reduce((m, x) => Math.max(m, x.ts || 0), lastTsRef.current)
         }
         setLoading(false)
-        setConnected(true)
-      } catch { setConnected(false) }
+      } catch { /* retry on the next tick */ }
     }
     pull()
     const id = setInterval(pull, 10000)
@@ -563,183 +273,71 @@ export default function BigTransfers() {
     let alive = true
     async function pullAgg() {
       try {
-        const r = await fetch(`${API_BASE}/api/big-transfers/aggregates?window_sec=86400`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        const r = await fetch(`${API_BASE}/api/big-transfers/aggregates?window_sec=86400`, { headers: { Authorization: `Bearer ${token}` } })
         if (!alive || !r.ok) return
         const data = await r.json()
-        if (data?.flows) setAggregates({
-          ...data.flows,
-          coin: data.coin, stable: data.stable, sentiment: data.sentiment,
-        })
-      } catch {}
+        if (data?.flows) setAggregates({ ...data.flows, coin: data.coin, stable: data.stable, sentiment: data.sentiment })
+      } catch { /* retry on the next tick */ }
     }
     pullAgg()
     const id = setInterval(pullAgg, 30000)
     return () => { alive = false; clearInterval(id) }
   }, [token])
 
-  const onWsMessage = useCallback((msg) => {
-    if (!msg) return
-    if (msg.type === 'ws_connected')    { setConnected(true);  return }
-    if (msg.type === 'ws_disconnected') { setConnected(false); return }
-    if (msg.type !== 'big_transfer') return
-    ingest([{
-      chain: msg.chain, asset: msg.asset, tx_hash: msg.tx_hash,
-      amount: msg.amount, amount_usd: msg.amount_usd,
-      from: msg.from, to: msg.to,
-      from_label: msg.from_label, to_label: msg.to_label,
-      flow_category: msg.flow_category,
-      ts: msg.ts, link: msg.link,
-    }])
+  const onWsMessage = useCallback(msg => {
+    if (!msg || msg.type !== 'big_transfer') return
+    ingest([{ chain: msg.chain, asset: msg.asset, tx_hash: msg.tx_hash, amount: msg.amount, amount_usd: msg.amount_usd, from: msg.from, to: msg.to, from_label: msg.from_label, to_label: msg.to_label, flow_category: msg.flow_category, ts: msg.ts, link: msg.link }])
   }, [ingest])
   useWebSocket(onWsMessage, [], { token })
 
-  const filtered = transfers
-    .filter(t => chainFilter === 'ALL' || t.chain === chainFilter.toLowerCase())
-    .filter(t => {
-      if (assetFilter === 'ALL') return true
-      const a = t.asset === 'WETH' ? 'ETH' : t.asset === 'WBTC' ? 'BTC' : t.asset
-      return a === assetFilter
-    })
-    .filter(t => {
-      if (assetClass === 'ALL') return true
-      const stable = STABLE_SYMS.has((t.asset || '').toUpperCase())
-      return assetClass === 'stable' ? stable : !stable
-    })
-    .filter(t => {
-      if (flowFilter === 'ALL') return true
-      if (flowFilter === 'CEX_FLOW') return ['cex_inflow', 'cex_outflow', 'mint', 'burn'].includes(t.flow_category)
-      return t.flow_category === flowFilter
-    })
-    .filter(t => t.amount_usd >= threshold)
-    .slice(0, 200)
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return transfers
+      .filter(t => flowFilter === 'ALL' || (flowFilter === 'CEX_FLOW' ? ['cex_inflow', 'cex_outflow', 'mint', 'burn'].includes(t.flow_category) : t.flow_category === flowFilter))
+      .filter(t => (t.amount_usd || 0) >= threshold)
+      .filter(t => !q || [t.asset, t.from, t.to, t.from_label, t.to_label, CHAIN_NAME[t.chain]].some(v => String(v || '').toLowerCase().includes(q)))
+  }, [transfers, flowFilter, threshold, query])
+
+  useEffect(() => { setPage(1) }, [flowFilter, threshold, query])
 
   return (
-    <div className="ct-transfers-page" style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-0)', color: 'var(--text-0)', overflowY: 'auto' }}>
-
-      <FeatureSpotlight
-        featureKey="big-transfers"
-        title="Balina Transferleri"
-        description="BTC, ETH, USDT ve USDC üzerinde $500K+ tutarındaki on-chain transferleri gerçek zamanlı izleyin. CEX giriş/çıkış akışları fiyat hareketini önceden sinyalleyebilir."
-      />
-
-      {/* Header */}
-      <div style={{ padding: '20px 20px 14px', borderBottom: "1px solid var(--ct-line, rgba(255,255,255,0.06))", flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-0)', letterSpacing: -0.3 }}>Whale Transfers</div>
-            <div style={{ fontSize: 11, color: "var(--ct-muted, rgba(255,255,255,0.4))", marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{
-                display: 'inline-block', width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                background: connected ? '#00e87a' : "var(--ct-inset, #555)",
-                boxShadow: connected ? '0 0 6px #00e87a88' : 'none',
-              }} />
-              {connected ? 'On-chain · BTC · ETH · TRON · Live' : 'Connecting…'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 9, color: "var(--ct-subtle, rgba(255,255,255,0.25))", fontWeight: 700, letterSpacing: 0.8, fontFamily: 'var(--font-mono)' }}>24H TRANSFERS</div>
-            <div style={{ fontSize: 20, fontWeight: 900, fontFamily: 'var(--font-mono)', color: 'var(--text-0)' }}>{transfers.length}</div>
-          </div>
-        </div>
-
-        {/* Threshold pills */}
-        <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
-          {THRESHOLDS.map(v => (
-            <button key={v} onClick={() => setThreshold(v)}
-              style={{
-                padding: 0, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                background: 'transparent',
-                color: workspaceTextColor(threshold === v ? 'var(--text-0)' : "var(--ct-subtle, rgba(255,255,255,0.28))"),
-                transition: 'color 0.15s',
-              }}>
-              {v >= 1_000_000 ? `$${v / 1_000_000}M+` : `$${v / 1000}K+`}
-            </button>
-          ))}
-        </div>
-
-        {/* Flow filter */}
-        <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 4, marginBottom: 4, scrollbarWidth: 'none' }}>
-          {FLOW_FILTERS.map(f => (
-            <button key={f.id} onClick={() => setFlowFilter(f.id)}
-              style={{
-                padding: 0, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, flexShrink: 0,
-                background: 'transparent',
-                color: workspaceTextColor(flowFilter === f.id ? 'var(--text-0)' : "var(--ct-subtle, rgba(255,255,255,0.28))"),
-                transition: 'color 0.15s',
-              }}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Chain + asset filters */}
-        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', scrollbarWidth: 'none' }}>
-          {CHAIN_FILTERS.map(c => (
-            <button key={c} onClick={() => setChainFilter(c)}
-              style={{
-                padding: 0, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, flexShrink: 0,
-                background: 'transparent',
-                color: workspaceTextColor(chainFilter === c ? 'var(--text-0)' : "var(--ct-subtle, rgba(255,255,255,0.28))"),
-              }}>
-              {c === 'ALL' ? 'All Chains' : c}
-            </button>
-          ))}
-          <div style={{ width: 1, background: "var(--ct-wash, rgba(255,255,255,0.08))", flexShrink: 0 }} />
-          {ASSET_FILTERS.map(a => (
-            <button key={a} onClick={() => setAssetFilter(a)}
-              style={{
-                padding: 0, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, flexShrink: 0,
-                background: 'transparent',
-                color: workspaceTextColor(assetFilter === a ? 'var(--text-0)' : "var(--ct-subtle, rgba(255,255,255,0.28))"),
-              }}>
-              {a === 'ALL' ? 'All Assets' : a}
-            </button>
-          ))}
-        </div>
+    <div className="ws-page">
+      <div className="ws-page-head" style={{ marginBottom: 0 }}>
+        <div className="ws-page-head-left"><h1 className="ws-title">Big Transfers</h1></div>
+        <div className="ws-page-head-right"><span className="ws-meta-stamp">{clock}</span></div>
       </div>
 
-      {/* Sentiment gauge */}
-      <SentimentGauge aggregates={aggregates} onOpen={() => setInsightsOpen(true)} />
-      <FlowInsightsSheet open={insightsOpen} onClose={() => setInsightsOpen(false)} token={token} />
+      <div className="ws-tabs ws-tabs-caps ws-mb-16">
+        {[['flow', 'Flow'], ['corridors', 'Corridors'], ['breakdown', 'Breakdown']].map(([id, label]) => (
+          <button key={id} className={`ws-tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{label}</button>
+        ))}
+      </div>
 
-      {/* Flow summary cards */}
-      {aggregates?.coin && (
-        <FlowSummary
-          aggregates={aggregates}
-          flowFilter={flowFilter}
-          assetClass={assetClass}
-          setFlowFilter={setFlowFilter}
-          setAssetClass={setAssetClass}
-        />
+      {tab === 'flow' && (
+        <>
+          <KpiCards aggregates={aggregates} />
+          <div className="bt-toolbar">
+            <div className="ws-pills">
+              {FLOW_FILTERS.map(f => <button key={f.id} className={`ws-pill ${flowFilter === f.id ? 'active' : ''}`} onClick={() => setFlowFilter(f.id)}>{f.label}</button>)}
+            </div>
+            <div className="ws-row" style={{ marginLeft: 'auto' }}>
+              <div className="ws-search" style={{ width: 330 }}>
+                <Search size={15} />
+                <input className="ws-input" placeholder="Search asset, address, exchange..." value={query} onChange={e => setQuery(e.target.value)} />
+              </div>
+              <div className="ws-inline-select">
+                {THRESHOLDS.find(t => t.v === threshold)?.label} <ChevronDown size={14} />
+                <select value={threshold} onChange={e => setThreshold(Number(e.target.value))}>
+                  {THRESHOLDS.map(t => <option key={t.v} value={t.v}>{t.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+          {loading ? <div className="ws-loading"><span className="ws-spinner" /> Loading transfers…</div> : <FlowTable rows={filtered} page={page} setPage={setPage} />}
+        </>
       )}
-
-      {/* Column labels */}
-      <div className="ct-transfer-columns" style={{ display: 'flex', padding: '8px 20px', fontSize: 9, fontWeight: 700, color: "var(--ct-subtle, rgba(255,255,255,0.2))", letterSpacing: 0.8, flexShrink: 0 }}>
-        <div style={{ width: 40, marginRight: 12 }}>CHAIN</div>
-        <div style={{ width: 60 }}>ASSET</div>
-        <div style={{ flex: 1 }}>AMOUNT · ADDRESS</div>
-        <div>TIME</div>
-      </div>
-
-      {/* Feed */}
-      {loading
-        ? <Skeleton />
-        : filtered.length === 0
-          ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', gap: 12 }}>
-              <div style={{ fontSize: 40 }}>🐋</div>
-              <div style={{ fontSize: 14, color: "var(--ct-muted, rgba(255,255,255,0.4))", textAlign: 'center' }}>
-                Waiting for {fmtUSD(threshold)}+ on-chain transfers…
-              </div>
-              <div style={{ fontSize: 11, color: "var(--ct-subtle, rgba(255,255,255,0.2))", textAlign: 'center', maxWidth: 300, lineHeight: 1.5 }}>
-                Tracking BTC mempool, ETH USDT/USDC in real-time. Lower the threshold to see more.
-              </div>
-            </div>
-          )
-          : filtered.map(t => <TransferRow key={`${t.chain}:${t.asset}:${t.tx_hash}`} t={t} />)
-      }
+      {tab === 'corridors' && <CorridorsTab token={token} />}
+      {tab === 'breakdown' && <BreakdownTab token={token} />}
     </div>
   )
 }

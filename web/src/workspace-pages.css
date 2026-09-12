@@ -123,3 +123,84 @@
 .ct-workspace .sa-price-table td { padding: 11px 12px; }
 @media (max-width: 1100px) { .ct-workspace .sa-grid { grid-template-columns: minmax(0, 1fr); } .ct-workspace .sa-grid > div:first-child { border-right: 0; padding-right: 0; margin-bottom: 30px; } }
 @media (max-width: 768px) { .ct-workspace .sa-strip { grid-template-columns: minmax(0, 1fr); } .ct-workspace .sa-stat { border-right: 0; border-bottom: 1px solid var(--ws-line); padding: 12px 0; } }
+
+/* ── Big Transfers ────────────────────────────────────────────────────────── */
+.ct-workspace .bt-kpis { margin-bottom: 18px; border-top: 1px solid var(--ws-line); border-bottom: 1px solid var(--ws-line); }
+.ct-workspace .bt-kpis > * { padding: 16px 20px; }
+.ct-workspace .bt-kpis .ws-kpi-value { font-size: 26px; }
+.ct-workspace .bt-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.ct-workspace .bt-table th { font-size: 13px; padding: 12px 12px; }
+.ct-workspace .bt-table td { padding: 11px 12px; font-size: 13px; }
+.ct-workspace .ws-toasts { position: fixed; right: 20px; bottom: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+.ct-workspace .ws-toast { display: flex; align-items: center; gap: 12px; width: 320px; padding: 12px 14px; background: #fff; border: 1px solid var(--ws-line); border-left: 4px solid var(--ws-pos); border-radius: 6px; box-shadow: 0 10px 30px rgba(17,24,39,0.15); font-size: 13px; color: var(--ws-ink); }
+.ct-workspace .ws-toast.down { border-left-color: var(--ws-neg); }
+
+/* ── Custom Alerts ────────────────────────────────────────────────────────── */
+.ct-workspace .ca-form { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.2fr) auto; gap: 16px; align-items: end; }
+.ct-workspace .ca-form .ws-field label { font-size: 14px; }
+.ct-workspace .ca-select { height: 50px; font-size: 15px; gap: 10px; padding: 0 14px; }
+@media (max-width: 1100px) { .ct-workspace .ca-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 768px) { .ct-workspace .ca-form { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── Liquidations ─────────────────────────────────────────────────────────── */
+.ct-workspace .liq-timeline { display: flex; gap: 10px; }
+.ct-workspace .liq-timeline-y { display: flex; flex-direction: column; justify-content: space-between; height: 220px; font-size: 12px; color: var(--ws-muted); font-family: var(--ws-mono); text-align: right; min-width: 52px; }
+.ct-workspace .liq-timeline-plot { flex: 1; min-width: 0; position: relative; padding-bottom: 42px; }
+.ct-workspace .liq-timeline-x { position: absolute; left: 0; right: 0; bottom: 0; height: 36px; }
+.ct-workspace .liq-timeline-x span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--ws-muted); font-family: var(--ws-mono); text-align: center; line-height: 1.4; white-space: nowrap; }
+.ct-workspace .liq-filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; }
+
+/* ── Long / Short ─────────────────────────────────────────────────────────── */
+.ct-workspace .lsr-controls { display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap; }
+.ct-workspace .lsr-controls .ws-field label { font-size: 14px; color: var(--ws-ink); }
+.ct-workspace .lsr-chart { display: flex; gap: 10px; }
+.ct-workspace .lsr-chart-y { display: flex; flex-direction: column; justify-content: space-between; height: 190px; font-size: 12px; color: var(--ws-muted); text-align: right; min-width: 36px; }
+.ct-workspace .lsr-chart-plot { flex: 1; min-width: 0; position: relative; padding-bottom: 30px; }
+.ct-workspace .lsr-chart-tag { position: absolute; right: 0; transform: translateY(-50%); color: #fff; font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+.ct-workspace .lsr-chart-x { position: absolute; left: 0; right: 60px; bottom: 0; height: 22px; }
+.ct-workspace .lsr-chart-x span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--ws-muted); white-space: nowrap; }
+.ct-workspace .lsr-row-active td { background: #f8fbef; }
+
+/* ── Alert Monitoring ─────────────────────────────────────────────────────── */
+.ct-workspace .alm-kpi { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 22px; }
+.ct-workspace .alm-kpi .ws-kpi-label { font-size: 15px; color: var(--ws-text); }
+.ct-workspace .alm-kpi .ws-kpi-value { font-size: 28px; }
+.ct-workspace .alm-table th { padding: 14px; }
+
+/* ── Volume Monitor ───────────────────────────────────────────────────────── */
+.ct-workspace .vm-sentiment { display: grid; grid-template-columns: minmax(0, 2.6fr) repeat(4, minmax(0, 0.9fr)); }
+.ct-workspace .vm-sentiment-main { padding: 18px 20px 20px; border-right: 1px solid var(--ws-line); }
+.ct-workspace .vm-split { display: flex; height: 26px; border-radius: 3px; overflow: hidden; background: var(--ws-bg-muted); }
+.ct-workspace .vm-split > span { display: block; height: 100%; }
+.ct-workspace .vm-split-labels { display: flex; margin-top: 10px; }
+.ct-workspace .vm-split-labels > div { display: flex; flex-direction: column; align-items: center; font-family: var(--ws-mono); font-size: 12px; min-width: 0; }
+.ct-workspace .vm-split-labels b { font-weight: 600; font-size: 13px; }
+.ct-workspace .vm-stat { padding: 18px 18px; border-right: 1px solid var(--ws-line); }
+.ct-workspace .vm-stat:last-child { border-right: 0; }
+.ct-workspace .vm-stat-val { font-family: var(--ws-mono); font-size: 20px; font-weight: 600; margin: 10px 0 6px; }
+.ct-workspace .vm-table th { font-size: 12px; padding: 12px 12px; }
+.ct-workspace .vm-table td { padding: 12px 12px; font-size: 14px; }
+@media (max-width: 1100px) { .ct-workspace .vm-sentiment { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ct-workspace .vm-sentiment-main { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--ws-line); } }
+
+/* ── Funding Rate ─────────────────────────────────────────────────────────── */
+.ct-workspace .fr-table th { font-size: 14px; color: var(--ws-ink); padding: 14px; background: var(--ws-bg-soft); }
+.ct-workspace .fr-table td { padding: 10px 14px; font-size: 14px; }
+.ct-workspace .fr-table tfoot td { background: var(--ws-bg-muted); font-weight: 600; font-size: 13px; padding: 9px 14px; }
+.ct-workspace .fr-table tfoot td.ws-caps { color: var(--ws-ink); font-size: 12px; }
+.ct-workspace .fr-row-active td { background: #f8fbef; }
+.ct-workspace .fr-selected { display: flex; align-items: center; gap: 0; padding: 18px 22px; flex-wrap: wrap; }
+.ct-workspace .fr-selected-cell { padding: 0 26px; border-left: 1px solid var(--ws-line); min-width: 130px; }
+.ct-workspace .fr-selected-next { margin-left: auto; text-align: right; }
+.ct-workspace .fr-chart { display: flex; gap: 10px; }
+.ct-workspace .fr-chart-y { display: flex; flex-direction: column; justify-content: space-between; height: 180px; font-size: 12px; color: var(--ws-muted); text-align: right; min-width: 52px; }
+.ct-workspace .fr-chart-plot { flex: 1; min-width: 0; position: relative; padding-bottom: 26px; }
+.ct-workspace .fr-chart-x { position: absolute; left: 0; right: 0; bottom: 0; height: 20px; }
+.ct-workspace .fr-chart-x span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--ws-muted); white-space: nowrap; }
+.ct-workspace .fr-chart-tip { position: absolute; top: 0; transform: translateX(-50%); background: #fff; border: 1px solid var(--ws-line); border-radius: 4px; padding: 6px 10px; box-shadow: 0 4px 14px rgba(17,24,39,0.12); pointer-events: none; white-space: nowrap; }
+
+/* ── Economic Calendar ────────────────────────────────────────────────────── */
+.ct-workspace .ec-page { background: var(--ws-bg); }
+.ct-workspace .ec-topbar { padding: 10px 28px; border-bottom: 1px solid var(--ws-line); flex-shrink: 0; }
+.ct-workspace .ec-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 22px 28px 0; }
+.ct-workspace .ec-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.ct-workspace .ec-widget { flex: 1; min-height: 480px; border-top: 1px solid var(--ws-line); }

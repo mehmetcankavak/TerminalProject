@@ -1,9 +1,9 @@
-import { workspaceTextColor } from '../utils/workspaceTheme'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { Bell, Trash2, ChevronDown } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE } from '../config'
-import FeatureSpotlight from './FeatureSpotlight'
+import AssetLogo from './AssetLogo'
 
 let _alertCtx = null
 function getAudioCtx() {
@@ -13,153 +13,85 @@ function getAudioCtx() {
   return _alertCtx
 }
 
-const COINS = [
-  'BTC','ETH','SOL','XRP','BNB','DOGE','AVAX','LINK','ADA','DOT',
-  'MATIC','LTC','NEAR','APT','ARB','OP','INJ','SUI',
-]
+const COINS = ['BTC','ETH','SOL','XRP','BNB','DOGE','AVAX','LINK','ADA','DOT','MATIC','LTC','NEAR','APT','ARB','OP','INJ','SUI']
 
-function fmtPrice(n) {
-  if (!n) return '—'
-  if (n >= 1000) return '$' + n.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return '$' + n.toFixed(4)
+const fmtPrice = n => {
+  if (!n && n !== 0) return '—'
+  const v = Number(n)
+  if (v >= 1000) return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (v >= 1) return v.toFixed(2)
+  return v.toFixed(4)
+}
+const fmtDate = ts => {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
-/* ── Toast ─────────────────────────────────────────────────────── */
+/* ── Toast (portal, so it overlays everything) ─────────────────────────── */
 function Toast({ alerts, onDismiss }) {
   useEffect(() => {
     if (!alerts.length) return
     const timer = setTimeout(() => { if (alerts[0]) onDismiss(alerts[0].id) }, 8000)
     return () => clearTimeout(timer)
   }, [alerts, onDismiss])
-
   if (!alerts.length) return null
   return createPortal(
-    <div className="alert-toasts">
+    <div className="ct-workspace ws-toasts">
       {alerts.map(a => (
-        <div key={a.id} className={`alert-toast ${a.direction === 'above' ? 'toast-up' : 'toast-down'}`}>
-          <span className="toast-icon">{a.direction === 'above' ? '▲' : '▼'}</span>
-          <div className="toast-body">
-            <strong>{a.coin}/USDT</strong> hedef fiyata ulaştı
-            <div className="toast-detail">{fmtPrice(a.target_price)} {a.direction === 'above' ? 'üstüne çıktı' : 'altına düştü'}</div>
+        <div key={a.id} className={`ws-toast ${a.direction === 'above' ? 'up' : 'down'}`}>
+          <Bell size={16} />
+          <div className="ws-flex-1">
+            <b>{a.coin}/USDT</b> hit its target
+            <div className="ws-muted ws-small">${fmtPrice(a.target_price)} · {a.direction === 'above' ? 'rose above' : 'fell below'}</div>
           </div>
-          <button className="toast-close" onClick={e => { e.stopPropagation(); onDismiss(a.id) }}>✕</button>
+          <button className="ws-iconbtn" onClick={e => { e.stopPropagation(); onDismiss(a.id) }}>✕</button>
         </div>
       ))}
     </div>,
-    document.body
+    document.body,
   )
 }
 
-/* ── Alert Row ─────────────────────────────────────────────────── */
-function AlertRow({ alert, currentPrice, onDelete }) {
-  const isUp      = alert.direction === 'above'
-  const triggered = alert.triggered
-  const tone      = isUp ? '#00e87a' : '#f43f5e'
-
-  // Distance to target
-  const dist = currentPrice
-    ? ((alert.target_price - currentPrice) / currentPrice * 100)
-    : null
-  const distClose = dist !== null && Math.abs(dist) < 2
-
-  // Proximity bar: how close current price is to target (0–100%)
-  let proximity = null
-  if (currentPrice && alert.target_price) {
-    const range = alert.target_price * 0.1 // ±10% window
-    const delta = alert.target_price - currentPrice
-    proximity = Math.max(0, Math.min(100, 100 - (Math.abs(delta) / range) * 100))
-  }
-
+function SelectBox({ value, onChange, children, prefix }) {
   return (
-    <div className={`ca2-row ${triggered ? 'ca2-row-triggered' : ''}`}>
-      {/* Left accent bar */}
-      <div className="ca2-row-accent" style={{ background: triggered ? "var(--ct-inset, #444)" : tone }} />
-
-      {/* Coin */}
-      <div className="ca2-row-coin">
-        <span className="ca2-sym">{alert.coin}</span>
-        <span className="ca2-pair">/USDT</span>
-      </div>
-
-      {/* Direction + target */}
-      <div className="ca2-row-cond">
-        <span className={`ca2-dir ${isUp ? 'up' : 'down'}`}>
-          {isUp ? '▲ Above' : '▼ Below'}
-        </span>
-        <span className="ca2-target">{fmtPrice(alert.target_price)}</span>
-      </div>
-
-      {/* Current price + proximity bar */}
-      <div className="ca2-row-price">
-        <div className="ca2-price-row">
-          <span className="ca2-price-lbl">Current</span>
-          <span className="ca2-price-val">{currentPrice ? fmtPrice(currentPrice) : '—'}</span>
-        </div>
-        {proximity !== null && !triggered && (
-          <div className="ca2-prox-track">
-            <div className="ca2-prox-fill" style={{ width: proximity + '%', background: distClose ? '#fbbf24' : tone }} />
-          </div>
-        )}
-      </div>
-
-      {/* Distance */}
-      <div className="ca2-row-dist">
-        {dist !== null && !triggered && (
-          <span className="ca2-dist" style={{ color: workspaceTextColor(distClose ? "var(--ct-warning, #fbbf24)" : 'var(--text-muted)') }}>
-            {dist > 0 ? '+' : ''}{dist.toFixed(2)}%
-          </span>
-        )}
-      </div>
-
-      {/* Status */}
-      <div className="ca2-row-status">
-        {triggered
-          ? <span className="ca2-badge triggered">✓ Triggered</span>
-          : <span className="ca2-badge active">● Active</span>
-        }
-      </div>
-
-      {/* Delete */}
-      <button className="ca2-delete" onClick={() => onDelete(alert.id)} title="Delete">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
+    <div className="ws-inline-select ca-select">
+      {prefix}<span className="ws-flex-1">{value}</span><ChevronDown size={16} className="ws-muted" />
+      <select onChange={onChange}>{children}</select>
     </div>
   )
 }
 
-/* ── Main ──────────────────────────────────────────────────────── */
 export default function CustomAlerts() {
   const { token } = useAuth()
-  const [alerts,   setAlerts]   = useState([])
-  const [prices,   setPrices]   = useState({})
-  const [toasts,   setToasts]   = useState([])
-  const [form,     setForm]     = useState(() => {
+  const [alerts, setAlerts]   = useState([])
+  const [prices, setPrices]   = useState({})
+  const [toasts, setToasts]   = useState([])
+  const [view, setView]       = useState('all')
+  const [form, setForm]       = useState(() => {
     try {
       const prefill = sessionStorage.getItem('ca_prefill_coin')
       if (prefill) {
         sessionStorage.removeItem('ca_prefill_coin')
-        const coin = COINS.includes(prefill.toUpperCase()) ? prefill.toUpperCase() : 'BTC'
-        return { coin, direction: 'above', price: '' }
+        return { coin: COINS.includes(prefill.toUpperCase()) ? prefill.toUpperCase() : 'BTC', direction: 'above', price: '' }
       }
-    } catch {}
+    } catch { /* sessionStorage blocked */ }
     return { coin: 'BTC', direction: 'above', price: '' }
   })
   const [creating, setCreating] = useState(false)
-  const [error,    setError]    = useState('')
-  const wsRef        = useRef(null)
+  const [error, setError]       = useState('')
   const prevPrices   = useRef({})
   const firedAlerts  = useRef(new Set())
   const fetchPending = useRef(false)
+  const deletingRef  = useRef(new Set())
 
   const fetchAlerts = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/alerts`, { headers: { Authorization: `Bearer ${token}` } })
       if (res.ok) setAlerts(await res.json())
-    } catch {}
+    } catch { /* keep the last list */ }
   }, [token])
-
   useEffect(() => { fetchAlerts() }, [fetchAlerts])
 
   /* Binance WS prices */
@@ -169,14 +101,13 @@ export default function CustomAlerts() {
       if (unmounted || retries >= 6) return
       const streams = COINS.map(c => `${c.toLowerCase()}usdt@miniTicker`).join('/')
       const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`)
-      currentWs = ws; wsRef.current = ws
-      ws.onopen  = () => { retries = 0 }
-      ws.onmessage = (e) => {
+      currentWs = ws
+      ws.onopen = () => { retries = 0 }
+      ws.onmessage = e => {
         try {
           const { data: d } = JSON.parse(e.data)
-          if (!d) return
-          setPrices(prev => ({ ...prev, [d.s.replace('USDT', '')]: parseFloat(d.c) }))
-        } catch {}
+          if (d) setPrices(prev => ({ ...prev, [d.s.replace('USDT', '')]: parseFloat(d.c) }))
+        } catch { /* ignore malformed frames */ }
       }
       ws.onclose = () => {
         if (unmounted) return
@@ -186,7 +117,7 @@ export default function CustomAlerts() {
       ws.onerror = () => ws.close()
     }
     connect()
-    return () => { unmounted = true; try { currentWs?.close() } catch {} }
+    return () => { unmounted = true; try { currentWs?.close() } catch { /* already closed */ } }
   }, [])
 
   /* Alert checker */
@@ -197,14 +128,14 @@ export default function CustomAlerts() {
       const price = prices[alert.coin]
       if (!price) return
       const prev = prevPrices.current[alert.coin]
-      const hit  = alert.direction === 'above' ? price >= alert.target_price : price <= alert.target_price
+      const hit = alert.direction === 'above' ? price >= alert.target_price : price <= alert.target_price
       if (hit && prev !== undefined && !firedAlerts.current.has(alert.id)) {
         firedAlerts.current.add(alert.id)
         setToasts(t => [...t, { ...alert, id: alert.id + '_toast_' + Date.now() }])
         try {
-          const ctx  = getAudioCtx()
+          const ctx = getAudioCtx()
           const freq = alert.direction === 'above' ? 880 : 440
-          const bip  = (t) => {
+          const bip = t => {
             const osc = ctx.createOscillator(), gain = ctx.createGain()
             osc.connect(gain); gain.connect(ctx.destination)
             osc.type = 'sine'; osc.frequency.value = freq
@@ -213,7 +144,7 @@ export default function CustomAlerts() {
             osc.start(t); osc.stop(t + 0.3)
           }
           bip(ctx.currentTime); bip(ctx.currentTime + 0.4)
-        } catch {}
+        } catch { /* audio blocked */ }
         if (!fetchPending.current) {
           fetchPending.current = true
           setTimeout(() => { fetchAlerts(); fetchPending.current = false }, 600)
@@ -230,8 +161,7 @@ export default function CustomAlerts() {
     setCreating(true); setError('')
     try {
       const res = await fetch(`${API_BASE}/api/alerts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ coin: form.coin, direction: form.direction, target_price: parsed }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.detail || 'Error') }
@@ -240,161 +170,107 @@ export default function CustomAlerts() {
     setCreating(false)
   }
 
-  const deletingRef = useRef(new Set())
-  const handleDelete = async (id) => {
+  const handleDelete = async id => {
     if (deletingRef.current.has(id)) return
     deletingRef.current.add(id)
     try {
       await fetch(`${API_BASE}/api/alerts/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
       firedAlerts.current.delete(id)
       setAlerts(a => a.filter(x => x.id !== id))
-    } catch {}
+    } catch { /* leave the row */ }
     finally { deletingRef.current.delete(id) }
   }
 
-  const activeAlerts    = alerts.filter(a => !a.triggered)
-  const triggeredAlerts = alerts.filter(a =>  a.triggered)
-  const currentPrice    = prices[form.coin]
+  const visible = useMemo(() => alerts.filter(a => view === 'all' || (view === 'active' ? !a.triggered : a.triggered)), [alerts, view])
+  const currentPrice = prices[form.coin]
 
   return (
-    <div className="ca2-page">
+    <div className="ws-page">
       <Toast alerts={toasts} onDismiss={id => setToasts(t => t.filter(x => x.id !== id))} />
 
-      <FeatureSpotlight
-        featureKey="custom-alerts"
-        title="Özel Fiyat Alarmları"
-        description="Herhangi bir coin için hedef fiyat belirleyin. Alarm tetiklendiğinde tarayıcı bildirimi, e-posta ve Telegram üzerinden bilgilendirme alırsınız."
-      />
-
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="ca2-header">
-        <div>
-          <div className="ca2-title">Custom Alerts</div>
-          <div className="ca2-subtitle">
-            <span className="ca2-live-dot" />
-            Real-time · Binance prices · Audio notification
-          </div>
-        </div>
-        <div className="ca2-header-stats">
-          <div className="ca2-hstat active">
-            <span className="ca2-hstat-val">{activeAlerts.length}</span>
-            <span className="ca2-hstat-lbl">Active</span>
-          </div>
-          <div className="ca2-hstat triggered">
-            <span className="ca2-hstat-val">{triggeredAlerts.length}</span>
-            <span className="ca2-hstat-lbl">Triggered</span>
-          </div>
+      <div className="ws-page-head">
+        <div className="ws-page-head-left">
+          <h1 className="ws-title">Custom Alerts</h1>
+          <p className="ws-subtitle" style={{ fontSize: 15 }}>Set price alerts and stay informed about key market levels.</p>
         </div>
       </div>
 
-      {/* ── Create Form ─────────────────────────────────────────── */}
-      <div className="ca2-form-card">
-        <div className="ca2-form-label">NEW PRICE ALERT</div>
-
-        <div className="ca2-form-body">
-          {/* Coin select */}
-          <div className="ca2-field">
-            <label className="ca2-field-lbl">Coin</label>
-            <select className="ca2-select" value={form.coin} onChange={e => setForm(f => ({ ...f, coin: e.target.value }))}>
-              {COINS.map(c => <option key={c} value={c}>{c}/USDT</option>)}
-            </select>
-          </div>
-
-          {/* Direction select */}
-          <div className="ca2-field">
-            <label className="ca2-field-lbl">Condition</label>
-            <select className="ca2-select" value={form.direction} onChange={e => setForm(f => ({ ...f, direction: e.target.value }))}>
-              <option value="above">▲ Rises above</option>
-              <option value="below">▼ Falls below</option>
-            </select>
-          </div>
-
-          {/* Target price */}
-          <div className="ca2-field ca2-field-price">
-            <label className="ca2-field-lbl">
-              Target Price
-              {currentPrice && (
-                <span className="ca2-field-hint">Now: <strong>{fmtPrice(currentPrice)}</strong></span>
-              )}
-            </label>
-            <div className="ca2-price-wrap">
-              <span className="ca2-price-dollar">$</span>
-              <input
-                className="ca2-price-input"
-                type="number"
-                placeholder={currentPrice ? currentPrice.toFixed(2) : 'Enter price'}
-                value={form.price}
-                onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              />
+      {/* Create */}
+      <div className="ws-card">
+        <div className="ws-card-body" style={{ padding: '22px 24px 26px' }}>
+          <h2 className="ws-h2" style={{ marginBottom: 18 }}>Create Price Alert</h2>
+          <div className="ca-form">
+            <div className="ws-field">
+              <label>Asset</label>
+              <SelectBox value={`${form.coin}/USDT`} onChange={e => setForm(f => ({ ...f, coin: e.target.value }))}
+                prefix={<span className="ws-asset-logo ws-asset-logo-sm"><AssetLogo symbol={form.coin} type="crypto" size={22} radius={11} /></span>}>
+                {COINS.map(c => <option key={c} value={c}>{c}/USDT</option>)}
+              </SelectBox>
+            </div>
+            <div className="ws-field">
+              <label>Condition</label>
+              <SelectBox value={form.direction === 'above' ? 'Rises above' : 'Falls below'} onChange={e => setForm(f => ({ ...f, direction: e.target.value }))}>
+                <option value="above">Rises above</option>
+                <option value="below">Falls below</option>
+              </SelectBox>
+            </div>
+            <div className="ws-field">
+              <label>Target Price (USDT) {currentPrice && <span className="ws-muted">· now {fmtPrice(currentPrice)}</span>}</label>
+              <input className="ws-input ws-input-lg ws-mono" type="number" placeholder={currentPrice ? currentPrice.toFixed(2) : '75000.00'}
+                value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleCreate()} />
+            </div>
+            <div className="ws-field">
+              <label>&nbsp;</label>
+              <button className="ws-btn ws-btn-primary ws-btn-lg" style={{ fontSize: 15, height: 50, padding: '0 22px' }} onClick={handleCreate} disabled={creating}>
+                <Bell size={17} /> {creating ? 'Creating…' : 'Create Alert'}
+              </button>
             </div>
           </div>
-
-          {/* Submit */}
-          <div className="ca2-field ca2-field-submit">
-            <label className="ca2-field-lbl">&nbsp;</label>
-            <button className="ca2-submit-btn" onClick={handleCreate} disabled={creating}>
-              {creating
-                ? <><span className="ca2-btn-spinner" /> Creating…</>
-                : <>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                    Add Alert
-                  </>
-              }
-            </button>
-          </div>
+          {error && <div className="ws-note ws-note-err ws-mt-16">{error}</div>}
         </div>
-
-        {error && <div className="ca2-error">{error}</div>}
       </div>
 
-      {/* ── Active Alerts ───────────────────────────────────────── */}
-      <div className="ca2-section">
-        <div className="ca2-section-hdr">
-          <span className="ca2-section-label">ACTIVE ALERTS</span>
-          <span className="ca2-section-count active">{activeAlerts.length}</span>
-        </div>
-
-        {activeAlerts.length === 0 ? (
-          <div className="ca2-empty">
-            <div className="ca2-empty-icon">🔔</div>
-            <div>No active alerts</div>
-            <div className="ca2-empty-sub">Create one above to get notified</div>
-          </div>
-        ) : (
-          <div className="ca2-list">
-            <div className="ca2-col-labels">
-              <div style={{ width: 32 }} />
-              <div style={{ width: 80 }}>COIN</div>
-              <div style={{ width: 160 }}>CONDITION</div>
-              <div style={{ flex: 1 }}>CURRENT · PROXIMITY</div>
-              <div style={{ width: 70 }}>DISTANCE</div>
-              <div style={{ width: 100 }}>STATUS</div>
-              <div style={{ width: 36 }} />
+      {/* Existing */}
+      <div className="ws-card ws-mt-16" style={{ minHeight: 420 }}>
+        <div className="ws-card-body" style={{ padding: '22px 24px' }}>
+          <div className="ws-row-between" style={{ marginBottom: 16 }}>
+            <h2 className="ws-h2">Existing Alerts</h2>
+            <div className="ws-row">
+              <div className="ws-seg">
+                {[['all', 'All'], ['active', 'Active'], ['triggered', 'Triggered']].map(([id, label]) => (
+                  <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}>{label}</button>
+                ))}
+              </div>
+              <span className="ws-text" style={{ marginLeft: 8 }}>{alerts.length} alerts</span>
             </div>
-            {activeAlerts.map(a => (
-              <AlertRow key={a.id} alert={a} currentPrice={prices[a.coin]} onDelete={handleDelete} />
-            ))}
           </div>
-        )}
-      </div>
-
-      {/* ── Triggered Alerts ────────────────────────────────────── */}
-      {triggeredAlerts.length > 0 && (
-        <div className="ca2-section">
-          <div className="ca2-section-hdr">
-            <span className="ca2-section-label">TRIGGERED</span>
-            <span className="ca2-section-count triggered">{triggeredAlerts.length}</span>
-          </div>
-          <div className="ca2-list">
-            {triggeredAlerts.map(a => (
-              <AlertRow key={a.id} alert={a} currentPrice={prices[a.coin]} onDelete={handleDelete} />
-            ))}
+          <div className="ws-card ws-card-flat">
+            <div className="ws-table-wrap">
+              <table className="ws-table ws-table-tall">
+                <thead>
+                  <tr><th>Asset</th><th>Condition</th><th>Target Price (USDT)</th><th>Status</th><th>Created At</th><th className="ws-right">Actions</th></tr>
+                </thead>
+                <tbody>
+                  {visible.length === 0 ? (
+                    <tr><td colSpan={6}><div className="ws-empty"><div className="ws-empty-icon"><Bell size={26} strokeWidth={1.4} /></div><div className="ws-empty-title">{view === 'all' ? 'No alerts yet' : `No ${view} alerts`}</div><div className="ws-empty-sub">Create one above to get notified.</div></div></td></tr>
+                  ) : visible.map(a => (
+                    <tr key={a.id}>
+                      <td><div className="ws-asset"><span className="ws-asset-logo ws-asset-logo-lg"><AssetLogo symbol={a.coin} type="crypto" size={36} radius={18} /></span><span className="ws-asset-sym" style={{ fontSize: 14 }}>{a.coin}/USDT</span></div></td>
+                      <td className="ws-text" style={{ fontSize: 14 }}>{a.direction === 'above' ? 'Rises above' : 'Falls below'}</td>
+                      <td className="ws-mono ws-ink" style={{ fontSize: 14 }}>{fmtPrice(a.target_price)}</td>
+                      <td>{a.triggered
+                        ? <span className="ws-badge ws-badge-neg ws-badge-dot">Triggered</span>
+                        : <span className="ws-badge ws-badge-pos ws-badge-dot">Active</span>}</td>
+                      <td className="ws-text ws-num" style={{ fontSize: 14 }}>{fmtDate(a.created_at)}</td>
+                      <td className="ws-right"><button className="ws-iconbtn" title="Delete" onClick={() => handleDelete(a.id)}><Trash2 size={18} /></button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
