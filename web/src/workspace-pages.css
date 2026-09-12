@@ -241,3 +241,19 @@
 .ct-workspace .db-grid > .ws-card { align-self: start; }
 @media (max-width: 1100px) { .ct-workspace .db-tips { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 10px; } }
 @media (max-width: 768px) { .ct-workspace .db-tips { grid-template-columns: minmax(0, 1fr); } .ct-workspace .db-tip { border-right: 0; padding-left: 0; } }
+
+/* ── Stocks ───────────────────────────────────────────────────────────────── */
+.ct-workspace .st-index { display: flex; align-items: center; gap: 12px; padding: 14px 18px; }
+.ct-workspace .st-meta { display: flex; gap: 32px; margin-top: 14px; }
+.ct-workspace .st-meta span { display: block; font-size: 13px; color: var(--ws-muted); }
+.ct-workspace .st-meta b { display: block; font-size: 16px; font-weight: 600; color: var(--ws-ink); margin-top: 2px; }
+.ct-workspace .st-table th { padding: 12px 14px; }
+.ct-workspace .st-table td { padding: 12px 14px; font-size: 14px; }
+.ct-workspace .stocks-logo, .ct-workspace .stocks-logo-fallback { border-radius: 6px; object-fit: contain; display: inline-flex; align-items: center; justify-content: center; background: #fff; color: var(--ws-ink); font-weight: 700; }
+
+/* ── Spot Markets ─────────────────────────────────────────────────────────── */
+.ct-workspace .mk-stats { border-top: 1px solid var(--ws-line); border-bottom: 1px solid var(--ws-line); margin-bottom: 18px; }
+.ct-workspace .mk-stats > * { padding: 14px 18px; }
+.ct-workspace .mk-toolbar { margin-bottom: 14px; flex-wrap: wrap; gap: 12px; }
+.ct-workspace .mk-table th { padding: 14px; font-size: 13px; }
+.ct-workspace .mk-table td { padding: 12px 14px; font-size: 14px; }

@@ -1,9 +1,8 @@
-import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CrosshairMode, CandlestickSeries, HistogramSeries } from 'lightweight-charts'
-import { workspaceChartOptions } from '../utils/workspaceTheme'
+import { Search, Bell, ChevronDown } from 'lucide-react'
+import AssetLogo from './AssetLogo'
 import { API_BASE } from '../config'
-
 const STOCK_UNIVERSE = [
   { symbol: 'MSTRUSDT', ticker: 'MSTR', name: 'Strategy (MicroStrategy)', sector: 'Bitcoin Proxy' },
   { symbol: 'TSLAUSDT', ticker: 'TSLA', name: 'Tesla', sector: 'EV' },
@@ -248,35 +247,6 @@ const fmtRatio = (v) => {
 }
 
 let _stocksAudioCtx = null
-function getStocksAudioCtx() {
-  if (!_stocksAudioCtx) {
-    _stocksAudioCtx = new (window.AudioContext || window.webkitAudioContext)()
-  }
-  return _stocksAudioCtx
-}
-
-function playMoneyAlarmTone() {
-  try {
-    const ctx = getStocksAudioCtx()
-    if (ctx.state === 'suspended') ctx.resume()
-    const tone = (at, freq, gainV, dur = 0.16, type = 'triangle') => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = type
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(gainV, at)
-      gain.gain.exponentialRampToValueAtTime(0.001, at + dur)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start(at)
-      osc.stop(at + dur)
-    }
-    tone(ctx.currentTime, 1046, 0.16, 0.12, 'square')
-    tone(ctx.currentTime + 0.14, 1318, 0.15, 0.12, 'square')
-    tone(ctx.currentTime + 0.30, 1567, 0.14, 0.16, 'triangle')
-  } catch (err) {}
-}
-
 function aggregateCandlesTo45m(candles15m = []) {
   if (!Array.isArray(candles15m) || candles15m.length === 0) return []
   const buckets = new Map()
@@ -349,508 +319,6 @@ function StockLogo({ ticker, size = 20, cmcIcon = null }) {
     />
   )
 }
-
-function CandleChart({ candles = [], loading = false, alertLines = [] }) {
-  const containerRef = useRef(null)
-  const chartRef = useRef(null)
-  const candleSeriesRef = useRef(null)
-  const volumeSeriesRef = useRef(null)
-  const alertPriceLinesRef = useRef([])
-
-  useEffect(() => {
-    if (!containerRef.current) return
-    const chart = createChart(containerRef.current, {
-      layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#8b9eb7' },
-      grid: {
-        vertLines: { color: 'rgba(26, 28, 37, 0.45)' },
-        horzLines: { color: 'rgba(26, 28, 37, 0.45)' },
-      },
-      rightPriceScale: { borderColor: 'rgba(26, 28, 37, 0.8)' },
-      timeScale: { borderColor: 'rgba(26, 28, 37, 0.8)', timeVisible: true, secondsVisible: false },
-      crosshair: { mode: CrosshairMode.Normal },
-      handleScroll: true,
-      handleScale: true,
-    })
-
-    chart.applyOptions(workspaceChartOptions(containerRef.current))
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#00d992',
-      downColor: '#ff3b5c',
-      borderVisible: false,
-      wickUpColor: '#00d992',
-      wickDownColor: '#ff3b5c',
-    })
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceScaleId: '',
-      priceFormat: { type: 'volume' },
-      color: 'rgba(0, 217, 146, 0.35)',
-    })
-    chart.priceScale('').applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } })
-
-    chartRef.current = chart
-    candleSeriesRef.current = candleSeries
-    volumeSeriesRef.current = volumeSeries
-
-    const onResize = () => {
-      if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth, height: 230 })
-      }
-    }
-    onResize()
-    window.addEventListener('resize', onResize)
-    return () => {
-      window.removeEventListener('resize', onResize)
-      chart.remove()
-      chartRef.current = null
-      candleSeriesRef.current = null
-      volumeSeriesRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    const candleSeries = candleSeriesRef.current
-    const volumeSeries = volumeSeriesRef.current
-    const chart = chartRef.current
-    if (!candleSeries || !volumeSeries || !chart) return
-    candleSeries.setData(candles)
-    volumeSeries.setData(
-      candles.map(c => ({
-        time: c.time,
-        value: c.volume || 0,
-        color: c.close >= c.open ? 'rgba(0, 217, 146, 0.45)' : 'rgba(255, 59, 92, 0.45)',
-      })),
-    )
-    chart.timeScale().fitContent()
-  }, [candles])
-
-  useEffect(() => {
-    const candleSeries = candleSeriesRef.current
-    if (!candleSeries) return
-    alertPriceLinesRef.current.forEach((ln) => {
-      try { candleSeries.removePriceLine(ln) } catch { /* no-op */ }
-    })
-    alertPriceLinesRef.current = []
-    alertLines.forEach((a) => {
-      const ln = candleSeries.createPriceLine({
-        price: a.price,
-        color: a.triggered ? '#f5a623' : (a.direction === 'above' ? '#00d992' : '#ff3b5c'),
-        lineWidth: a.triggered ? 1 : 2,
-        lineStyle: a.triggered ? 1 : 2,
-        axisLabelVisible: true,
-        title: a.triggered
-          ? `ALARM ✓ ${a.direction === 'above' ? '▲' : '▼'}`
-          : `ALARM ${a.direction === 'above' ? '▲' : '▼'}`,
-      })
-      alertPriceLinesRef.current.push(ln)
-    })
-  }, [alertLines])
-
-  return (
-    <div className="stx-candle-wrap">
-      <div ref={containerRef} className="stx-candle-chart" />
-      {loading && <div className="stx-chart-overlay">Loading chart...</div>}
-      {!loading && candles.length === 0 && <div className="stx-chart-overlay">No chart data found</div>}
-    </div>
-  )
-}
-
-function getTradingViewSymbol(asset = {}) {
-  const row = asset.row || {}
-  const code = String(asset.code || row.code || '').toUpperCase()
-  const category = asset.category || getAssetCategory(code, row.name || '')
-  if (!code) return 'NASDAQ:AAPL'
-  if (code === 'GOLD') return 'TVC:GOLD'
-  if (code === 'SILVER') return 'TVC:SILVER'
-  if (category === 'crypto') return `BINANCE:${code}USDT`
-  const matchedSuffix = Object.keys(TV_EXCHANGE_BY_SUFFIX).find((suffix) => code.endsWith(suffix))
-  if (matchedSuffix) {
-    return `${TV_EXCHANGE_BY_SUFFIX[matchedSuffix]}:${code.slice(0, -matchedSuffix.length)}`
-  }
-  if (TV_EXCHANGE_BY_CODE[code]) {
-    return `${TV_EXCHANGE_BY_CODE[code]}:${code}`
-  }
-  return `NYSE:${code}`
-}
-
-function tvInterval(rangeId) {
-  return ({
-    '15M': '15',
-    '30M': '30',
-    '45M': '45',
-    '1H0': '60',
-    '4H0': '240',
-    '24H': '15',
-    '1D': '30',
-    '1W': '60',
-    '1M': 'D',
-    '3M': 'D',
-    '1Y': 'D',
-    '5Y': 'W',
-  })[rangeId] || 'D'
-}
-
-function TradingViewEmbed({ asset, rangeId }) {
-  const symbol = getTradingViewSymbol(asset)
-  const params = new URLSearchParams({
-    frameElementId: `tv_${symbol.replace(/[^a-z0-9]/gi, '_')}`,
-    symbol,
-    interval: tvInterval(rangeId),
-    hidesidetoolbar: '1',
-    symboledit: '1',
-    saveimage: '0',
-    toolbarbg: 'ffffff',
-    theme: 'light',
-    style: '1',
-    timezone: 'Etc/UTC',
-    withdateranges: '1',
-    hideideas: '1',
-    locale: 'en',
-  })
-  return (
-    <div className="stx-candle-wrap">
-      <iframe
-        title={`${symbol} TradingView chart`}
-        className="stx-tv-frame"
-        src={`https://s.tradingview.com/widgetembed/?${params.toString()}`}
-        allowFullScreen
-      />
-    </div>
-  )
-}
-
-function StocksDetailModal({ asset, onClose }) {
-  const modalAsset = typeof asset === 'string'
-    ? { tradeSymbol: asset, code: asset.replace(/USDT$/, ''), name: asset.replace(/USDT$/, ''), row: null, category: 'stock' }
-    : asset
-  const selected = modalAsset.tradeSymbol || modalAsset.code
-  const alertKey = modalAsset.tradeSymbol || `asset:${modalAsset.code}`
-  const isTradeable = Boolean(modalAsset.tradeSymbol)
-  const rowAsset = modalAsset.row || {}
-  const [tickers, setTickers] = useState({})
-  const [fundamentals, setFundamentals] = useState({})
-  const [rangeId, setRangeId] = useState('15M')
-  const [candles, setCandles] = useState([])
-  const [chartLoading, setChartLoading] = useState(false)
-  const [alertSoundOn, setAlertSoundOn] = useState(() => {
-    try { return localStorage.getItem('stocks_alert_sound_on') !== '0' } catch { return true }
-  })
-  const [alertsBySymbol, setAlertsBySymbol] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('stocks_alerts_v1')) || {} } catch { return {} }
-  })
-  const [alertPriceInput, setAlertPriceInput] = useState('')
-  const [alertDirection, setAlertDirection] = useState('above')
-
-  useEffect(() => {
-    if (!isTradeable) {
-      setTickers({
-        [selected]: {
-          price: parsePrice(rowAsset.price || ''),
-          chg: parseToday(rowAsset.today || ''),
-          high: null,
-          low: null,
-          open: null,
-          volume: null,
-          trades: null,
-        },
-      })
-      return
-    }
-    let mounted = true
-    const fetchTickers = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/binance/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify([selected]))}`)
-        const data = await res.json()
-        if (!mounted) return
-        const arr = Array.isArray(data) ? data : []
-        const map = {}
-        arr.forEach((row) => {
-          map[row.symbol] = {
-            price: Number(row.lastPrice || 0),
-            chg: Number(row.priceChangePercent || 0),
-            high: Number(row.highPrice || 0),
-            low: Number(row.lowPrice || 0),
-            open: Number(row.openPrice || 0),
-            prevClose: Number(row.prevClosePrice || 0),
-            volume: Number(row.quoteVolume || 0),
-            trades: Number(row.count || 0),
-          }
-        })
-        setTickers(map)
-      } catch (err) {}
-    }
-    fetchTickers()
-    const id = setInterval(fetchTickers, 10_000)
-    return () => { mounted = false; clearInterval(id) }
-  }, [selected, isTradeable, rowAsset.price, rowAsset.today])
-
-  useEffect(() => {
-    let mounted = true
-    const targetTicker = selected.replace('USDT', '')
-    const fetchFundamentals = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/stocks/fundamentals?symbols=${encodeURIComponent(targetTicker)}`)
-        const data = await res.json()
-        if (mounted && data) setFundamentals(data)
-      } catch (err) {}
-    }
-    fetchFundamentals()
-  }, [selected])
-
-  useEffect(() => {
-    let mounted = true
-    const range = RANGE_OPTIONS.find(x => x.id === rangeId) || RANGE_OPTIONS[0]
-    const fetchKlines = async () => {
-      setChartLoading(true)
-      try {
-        let parsed = []
-        if (isTradeable) {
-          const requestInterval = range.interval === '45m' ? '15m' : range.interval
-          const requestLimit = range.interval === '45m' ? Math.max(60, range.limit * 3) : range.limit
-          const res = await fetch(`${API_BASE}/api/binance/klines?symbol=${selected}&interval=${requestInterval}&limit=${requestLimit}`)
-          const payload = await res.json()
-          const data = Array.isArray(payload?.data) ? payload.data : []
-          parsed = data
-            .map((d) => ({
-              time: Number(d[0]) / 1000,
-              open: Number(d[1]),
-              high: Number(d[2]),
-              low: Number(d[3]),
-              close: Number(d[4]),
-              volume: Number(d[5]),
-            }))
-            .filter(x => Number.isFinite(x.time))
-          if (range.interval === '45m') {
-            parsed = aggregateCandlesTo45m(parsed).slice(-range.limit)
-          }
-        } else {
-          const params = yahooChartParams(rangeId)
-          const res = await fetch(`${API_BASE}/api/stocks/chart?symbol=${encodeURIComponent(targetTicker)}&interval=${encodeURIComponent(params.interval)}&range=${encodeURIComponent(params.range)}`)
-          const payload = await res.json()
-          parsed = Array.isArray(payload?.data) ? payload.data : []
-        }
-        if (mounted) setCandles(parsed)
-      } catch (err) {
-        if (mounted) setCandles([])
-      } finally {
-        if (mounted) setChartLoading(false)
-      }
-    }
-    fetchKlines()
-    const id = setInterval(fetchKlines, 15_000)
-    return () => { mounted = false; clearInterval(id) }
-  }, [selected, rangeId, isTradeable])
-
-  const targetTicker = selected.replace('USDT', '')
-  const selectedTicker = tickers[selected] || {
-    price: parsePrice(rowAsset.price || ''),
-    chg: parseToday(rowAsset.today || ''),
-  }
-  const selectedFund = fundamentals[targetTicker] || {}
-  const fallbackMarketCap = parseMktCap(rowAsset.market_cap || '')
-  const assetCategory = modalAsset.category || getAssetCategory(targetTicker, rowAsset.name || '')
-  const selectedUp = (selectedTicker.chg || 0) >= 0
-  const selectedAlerts = (alertsBySymbol[alertKey] || []).slice().sort((a, b) => a.price - b.price)
-  const selectedAlertLines = selectedAlerts.map((a) => ({ price: a.price, direction: a.direction, triggered: Boolean(a.triggered) }))
-
-  const persistAlerts = (next) => {
-    setAlertsBySymbol(next)
-    try { localStorage.setItem('stocks_alerts_v1', JSON.stringify(next)) } catch {}
-  }
-  const addAlert = () => {
-    const p = Number(alertPriceInput)
-    if (!Number.isFinite(p) || p <= 0) return
-    const next = { ...alertsBySymbol }
-    const arr = Array.isArray(next[alertKey]) ? [...next[alertKey]] : []
-    arr.push({ id: `${Date.now()}`, price: p, direction: alertDirection, triggered: false, createdAt: Date.now() })
-    next[alertKey] = arr
-    persistAlerts(next)
-    setAlertPriceInput('')
-  }
-  const removeAlert = (id) => {
-    const next = { ...alertsBySymbol }
-    next[alertKey] = (next[alertKey] || []).filter((a) => a.id !== id)
-    persistAlerts(next)
-  }
-  const toggleAlertSound = () => {
-    setAlertSoundOn((prev) => {
-      const next = !prev
-      try { localStorage.setItem('stocks_alert_sound_on', next ? '1' : '0') } catch {}
-      return next
-    })
-  }
-  const quickTradeFromStocks = (direction) => {
-    if (!isTradeable) return
-    const cmd = `${direction} ${selected} 10000 5` // Defaults
-    sessionStorage.setItem('tt_trade_symbol', selected.replace(/USDT$/, ''))
-    sessionStorage.setItem('tt_terminal_prefill_cmd', cmd)
-    sessionStorage.setItem('tt_terminal_autosend', '1')
-    window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'terminal' } }))
-  }
-  const openTerminal = () => {
-    if (!isTradeable) return
-    sessionStorage.setItem('tt_prefill_symbol', selected)
-    window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'terminal' } }))
-  }
-
-  return (
-    <div className="stx-modal-overlay" onClick={onClose}>
-      <div className="stx-modal-content" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="stx-modal-header">
-          <div style={{display:'flex', alignItems:'center', gap:'14px'}}>
-            <StockLogo ticker={targetTicker} cmcIcon={rowAsset.icon} size={36} />
-            <div>
-              <div style={{fontSize:'16px', fontWeight:'600', color:'var(--text-0)', fontFamily:'var(--font-mono)', letterSpacing:'0.06em'}}>{targetTicker}</div>
-              <div style={{color:'var(--text-3)', fontSize:'10px', fontFamily:'var(--font-mono)', letterSpacing:'0.08em', textTransform:'uppercase', marginTop:'2px'}}>
-                {isTradeable ? selected : (rowAsset.name || modalAsset.name || targetTicker)}
-              </div>
-            </div>
-            {selectedTicker.price > 0 && (
-              <div style={{marginLeft:'8px'}}>
-                <div style={{fontSize:'18px', fontWeight:'600', color:'var(--text-0)', fontFamily:'var(--font-mono)'}}>{fmtUsd(selectedTicker.price)}</div>
-                <div style={{fontSize:'11px', fontFamily:'var(--font-mono)', color: workspaceTextColor(selectedUp ? 'var(--accent)' : 'var(--danger)')}}>{fmtPct(selectedTicker.chg)}</div>
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              className="stx-modal-alert-btn"
-              title="Fiyat Alarmı Kur"
-              onClick={() => {
-                try { sessionStorage.setItem('ca_prefill_coin', targetTicker) } catch {}
-                window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'custom-alerts' } }))
-                onClose()
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 01-3.46 0"/>
-              </svg>
-            </button>
-            <button onClick={onClose} className="stx-modal-close">&times;</button>
-          </div>
-        </div>
-
-        {/* Range selector */}
-        <div className="stocks-range-row">
-          {RANGE_OPTIONS.map((r) => (
-            <button key={r.id} className={`stocks-range-btn ${rangeId === r.id ? 'active' : ''}`} onClick={() => setRangeId(r.id)}>{r.label}</button>
-          ))}
-        </div>
-
-        {/* Chart */}
-        {!isTradeable && !chartLoading && candles.length === 0 ? (
-          <TradingViewEmbed asset={modalAsset} rangeId={rangeId} />
-        ) : (
-          <CandleChart candles={candles} loading={chartLoading} alertLines={selectedAlertLines} />
-        )}
-
-        {/* Panels */}
-        <div className="stx-panels-grid">
-          {/* Alert panel */}
-          <div className="stocks-alerts-card">
-            <div className="stocks-alerts-head">
-              <span>Price Alert</span>
-              <div className="stocks-alerts-head-actions">
-                <button className={`stocks-sound-toggle ${alertSoundOn ? 'on' : 'off'}`} onClick={toggleAlertSound}>
-                  {alertSoundOn ? '🔔 Sound On' : '🔕 Sound Off'}
-                </button>
-              </div>
-            </div>
-            <div className="stocks-alerts-form">
-              <select className="stocks-alert-select" value={alertDirection} onChange={(e) => setAlertDirection(e.target.value)}>
-                <option value="above">Above</option>
-                <option value="below">Below</option>
-              </select>
-              <input className="stocks-alert-input" type="number" placeholder="Price" value={alertPriceInput} onChange={(e) => setAlertPriceInput(e.target.value)} />
-              <button className="stocks-alert-add" onClick={addAlert}>Add</button>
-            </div>
-            <div className="stocks-alert-list">
-              {selectedAlerts.length === 0 && <div className="stocks-alert-empty">No alerts yet</div>}
-              {selectedAlerts.map((a) => (
-                <div key={a.id} className="stocks-alert-item">
-                  <span className={`stocks-alert-badge ${a.direction === 'above' ? 'up' : 'down'}`}>{a.direction === 'above' ? '▲' : '▼'}</span>
-                  <strong>{fmtUsd(a.price)}</strong>
-                  <span className={`stocks-alert-state ${a.triggered ? 'hit' : ''}`}>{a.triggered ? 'Triggered' : 'Waiting'}</span>
-                  <button className="stocks-alert-remove" onClick={() => removeAlert(a.id)}>Remove</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Stats panel */}
-          <div className="stx-stats-panel">
-            {isTradeable ? (
-              <>
-                <div className="stx-stat-item">
-                  <span>24h Volume</span>
-                  <strong>{fmtUsd(selectedTicker.volume, 0)}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>Open</span>
-                  <strong>{fmtUsd(selectedTicker.open)}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>24h High</span>
-                  <strong style={{color:'var(--accent)'}}>{fmtUsd(selectedTicker.high)}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>24h Low</span>
-                  <strong style={{color:'var(--danger)'}}>{fmtUsd(selectedTicker.low)}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>Market Cap</span>
-                  <strong>{fmtCap(selectedFund.marketCap || fallbackMarketCap)}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>Trade Count</span>
-                  <strong>{(selectedTicker.trades || 0).toLocaleString('en-US')}</strong>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="stx-stat-item">
-                  <span>Price</span>
-                  <strong>{rowAsset.price || fmtUsd(selectedTicker.price)}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>Today</span>
-                  <strong style={{color: workspaceTextColor(selectedUp ? 'var(--accent)' : 'var(--danger)')}}>{rowAsset.today || fmtPct(selectedTicker.chg)}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>Market Cap</span>
-                  <strong>{rowAsset.market_cap || fmtCap(fallbackMarketCap)}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>Country</span>
-                  <strong>{rowAsset.country || '—'}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>Category</span>
-                  <strong>{assetCategory}</strong>
-                </div>
-                <div className="stx-stat-item">
-                  <span>Symbol</span>
-                  <strong>{targetTicker}</strong>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Actions */}
-        {isTradeable && (
-          <div className="stocks-actions">
-            <button className="stx-btn stx-btn-ghost" onClick={openTerminal}>Chart</button>
-            <button className="stx-btn stx-btn-red" onClick={() => quickTradeFromStocks('short')}>Sell</button>
-            <button className="stx-btn stx-btn-green" onClick={() => quickTradeFromStocks('long')}>Buy</button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 function parseMktCap(s = '') {
   const n = parseFloat(s.replace(/[$,\s]/g, ''))
   if (!isFinite(n)) return 0
@@ -866,24 +334,211 @@ function parseToday(s = '') {
   return parseFloat(s.replace(/[%+\s]/g, '')) || 0
 }
 
+
+/* ── Candle chart (lightweight-charts, light palette) ────────────────── */
+function CandleChart({ candles = [], loading = false, height = 260 }) {
+  const containerRef = useRef(null)
+  const chartRef = useRef(null)
+  const candleRef = useRef(null)
+  const volRef = useRef(null)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const chart = createChart(containerRef.current, {
+      layout: { background: { type: 'solid', color: '#ffffff' }, textColor: '#6b7280', fontFamily: 'Inter, system-ui, sans-serif' },
+      grid: { vertLines: { color: '#f1f3f5' }, horzLines: { color: '#f1f3f5' } },
+      rightPriceScale: { borderColor: '#e5e7eb' },
+      timeScale: { borderColor: '#e5e7eb', timeVisible: true, secondsVisible: false },
+      crosshair: { mode: CrosshairMode.Normal },
+      handleScroll: true, handleScale: true, height,
+    })
+    const cs = chart.addSeries(CandlestickSeries, { upColor: '#16a34a', downColor: '#dc2626', borderVisible: false, wickUpColor: '#16a34a', wickDownColor: '#dc2626' })
+    const vs = chart.addSeries(HistogramSeries, { priceScaleId: '', priceFormat: { type: 'volume' }, color: 'rgba(22,163,74,0.3)' })
+    chart.priceScale('').applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } })
+    chartRef.current = chart; candleRef.current = cs; volRef.current = vs
+    const obs = new ResizeObserver(() => { if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth }) })
+    obs.observe(containerRef.current)
+    return () => { obs.disconnect(); chart.remove(); chartRef.current = null }
+  }, [height])
+
+  useEffect(() => {
+    if (!candleRef.current || !volRef.current) return
+    candleRef.current.setData(candles)
+    volRef.current.setData(candles.map(c => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? 'rgba(22,163,74,0.3)' : 'rgba(220,38,38,0.3)' })))
+    chartRef.current?.timeScale().fitContent()
+  }, [candles])
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={containerRef} style={{ width: '100%', height }} />
+      {loading && <div className="ws-loading" style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.6)' }}><span className="ws-spinner" /></div>}
+      {!loading && candles.length === 0 && <div className="ws-empty" style={{ position: 'absolute', inset: 0 }}><div className="ws-empty-title">No chart data found</div></div>}
+    </div>
+  )
+}
+
+/* ── Index cards (SPY / QQQ / DIA / DXY) ──────────────────────────────── */
+const INDEX_CARDS = [['SPY', 'S&P 500'], ['QQQ', 'NASDAQ 100'], ['DIA', 'DOW JONES'], ['DX-Y.NYB', 'US DOLLAR INDEX', 'DXY']]
+
+function Spark({ points, up }) {
+  if (!points || points.length < 2) return <svg width="120" height="44" />
+  const min = Math.min(...points), max = Math.max(...points), r = max - min || 1
+  const W = 120, H = 44
+  const pts = points.map((p, i) => `${(i / (points.length - 1)) * W},${H - 4 - ((p - min) / r) * (H - 10)}`)
+  const c = up ? '#16a34a' : '#dc2626'
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+      <defs><linearGradient id={`sp-${up ? 'u' : 'd'}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={c} stopOpacity="0.25" /><stop offset="100%" stopColor={c} stopOpacity="0" /></linearGradient></defs>
+      <polygon points={`0,${H} ${pts.join(' ')} ${W},${H}`} fill={`url(#sp-${up ? 'u' : 'd'})`} />
+      <polyline points={pts.join(' ')} fill="none" stroke={c} strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function IndexCards() {
+  const [data, setData] = useState({})
+  useEffect(() => {
+    let alive = true
+    const load = () => Promise.all(INDEX_CARDS.map(async ([sym]) => {
+      try {
+        const r = await fetch(`${API_BASE}/api/stocks/chart?symbol=${encodeURIComponent(sym)}&interval=15m&range=1d`)
+        const j = await r.json()
+        const rows = Array.isArray(j?.data) ? j.data : []
+        return [sym, rows]
+      } catch { return [sym, []] }
+    })).then(entries => { if (alive) setData(Object.fromEntries(entries)) })
+    load(); const id = setInterval(load, 60_000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
+  return (
+    <div className="ws-grid ws-grid-4">
+      {INDEX_CARDS.map(([sym, name, label]) => {
+        const rows = data[sym] || []
+        const closes = rows.map(r => r.close).filter(Number.isFinite)
+        const last = closes[closes.length - 1], first = rows[0]?.open ?? closes[0]
+        const chg = last != null && first ? last - first : null
+        const pct = chg != null && first ? (chg / first) * 100 : null
+        const up = (chg || 0) >= 0
+        return (
+          <div key={sym} className="ws-kpi st-index">
+            <div className="ws-flex-1">
+              <div className="ws-row" style={{ gap: 8 }}><span className="ws-strong" style={{ fontSize: 17 }}>{label || sym}</span><span className="ws-muted ws-xs">{name}</span></div>
+              <div className="ws-num ws-ink" style={{ fontSize: 22, fontWeight: 600, marginTop: 6 }}>{last != null ? last.toFixed(2) : '—'}</div>
+              <div className={`ws-num ${up ? 'ws-pos' : 'ws-neg'}`} style={{ marginTop: 4 }}>{chg != null ? `${up ? '▲' : '▼'} ${chg >= 0 ? '+' : ''}${chg.toFixed(2)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)` : '—'}</div>
+            </div>
+            <Spark points={closes} up={up} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ── Selected asset detail ───────────────────────────────────────────── */
+const DETAIL_RANGES = [['1D', '1D'], ['1W', '1W'], ['1M', '1M'], ['3M', '3M'], ['6M', '1Y'], ['1Y', '1Y'], ['5Y', '5Y'], ['All', '5Y']]
+
+function AssetDetail({ asset, onAlert }) {
+  const [rangeLabel, setRangeLabel] = useState('1D')
+  const [candles, setCandles] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [ticker, setTicker] = useState(null)
+  const [fund, setFund] = useState({})
+  const rangeId = DETAIL_RANGES.find(r => r[0] === rangeLabel)[1]
+  const code = asset.code
+  const tradeSymbol = asset.tradeSymbol
+  const universe = STOCK_UNIVERSE.find(x => x.ticker === code)
+
+  useEffect(() => {
+    let alive = true
+    const fetchTicker = async () => {
+      if (!tradeSymbol) { setTicker(null); return }
+      try {
+        const res = await fetch(`${API_BASE}/api/binance/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify([tradeSymbol]))}`)
+        const d = await res.json()
+        const row = Array.isArray(d) ? d[0] : null
+        if (alive && row) setTicker({ price: Number(row.lastPrice), chg: Number(row.priceChangePercent), change: Number(row.priceChange) })
+      } catch { /* keep ranking values */ }
+    }
+    fetchTicker(); const id = setInterval(fetchTicker, 10_000)
+    return () => { alive = false; clearInterval(id) }
+  }, [tradeSymbol])
+
+  useEffect(() => {
+    let alive = true
+    fetch(`${API_BASE}/api/stocks/fundamentals?symbols=${encodeURIComponent(code)}`).then(r => r.json()).then(d => { if (alive && d) setFund(d[code] || {}) }).catch(() => {})
+    return () => { alive = false }
+  }, [code])
+
+  useEffect(() => {
+    let alive = true
+    const range = RANGE_OPTIONS.find(x => x.id === rangeId) || RANGE_OPTIONS[0]
+    const load = async () => {
+      setLoading(true)
+      try {
+        let parsed = []
+        if (tradeSymbol) {
+          const res = await fetch(`${API_BASE}/api/binance/klines?symbol=${tradeSymbol}&interval=${range.interval}&limit=${range.limit}`)
+          const payload = await res.json()
+          parsed = (Array.isArray(payload?.data) ? payload.data : []).map(d => ({ time: Number(d[0]) / 1000, open: Number(d[1]), high: Number(d[2]), low: Number(d[3]), close: Number(d[4]), volume: Number(d[5]) })).filter(x => Number.isFinite(x.time))
+        }
+        if (!parsed.length) {
+          const p = yahooChartParams(rangeId)
+          const res = await fetch(`${API_BASE}/api/stocks/chart?symbol=${encodeURIComponent(code)}&interval=${encodeURIComponent(p.interval)}&range=${encodeURIComponent(p.range)}`)
+          const payload = await res.json()
+          parsed = Array.isArray(payload?.data) ? payload.data : []
+        }
+        if (alive) setCandles(parsed)
+      } catch { if (alive) setCandles([]) }
+      finally { if (alive) setLoading(false) }
+    }
+    load(); const id = setInterval(load, 30_000)
+    return () => { alive = false; clearInterval(id) }
+  }, [code, tradeSymbol, rangeId])
+
+  const price = ticker?.price ?? parsePrice(asset.row?.price || '')
+  const chgPct = ticker?.chg ?? parseToday(asset.row?.today || '') * (asset.row?.today_dir === 'down' ? -1 : 1)
+  const chgAbs = ticker?.change ?? (price && chgPct != null ? price - price / (1 + chgPct / 100) : null)
+  const up = (chgPct || 0) >= 0
+  const mcap = fund.marketCap ? fmtCap(fund.marketCap) : asset.row?.market_cap || '—'
+  const sector = universe?.sector || (asset.category === 'etf' ? 'ETF' : asset.category === 'crypto' ? 'Crypto' : asset.category === 'metal' ? 'Commodity' : 'Equity')
+  const exchange = TV_EXCHANGE_BY_CODE[code] || (asset.category === 'crypto' ? 'Binance' : 'NYSE')
+
+  return (
+    <div className="ws-card ws-mt-16">
+      <div className="ws-card-body" style={{ paddingBottom: 10 }}>
+        <div className="ws-row-between" style={{ alignItems: 'flex-start' }}>
+          <div>
+            <div className="ws-row" style={{ gap: 10 }}><span className="ws-strong" style={{ fontSize: 24 }}>{code}</span><span className="ws-text" style={{ fontSize: 15 }}>{asset.name}</span></div>
+            <div className="ws-row" style={{ gap: 12, marginTop: 4 }}>
+              <span className="ws-strong ws-num" style={{ fontSize: 32 }}>{price ? price.toFixed(2) : '—'}</span>
+              <span className={`ws-num ${up ? 'ws-pos' : 'ws-neg'}`} style={{ fontSize: 18 }}>{chgAbs != null ? `${up ? '▲' : '▼'} ${chgAbs >= 0 ? '+' : ''}${chgAbs.toFixed(2)}  (${chgPct >= 0 ? '+' : ''}${(chgPct || 0).toFixed(2)}%)` : ''}</span>
+            </div>
+            <div className="st-meta">
+              <div><span>Market Cap</span><b>{mcap}</b></div>
+              <div><span>Sector</span><b>{sector}</b></div>
+              <div><span>Country</span><b>{asset.row?.country || 'USA'}</b></div>
+              <div><span>Exchange</span><b>{exchange}</b></div>
+            </div>
+          </div>
+          <button className="ws-btn ws-btn-ghost" onClick={() => onAlert(asset)}><Bell size={16} /> Add Alert</button>
+        </div>
+        <div className="ws-pills ws-mt-16" style={{ marginBottom: 10 }}>{DETAIL_RANGES.map(([l]) => <button key={l} className={`ws-pill ws-pill-plain ws-pill-sm ${rangeLabel === l ? 'active' : ''}`} onClick={() => setRangeLabel(l)}>{l}</button>)}</div>
+        <CandleChart candles={candles} loading={loading} height={250} />
+      </div>
+    </div>
+  )
+}
+
+/* ── Page ───────────────────────────────────────────────────────────────── */
+const SORTS = [['market_cap', 'Market Cap (High to Low)'], ['price', 'Price (High to Low)'], ['today', '24h Change'], ['name', 'Name (A–Z)']]
+
 export default function StocksPage() {
   const [rankingData, setRankingData] = useState([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
-  const [modalAsset, setModalAsset] = useState(null)
-  const [debugError, setDebugError] = useState(null)
-  const [sortKey, setSortKey] = useState('rank')
-  const [sortDir, setSortDir] = useState(1)
-  const [currentPage, setCurrentPage] = useState(1)
-  const rowsPerPage = 100
-
-  const handleSort = (key) => {
-    setSortKey(prev => {
-      if (prev === key) { setSortDir(d => -d); return key }
-      setSortDir(key === 'rank' ? 1 : -1)
-      return key
-    })
-  }
+  const [sortKey, setSortKey] = useState('market_cap')
+  const [selected, setSelected] = useState(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     let mounted = true
@@ -891,183 +546,86 @@ export default function StocksPage() {
       try {
         const res = await fetch(`${API_BASE}/api/stocks/assets_ranking?_t=${Date.now()}`)
         const json = await res.json()
-        if (mounted && json.status === 'ok') {
-          setRankingData(json.data)
-          if (json.data.length === 0) setDebugError('Backend returned empty data array.')
-        } else if (mounted) {
-          setDebugError('Backend returned status: ' + json.status)
-        }
-      } catch (err) {
-        console.warn('Ranking fetch failed', err)
-        if (mounted) setDebugError(err.toString())
-      } finally {
-        if (mounted) setLoading(false)
-      }
+        if (mounted && json.status === 'ok') { setRankingData(json.data || []); setError(json.data?.length ? null : 'No ranking data available.') }
+        else if (mounted) setError('Ranking unavailable (' + json.status + ')')
+      } catch (err) { if (mounted) setError(String(err)) }
+      finally { if (mounted) setLoading(false) }
     }
-    fetchRanking()
-    const id = setInterval(fetchRanking, 60_000)
+    fetchRanking(); const id = setInterval(fetchRanking, 60_000)
     return () => { mounted = false; clearInterval(id) }
   }, [])
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let filtered = rankingData
-    if (q) {
-      filtered = rankingData.filter(r =>
-        (r.name && r.name.toLowerCase().includes(q)) ||
-        (r.code && r.code.toLowerCase().includes(q))
-      )
-    }
-    return [...filtered].sort((a, b) => {
+    const list = rankingData.filter(r => !q || (r.name || '').toLowerCase().includes(q) || (r.code || '').toLowerCase().includes(q))
+    const dir = sortKey === 'name' ? 1 : -1
+    return [...list].sort((a, b) => {
       let va, vb
-      switch (sortKey) {
-        case 'rank':       va = parseInt(a.rank) || 0;   vb = parseInt(b.rank) || 0;   break
-        case 'name':       va = (a.name || '').toLowerCase(); vb = (b.name || '').toLowerCase(); break
-        case 'market_cap': va = parseMktCap(a.market_cap);  vb = parseMktCap(b.market_cap);  break
-        case 'price':      va = parsePrice(a.price);        vb = parsePrice(b.price);        break
-        case 'today':      va = parseToday(a.today);        vb = parseToday(b.today);        break
-        case 'country':    va = (a.country || '').toLowerCase(); vb = (b.country || '').toLowerCase(); break
-        default:           return 0
-      }
-      if (va < vb) return -sortDir
-      if (va > vb) return sortDir
-      return 0
+      if (sortKey === 'market_cap') { va = parseMktCap(a.market_cap); vb = parseMktCap(b.market_cap) }
+      else if (sortKey === 'price') { va = parsePrice(a.price); vb = parsePrice(b.price) }
+      else if (sortKey === 'today') { va = parseToday(a.today) * (a.today_dir === 'down' ? -1 : 1); vb = parseToday(b.today) * (b.today_dir === 'down' ? -1 : 1) }
+      else { va = (a.name || '').toLowerCase(); vb = (b.name || '').toLowerCase() }
+      return va < vb ? -dir : va > vb ? dir : 0
     })
-  }, [query, rankingData, sortKey, sortDir])
+  }, [query, rankingData, sortKey])
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage))
-  const currentRows = useMemo(() => {
-    const start = (currentPage - 1) * rowsPerPage
-    return rows.slice(start, start + rowsPerPage)
-  }, [rows, currentPage, rowsPerPage])
-
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [query, sortKey])
-
-  const quickTrade = (symbol, e) => {
-    e.stopPropagation()
-    sessionStorage.setItem('tt_trade_symbol', symbol.replace(/USDT$/, ''))
-    sessionStorage.setItem('tt_terminal_prefill_cmd', `long ${symbol} 10000 5`)
-    sessionStorage.setItem('tt_terminal_autosend', '0')
-    window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'terminal' } }))
+  const toAsset = row => {
+    let tradeSymbol = ASSET_TO_TERMINAL_MAP[row.code]
+    if (!tradeSymbol && STOCK_UNIVERSE.find(x => x.ticker === row.code)) tradeSymbol = row.code + 'USDT'
+    return { code: row.code, name: row.name, tradeSymbol: tradeSymbol || null, row, category: getAssetCategory(row.code, row.name) }
   }
+  const current = selected || (rankingData.length ? toAsset(rankingData.find(r => r.code === 'AAPL') || rankingData[0]) : null)
 
-  const openModal = (row, tradeSymbol, category) => {
-    if (!row?.code) return
-    setModalAsset({
-      code: row.code,
-      name: row.name,
-      tradeSymbol: tradeSymbol || null,
-      row,
-      category,
-    })
+  const addAlert = asset => {
+    if (asset.tradeSymbol && getAssetCategory(asset.code, asset.name) === 'crypto') { try { sessionStorage.setItem('ca_prefill_coin', asset.code) } catch { /* blocked */ } }
+    window.dispatchEvent(new CustomEvent('tt-navigate', { detail: { page: 'custom-alerts' } }))
   }
 
   return (
-    <div className="stx2-page">
-
-      {/* Header */}
-      <div className="stx2-page-header">
-        <div>
-          <div className="stx2-page-title">Top Assets by Market Cap</div>
-          <div className="stx2-page-subtitle">
-            <span className="stx2-pill stx2-pill-stock">Stocks</span>
-            <span className="stx2-pill stx2-pill-crypto">Crypto</span>
-            <span className="stx2-pill stx2-pill-metal">Metals</span>
-            <span className="stx2-pill stx2-pill-etf">ETFs</span>
-          </div>
-        </div>
-        <div className="stx2-search-wrap">
-          <span className="stx2-search-icon">⌕</span>
-          <input className="stx2-search" placeholder="Search assets…" value={query} onChange={e => setQuery(e.target.value)} />
-          {query && <button className="stx2-search-clr" onClick={() => setQuery('')}>×</button>}
+    <div className="ws-page">
+      <div className="ws-page-head">
+        <div className="ws-page-head-left"><h1 className="ws-title">Stocks</h1></div>
+        <div className="ws-page-head-right">
+          <div className="ws-search" style={{ width: 400 }}><Search size={15} /><input className="ws-input ws-input-lg" placeholder="Search symbols, e.g. AAPL, MSFT..." value={query} onChange={e => setQuery(e.target.value)} /></div>
+          <span className="ws-meta-stamp">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} <span>|</span> {new Date().toTimeString().slice(0, 8)} (ET)</span>
         </div>
       </div>
 
-      {modalAsset && <div className="ct-stock-detail"><StocksDetailModal asset={modalAsset} onClose={() => setModalAsset(null)} /></div>}
+      <IndexCards />
+      {current && <AssetDetail asset={current} onAlert={addAlert} />}
 
-      {/* Table */}
-      <div className="stx2-table-wrap">
-        {debugError && <div className="stx2-error">{debugError}</div>}
-        {loading && rankingData.length === 0 ? (
-          <div className="stx2-loading">Loading…</div>
-        ) : (
-          <table className="stx2-table">
-            <thead>
-              <tr>
-                {[
-                  { key: 'rank',       label: '#' },
-                  { key: 'name',       label: 'Name' },
-                  { key: 'market_cap', label: 'Market Cap' },
-                  { key: 'price',      label: 'Price' },
-                  { key: 'today',      label: '24h' },
-                  { key: 'country',    label: 'Country' },
-                ].map(col => (
-                  <th key={col.key} className={`stx2-th${col.key === 'rank' ? ' stx2-th-rank' : ''}`}
-                    onClick={() => handleSort(col.key)} style={{ color: workspaceTextColor(sortKey === col.key ? "var(--ct-ink, #fff)" : undefined) }}>
-                    {col.label}
-                    <span className="stx2-sort-icon">{sortKey !== col.key ? '↕' : sortDir > 0 ? '↑' : '↓'}</span>
-                  </th>
-                ))}
-                <th className="stx2-th stx2-th-action">Action</th>
-              </tr>
-            </thead>
+      <div className="ws-card ws-mt-16">
+        <div className="ws-card-head">
+          <h3 className="ws-h3">Top Stocks</h3>
+          <div className="ws-inline-select" style={{ minWidth: 220 }}>{SORTS.find(s => s[0] === sortKey)[1]}<ChevronDown size={14} />
+            <select value={sortKey} onChange={e => setSortKey(e.target.value)}>{SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          </div>
+        </div>
+        <div className="ws-table-wrap">
+          <table className="ws-table ws-table-tall st-table">
+            <thead><tr><th>#</th><th>Name</th><th className="ws-right">Market Cap</th><th className="ws-right">Price</th><th className="ws-right">24h</th><th>Country</th><th className="ws-right">Action</th></tr></thead>
             <tbody>
-              {currentRows.map(r => {
-                let tradeSymbol = ASSET_TO_TERMINAL_MAP[r.code]
-                if (!tradeSymbol && STOCK_UNIVERSE.find(x => x.ticker === r.code)) tradeSymbol = r.code + 'USDT'
-                const category = getAssetCategory(r.code, r.name)
-                const isUp   = r.today_dir === 'up'
-                const isDown = r.today_dir === 'down'
+              {loading && rankingData.length === 0 ? <tr><td colSpan={7}><div className="ws-loading"><span className="ws-spinner" /> Loading…</div></td></tr>
+              : rows.length === 0 ? <tr><td colSpan={7}><div className="ws-empty"><div className="ws-empty-title">{error || 'No assets match.'}</div></div></td></tr>
+              : rows.slice(0, 100).map((r, i) => {
+                const a = toAsset(r)
+                const up = r.today_dir === 'up', down = r.today_dir === 'down'
                 return (
-                  <tr key={`${r.rank}-${r.code}`} className={`stx2-row stx2-cat-${category}`}
-                    onClick={() => openModal(r, tradeSymbol, category)}>
-                    <td className="stx2-td stx2-td-rank">{r.rank}</td>
-                    <td className="stx2-td stx2-td-name">
-                      <StockLogo ticker={r.code} cmcIcon={r.icon} size={28} />
-                      <div className="stx2-name-block">
-                        <span className="stx2-name">{r.name}</span>
-                        <span className="stx2-code">{r.code}</span>
-                      </div>
-                    </td>
-                    <td className="stx2-td stx2-td-num">{r.market_cap}</td>
-                    <td className="stx2-td stx2-td-price">{r.price}</td>
-                    <td className="stx2-td">
-                      <span className={`stx2-chg-badge${isUp ? ' up' : isDown ? ' dn' : ''}`}>
-                        {isUp ? '+' : ''}{r.today}
-                      </span>
-                    </td>
-                    <td className="stx2-td stx2-td-country">{r.country}</td>
-                    <td className="stx2-td stx2-td-action">
-                      {tradeSymbol
-                        ? <button className="mk-trade-btn" onClick={e => quickTrade(tradeSymbol, e)}>Trade</button>
-                        : null}
-                    </td>
+                  <tr key={`${r.rank}-${r.code}`} className={`ws-table-click ${current?.code === r.code ? 'lsr-row-active' : ''}`} onClick={() => setSelected(a)}>
+                    <td className="ws-muted">{i + 1}</td>
+                    <td><div className="ws-asset"><span className="ws-asset-logo" style={{ background: 'transparent' }}>{a.category === 'crypto' ? <AssetLogo symbol={r.code} type="crypto" size={28} radius={14} /> : <StockLogo ticker={r.code} cmcIcon={r.icon} size={26} />}</span><span className="ws-asset-sym">{r.code}</span><span className="ws-asset-name" style={{ fontSize: 13 }}>{r.name}</span></div></td>
+                    <td className="ws-right ws-num ws-ink">{r.market_cap}</td>
+                    <td className="ws-right ws-num ws-ink">{String(r.price || '').replace(/^\$/, '')}</td>
+                    <td className={`ws-right ws-num ${up ? 'ws-pos' : down ? 'ws-neg' : 'ws-text'}`}>{up ? '+' : down ? '-' : ''}{String(r.today || '').replace(/^[+-]/, '')}</td>
+                    <td className="ws-text">{r.country || '—'}</td>
+                    <td className="ws-right"><button className="ws-iconbtn" title="Add alert" onClick={e => { e.stopPropagation(); addAlert(a) }}><Bell size={17} /></button></td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
-        )}
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && !loading && (
-        <div className="stx2-pagination">
-          <button className="stx2-pag-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>‹</button>
-          {Array.from({ length: totalPages }).map((_, i) => {
-            const p = i + 1
-            if (totalPages > 7 && Math.abs(p - currentPage) > 2 && p !== 1 && p !== totalPages) {
-              if (p === 2 || p === totalPages - 1) return <span key={p} className="stx2-pag-dot">…</span>
-              return null
-            }
-            return <button key={p} className={`stx2-pag-btn${currentPage === p ? ' active' : ''}`} onClick={() => setCurrentPage(p)}>{p}</button>
-          })}
-          <button className="stx2-pag-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>›</button>
         </div>
-      )}
-
+      </div>
     </div>
   )
 }
