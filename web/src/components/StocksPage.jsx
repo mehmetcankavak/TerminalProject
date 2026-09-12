@@ -1,5 +1,7 @@
+import { workspaceTextColor } from '../utils/workspaceTheme'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CrosshairMode, CandlestickSeries, HistogramSeries } from 'lightweight-charts'
+import { workspaceChartOptions } from '../utils/workspaceTheme'
 import { API_BASE } from '../config'
 
 const STOCK_UNIVERSE = [
@@ -370,6 +372,7 @@ function CandleChart({ candles = [], loading = false, alertLines = [] }) {
       handleScale: true,
     })
 
+    chart.applyOptions(workspaceChartOptions(containerRef.current))
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#00d992',
       downColor: '#ff3b5c',
@@ -495,8 +498,8 @@ function TradingViewEmbed({ asset, rangeId }) {
     hidesidetoolbar: '1',
     symboledit: '1',
     saveimage: '0',
-    toolbarbg: '000000',
-    theme: 'dark',
+    toolbarbg: 'ffffff',
+    theme: 'light',
     style: '1',
     timezone: 'Etc/UTC',
     withdateranges: '1',
@@ -705,7 +708,7 @@ function StocksDetailModal({ asset, onClose }) {
             {selectedTicker.price > 0 && (
               <div style={{marginLeft:'8px'}}>
                 <div style={{fontSize:'18px', fontWeight:'600', color:'var(--text-0)', fontFamily:'var(--font-mono)'}}>{fmtUsd(selectedTicker.price)}</div>
-                <div style={{fontSize:'11px', fontFamily:'var(--font-mono)', color: selectedUp ? 'var(--accent)' : 'var(--danger)'}}>{fmtPct(selectedTicker.chg)}</div>
+                <div style={{fontSize:'11px', fontFamily:'var(--font-mono)', color: workspaceTextColor(selectedUp ? 'var(--accent)' : 'var(--danger)')}}>{fmtPct(selectedTicker.chg)}</div>
               </div>
             )}
           </div>
@@ -812,7 +815,7 @@ function StocksDetailModal({ asset, onClose }) {
                 </div>
                 <div className="stx-stat-item">
                   <span>Today</span>
-                  <strong style={{color: selectedUp ? 'var(--accent)' : 'var(--danger)'}}>{rowAsset.today || fmtPct(selectedTicker.chg)}</strong>
+                  <strong style={{color: workspaceTextColor(selectedUp ? 'var(--accent)' : 'var(--danger)')}}>{rowAsset.today || fmtPct(selectedTicker.chg)}</strong>
                 </div>
                 <div className="stx-stat-item">
                   <span>Market Cap</span>
@@ -982,6 +985,8 @@ export default function StocksPage() {
         </div>
       </div>
 
+      {modalAsset && <div className="ct-stock-detail"><StocksDetailModal asset={modalAsset} onClose={() => setModalAsset(null)} /></div>}
+
       {/* Table */}
       <div className="stx2-table-wrap">
         {debugError && <div className="stx2-error">{debugError}</div>}
@@ -1000,7 +1005,7 @@ export default function StocksPage() {
                   { key: 'country',    label: 'Country' },
                 ].map(col => (
                   <th key={col.key} className={`stx2-th${col.key === 'rank' ? ' stx2-th-rank' : ''}`}
-                    onClick={() => handleSort(col.key)} style={{ color: sortKey === col.key ? '#fff' : undefined }}>
+                    onClick={() => handleSort(col.key)} style={{ color: workspaceTextColor(sortKey === col.key ? "var(--ct-ink, #fff)" : undefined) }}>
                     {col.label}
                     <span className="stx2-sort-icon">{sortKey !== col.key ? '↕' : sortDir > 0 ? '↑' : '↓'}</span>
                   </th>
@@ -1063,7 +1068,6 @@ export default function StocksPage() {
         </div>
       )}
 
-      {modalAsset && <StocksDetailModal asset={modalAsset} onClose={() => setModalAsset(null)} />}
     </div>
   )
 }
